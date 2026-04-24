@@ -1,4 +1,5 @@
 import { supabase } from './core/supabase.js';
+import { goPage } from './core/router.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;
@@ -36,8 +37,9 @@ function showApp() {
 async function initApp(session) {
   console.log('[initApp] logado como', session.user.email);
   showApp();
+  goPage('dashboard');
 
-  const statusEl = document.getElementById('status');
+  // Ping de sanity da conexão — inofensivo, detecta regressão cedo.
   try {
     const { data, error } = await supabase
       .from('teste')
@@ -46,12 +48,12 @@ async function initApp(session) {
       .single();
 
     if (error) {
-      statusEl.textContent = 'Erro: ' + error.message;
+      console.warn('[initApp] erro na query teste:', error.message);
     } else {
-      statusEl.textContent = 'Banco: ' + data.msg;
+      console.log('[initApp] conexão ok:', data.msg);
     }
   } catch (err) {
-    statusEl.textContent = 'Erro: ' + err.message;
+    console.warn('[initApp] erro:', err.message);
   }
 }
 
@@ -101,7 +103,7 @@ async function signOut() {
 }
 
 // ============================================================
-// NAVEGAÇÃO — sidebar/drawer + roteamento placeholder
+// NAVEGAÇÃO — sidebar/drawer (goPage vem do router.js)
 // ============================================================
 
 function toggleSidebar() {
@@ -109,13 +111,6 @@ function toggleSidebar() {
   const backdrop = document.getElementById('sidebar-backdrop');
   sidebar.classList.toggle('open');
   backdrop.classList.toggle('open');
-}
-
-function goToPage(page) {
-  // Navegação real é Tarefa 1.7 — por enquanto só feedback do clique.
-  alert('Página: ' + page);
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-backdrop').classList.remove('open');
 }
 
 // ============================================================
@@ -128,4 +123,4 @@ window.signOut = signOut;
 
 // NAVEGAÇÃO
 window.toggleSidebar = toggleSidebar;
-window.goToPage = goToPage;
+window.goPage = goPage;

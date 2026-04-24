@@ -242,7 +242,7 @@ window.signOut = signOut;
 
 // NAVEGAÇÃO
 window.toggleSidebar = toggleSidebar;
-window.goToPage = goToPage;
+window.goPage = goPage;
 ```
 
 ---

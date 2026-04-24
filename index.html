@@ -463,11 +463,40 @@
     #page-container {
       flex: 1;
       padding: var(--space-6);
+      overflow-y: auto;
+    }
+
+    .page {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
-      align-items: center;
-      justify-content: center;
+    }
+
+    .page[hidden] {
+      /* Garante que [hidden] vence o .page { display: flex } por especificidade */
+      display: none;
+    }
+
+    .page h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .page-placeholder {
+      margin: 0;
+      padding: var(--space-6);
+      background: var(--bg-secondary);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-lg);
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.6;
+      text-align: center;
     }
 
     /* ---------- DESKTOP (>= 768px): sidebar fixa, sem drawer ---------- */
@@ -560,14 +589,14 @@
         <button id="sidebar-close" type="button" onclick="toggleSidebar()" aria-label="Fechar menu">✕</button>
       </div>
       <nav class="sidebar-nav">
-        <button class="nav-item" type="button" onclick="goToPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('chat')"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">Chat</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('tasks')"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Tarefas</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('agenda')"><span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Agenda</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('docs')"><span class="nav-icon" aria-hidden="true">📁</span><span class="nav-label">Documentos</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('cedtec')"><span class="nav-icon" aria-hidden="true">🎓</span><span class="nav-label">CEDTEC</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('sitio')"><span class="nav-icon" aria-hidden="true">🌱</span><span class="nav-label">Sítio</span></button>
-        <button class="nav-item" type="button" onclick="goToPage('config')"><span class="nav-icon" aria-hidden="true">⚙️</span><span class="nav-label">Configurações</span></button>
+        <button class="nav-item" type="button" data-page="dashboard" onclick="goPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
+        <button class="nav-item" type="button" data-page="chat" onclick="goPage('chat')"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">Chat</span></button>
+        <button class="nav-item" type="button" data-page="tasks" onclick="goPage('tasks')"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Tarefas</span></button>
+        <button class="nav-item" type="button" data-page="agenda" onclick="goPage('agenda')"><span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Agenda</span></button>
+        <button class="nav-item" type="button" data-page="docs" onclick="goPage('docs')"><span class="nav-icon" aria-hidden="true">📁</span><span class="nav-label">Documentos</span></button>
+        <button class="nav-item" type="button" data-page="cedtec" onclick="goPage('cedtec')"><span class="nav-icon" aria-hidden="true">🎓</span><span class="nav-label">CEDTEC</span></button>
+        <button class="nav-item" type="button" data-page="sitio" onclick="goPage('sitio')"><span class="nav-icon" aria-hidden="true">🌱</span><span class="nav-label">Sítio</span></button>
+        <button class="nav-item" type="button" data-page="config" onclick="goPage('config')"><span class="nav-icon" aria-hidden="true">⚙️</span><span class="nav-label">Configurações</span></button>
       </nav>
       <div class="sidebar-footer">
         <button id="logout-btn" type="button" onclick="signOut()">Sair</button>
@@ -582,8 +611,45 @@
         <h2 id="page-title">Dashboard</h2>
       </header>
       <div id="page-container">
-        <h1>Hello World · Assistente</h1>
-        <div id="status">Conectando...</div>
+        <section class="page" id="page-dashboard">
+          <h1>Dashboard</h1>
+          <p class="page-placeholder">Aqui vai aparecer o resumo do seu dia. Em breve.</p>
+        </section>
+
+        <section class="page" id="page-chat" hidden>
+          <h1>Chat</h1>
+          <p class="page-placeholder">Aqui vai aparecer o chat com os agentes (Marcos, Bruno, Marcela, Alemão). Em breve.</p>
+        </section>
+
+        <section class="page" id="page-tasks" hidden>
+          <h1>Tarefas</h1>
+          <p class="page-placeholder">Aqui vão aparecer suas tarefas em formato kanban. Em breve.</p>
+        </section>
+
+        <section class="page" id="page-agenda" hidden>
+          <h1>Agenda</h1>
+          <p class="page-placeholder">Aqui vai aparecer sua agenda. Em breve.</p>
+        </section>
+
+        <section class="page" id="page-docs" hidden>
+          <h1>Documentos</h1>
+          <p class="page-placeholder">Aqui vão aparecer seus documentos organizados por pastas. Em breve.</p>
+        </section>
+
+        <section class="page" id="page-cedtec" hidden>
+          <h1>CEDTEC</h1>
+          <p class="page-placeholder">Aqui vai aparecer o painel do CEDTEC — Meta Ads, leads, funil. Em breve.</p>
+        </section>
+
+        <section class="page" id="page-sitio" hidden>
+          <h1>Sítio</h1>
+          <p class="page-placeholder">Aqui vai aparecer o controle financeiro do Sítio Monte da Vitória. Em breve.</p>
+        </section>
+
+        <section class="page" id="page-config" hidden>
+          <h1>Configurações</h1>
+          <p class="page-placeholder">Aqui vão aparecer suas preferências. Em breve.</p>
+        </section>
       </div>
     </main>
   </div>
