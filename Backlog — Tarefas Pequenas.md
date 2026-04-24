@@ -164,14 +164,24 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.5 — `onAuthStateChange` + troca de tela
+### ✅ Tarefa 1.5 — `onAuthStateChange` + troca de tela
+
+**Status:** Concluída em 2026-04-24 (preview aprovado, ciclo completo testado em aba normal e privada). **Marca o fim da fase de autenticação.**
 
 **Objetivo:** Após login, a tela de login some e aparece uma tela vazia de "app".
 
 **Prompt pro Claude Code:**
 > Em `app.js`, implemente o `supabase.auth.onAuthStateChange` com a flag `appInitialized` exatamente como está documentado em `CLAUDE.md` (REGRA 6). Quando logado, esconda `#login-screen` e mostre `#app-screen` (crie esse div vazio no HTML com só o texto "App carregado. Logout"). Crie a função `signOut()` e exponha no window. Adicione um botão de logout no `#app-screen`.
 
-**Critério de aprovação:** Pedro loga, vê "App carregado". Clica em logout, volta pra tela de login. Recarrega a página estando logado — continua logado.
+**Entregável:**
+- `onAuthStateChange` único no top-level com flag `appInitialized` (REGRA 6) ✅
+- `showLogin()` / `showApp()` / `initApp(session)` / `signOut()` ✅
+- `<div id="app-screen">` envolvendo `<h1>` + `<div id="status">` + botão `Sair` ✅
+- CSS do `#app-screen` (full-viewport flex centralizado) e `#logout-btn` (estilo ghost) ✅
+- Window Bridge atualizada com `window.signOut` ✅
+- Sessão persistida (aba normal abre logado), logout volta pra tela de login ✅
+
+**Critério de aprovação:** Pedro loga, vê "App carregado". Clica em logout, volta pra tela de login. Recarrega a página estando logado — continua logado. ✅
 
 ---
 
