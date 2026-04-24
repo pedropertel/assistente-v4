@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Assistente</title>
 
   <style>
@@ -144,7 +144,7 @@
       inset: 0;
       z-index: 1000;
       background: var(--bg-primary);
-      padding: var(--space-6);
+      padding: max(var(--space-6), env(safe-area-inset-top)) var(--space-6) max(var(--space-6), env(safe-area-inset-bottom)) var(--space-6);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -264,7 +264,7 @@
        ============================================================ */
 
     #app-screen {
-      min-height: 100vh;
+      min-height: 100dvh;
       padding: 0;
       display: block;
     }
@@ -407,6 +407,7 @@
 
     .sidebar-footer {
       padding-top: var(--space-4);
+      padding-bottom: env(safe-area-inset-bottom);
       border-top: 1px solid var(--border);
     }
 
@@ -417,7 +418,7 @@
     /* ---------- MAIN CONTENT ---------- */
 
     #main-content {
-      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
     }
@@ -429,7 +430,7 @@
       display: flex;
       align-items: center;
       gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
+      padding: calc(var(--space-3) + env(safe-area-inset-top)) var(--space-4) var(--space-3) var(--space-4);
       background: var(--bg-primary);
       border-bottom: 1px solid var(--border);
     }
@@ -475,7 +476,7 @@
       #app-screen {
         display: flex !important;
         flex-direction: row;
-        min-height: 100vh;
+        min-height: 100dvh;
       }
 
       #sidebar {
@@ -499,7 +500,7 @@
       }
 
       #app-header {
-        padding: var(--space-4) var(--space-6);
+        padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--space-6) var(--space-4) var(--space-6);
       }
     }
 
