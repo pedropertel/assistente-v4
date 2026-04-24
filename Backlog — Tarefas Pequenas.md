@@ -143,14 +143,24 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.4 — Lógica de login com window bridge
+### ✅ Tarefa 1.4 — Lógica de login com window bridge
+
+**Status:** Concluída em 2026-04-24 (preview aprovado e mergeada pra `main` na mesma sessão).
 
 **Objetivo:** Clicar em "Entrar" efetua login no Supabase.
 
 **Prompt pro Claude Code:**
 > Em `app.js`, crie a função `signIn()` que lê os campos email/senha e chama `supabase.auth.signInWithPassword`. Se der erro, mostre em um `<div>` de erro na tela. Exponha `window.signIn = signIn`. No botão "Entrar" do HTML, adicione `onclick="signIn()"`. NÃO implemente ainda a tela de app pós-login nem `onAuthStateChange`. Só isso.
 
-**Critério de aprovação:** Pedro digita email/senha errados e vê a mensagem de erro. Digita certo e não dá erro (ainda não tem tela depois, é esperado).
+**Entregável:**
+- `signIn()` async em `app.js` com validação de vazio + chamada `signInWithPassword` + tradução de erros ✅
+- `traduzErroLogin(error)` (3 mensagens conhecidas + fallback) ✅
+- `window.signIn = signIn` exposto, seção Window Bridge inicializada ✅
+- `onclick="signIn()"` no botão + `onkeydown` Enter nos 2 inputs ✅
+- `CLAUDE.md` Window Bridge atualizado com primeiro bloco `// AUTH` ✅
+- Login real validado: console mostrou `login ok` + `{user, session}` ✅
+
+**Critério de aprovação:** Pedro digita email/senha errados e vê a mensagem de erro. Digita certo e não dá erro (ainda não tem tela depois, é esperado). ✅
 
 ---
 
