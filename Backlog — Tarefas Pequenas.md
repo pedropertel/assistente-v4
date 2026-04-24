@@ -82,14 +82,23 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ## Fase 1 — Fundação
 
-### 🔴 Tarefa 1.1 — Estrutura de pastas e design system (CSS variables)
+### ✅ Tarefa 1.1 — Estrutura de pastas e design system (CSS variables)
+
+**Status:** Concluída em 2026-04-24 (preview aprovado e mergeada pra `main` na mesma sessão).
 
 **Objetivo:** Ter o `index.html` com CSS variables do design system (cores, espaçamentos, tipografia) e o toggle dark/light funcionando. Ainda sem conteúdo real.
 
 **Prompt pro Claude Code:**
 > Na dev, crie no `index.html` todo o bloco `<style>` com as CSS variables do design system (cores primária, de fundo, de texto, bordas, espaçamentos, raios, sombras, transições) tanto pra tema escuro (default) quanto claro (`html.light`). Crie um botão flutuante que alterna o tema e persiste em `localStorage('assistente-theme')`. Nada mais. Sem sidebar, sem menu. Só um fundo com a cor certa e o botão de tema.
 
-**Critério de aprovação:** Pedro abre o preview, vê fundo escuro, clica no botão, vira claro, recarrega a página e o tema escolhido continua.
+**Entregável:**
+- CSS variables (bg/text 3 níveis, accent, border, success/warning/danger, raios, espaçamentos, sombras, transição) ✅
+- Tema dark default no `:root`, light em `html.light` (sobrescreve só o que muda) ✅
+- Botão `#theme-toggle` flutuante 44×44px, top-right ✅
+- Bootstrap anti-FOUC inline no `<head>` ✅
+- Persistência em `localStorage('assistente-theme')` ✅
+
+**Critério de aprovação:** Pedro abre o preview, vê fundo escuro, clica no botão, vira claro, recarrega a página e o tema escolhido continua. ✅
 
 ---
 
