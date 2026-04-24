@@ -185,14 +185,25 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.6 — Sidebar/drawer mobile
+### ✅ Tarefa 1.6 — Sidebar/drawer mobile
+
+**Status:** Concluída em 2026-04-24 (preview aprovado e mergeada pra `main` na mesma sessão).
 
 **Objetivo:** Sidebar que em desktop fica fixa à esquerda e em mobile é um drawer aberto por botão.
 
 **Prompt pro Claude Code:**
 > No `#app-screen`, crie a sidebar com os 8 itens de menu (Dashboard, Tarefas, Agenda, Documentos, Chat, Sítio, CEDTEC, Config). Em desktop (>768px) fica fixa à esquerda com 260px. Em mobile, fica escondida e abre com um botão hamburger no header. Por enquanto os itens só mostram um `toast` com o nome ao clicar. Expor `toggleSidebar` no window.
 
-**Critério de aprovação:** Pedro testa no celular: abre o drawer, clica em "Tarefas", vê o toast "Tarefas", drawer fecha. Funciona também no desktop.
+**Entregável:**
+- `#app-screen` reorganizado em layout 2-colunas (sidebar + main) ✅
+- `<aside id="sidebar">` com header (logo "A" + título + X), nav (8 itens com ícones), footer (Sair) ✅
+- Drawer mobile com `transform` + backdrop escuro; clique no item fecha drawer ✅
+- Desktop (≥ 768px): sidebar sticky 260px, hamburger/X/backdrop escondidos ✅
+- `#app-header` sticky com hamburger ☰ + `#page-title` ✅
+- `toggleSidebar()`, `goToPage(page)` (placeholder com alert) em `app.js`; `window.toggleSidebar`, `window.goToPage` expostos ✅
+- Botão de tema (z-index 1001) continua acima de tudo ✅
+
+**Critério de aprovação:** Pedro testa no celular: abre o drawer, clica em "Tarefas", vê o toast "Tarefas", drawer fecha. Funciona também no desktop. ✅ *(Validado via Responsive Design Mode do Safari Mac — ainda não no celular físico; goToPage usa `alert()` em vez de toast, que entra na Tarefa 1.8)*
 
 ---
 
