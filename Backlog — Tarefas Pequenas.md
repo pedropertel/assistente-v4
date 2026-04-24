@@ -39,20 +39,22 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ## Fase 0 — Setup (fundação infra)
 
-### 🔴 Tarefa 0.1 — Criar repositório, branches e Vercel
+### ✅ Tarefa 0.1 — Criar repositório, branches e Vercel
+
+**Status:** Concluída em 2026-04-24 (preview aprovado · merge pra `main` pendente pra próxima sessão).
 
 **Objetivo:** Ter o ambiente `main` (produção) + `dev` (teste) funcionando com preview automático.
 
 **Prompt pro Claude Code:** *ver [[PRIMEIRO PROMPT]]*
 
 **Entregável:**
-- Repo novo no GitHub (nome a decidir com Pedro)
-- Branches `main` e `dev` criadas
-- Projeto no Vercel apontando pro repo
-- Página "Hello World" rodando tanto em produção quanto no preview da dev
-- URLs preenchidas no [[CLAUDE.md]]
+- Repo novo no GitHub (nome a decidir com Pedro) → `pedropertel/assistente-v4`
+- Branches `main` e `dev` criadas ✅
+- Projeto no Vercel apontando pro repo ✅
+- Página "Hello World" rodando tanto em produção quanto no preview da dev ✅
+- URLs preenchidas no [[CLAUDE.md]] ✅
 
-**Critério de aprovação:** Pedro abre as 2 URLs no celular e ambas mostram "Hello World · Assistente".
+**Critério de aprovação:** Pedro abre as 2 URLs no celular e ambas mostram "Hello World · Assistente". ✅
 
 ---
 
