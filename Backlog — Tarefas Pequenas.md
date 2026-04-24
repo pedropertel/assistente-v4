@@ -207,6 +207,24 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
+### ✅ Tarefa 1.6.5 — Safe-area e 100dvh para iPhone 15 Pro Max
+
+**Status:** Concluída em 2026-04-24 (inserida fora da sequência original do backlog, entre 1.6 e 1.7). Preview aprovado e mergeada pra `main` na mesma sessão.
+
+**Objetivo:** Eliminar três problemas antes que apareçam no iPhone real: (1) conteúdo atrás da Dynamic Island, (2) conteúdo atrás da barra de gestos iOS, (3) teclado virtual cobrindo inputs (trocar `100vh` por `100dvh`). Alvo único declarado: iPhone 15 Pro Max com Safari 17+ — sem fallback.
+
+**Entregável:**
+- `<meta viewport>` com `viewport-fit=cover` ✅
+- `#login-screen` padding com `max(var(--space-6), env(safe-area-inset-*))` no topo e base ✅
+- `#app-header` padding topo com `calc(var(--space-N) + env(safe-area-inset-top))` nos dois breakpoints ✅
+- `.sidebar-footer` com `padding-bottom: env(safe-area-inset-bottom)` ✅
+- `100vh → 100dvh` em `#app-screen` (mobile+desktop) e `#main-content` ✅
+- `#sidebar` desktop mantido em `100vh` (decisão consciente registrada no Dev Log) ✅
+
+**Critério de aprovação:** PC inalterado visualmente; simulador iPhone 15 Pro Max com hamburger abaixo da Dynamic Island, header com padding correto, botão Sair acima da barra de gestos quando drawer aberto. ✅
+
+---
+
 ### 🔴 Tarefa 1.7 — Sistema de rotas (router.js)
 
 **Objetivo:** Navegar entre páginas vazias.
