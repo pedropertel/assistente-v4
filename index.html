@@ -260,16 +260,247 @@
 
     /* ============================================================
        APP SCREEN — tela pós-login
+       Layout: sidebar (drawer mobile, fixa desktop) + main content
        ============================================================ */
 
     #app-screen {
       min-height: 100vh;
+      padding: 0;
+      display: block;
+    }
+
+    /* ---------- SIDEBAR (drawer em mobile) ---------- */
+
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      max-width: 85vw;
+      padding: var(--space-4);
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform var(--transition);
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    #sidebar.open {
+      transform: translateX(0);
+    }
+
+    #sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 99;
+      background: rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition);
+    }
+
+    #sidebar-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding-bottom: var(--space-4);
+      margin-bottom: var(--space-4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      border-radius: var(--radius-md);
+      background: var(--accent);
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .sidebar-title {
+      flex: 1;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    #sidebar-close {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-size: 18px;
+      font-family: inherit;
+      cursor: pointer;
+      transition:
+        background var(--transition),
+        color var(--transition);
+    }
+
+    #sidebar-close:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      min-height: 44px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 15px;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition:
+        background var(--transition),
+        color var(--transition);
+    }
+
+    .nav-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .nav-item.active {
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+
+    .nav-icon {
+      width: 24px;
+      font-size: 20px;
+      text-align: center;
+    }
+
+    .nav-label {
+      flex: 1;
+    }
+
+    .sidebar-footer {
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border);
+    }
+
+    .sidebar-footer #logout-btn {
+      width: 100%;
+    }
+
+    /* ---------- MAIN CONTENT ---------- */
+
+    #main-content {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #app-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #sidebar-toggle {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 22px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    #sidebar-toggle:hover {
+      background: var(--bg-tertiary);
+    }
+
+    #page-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    #page-container {
+      flex: 1;
       padding: var(--space-6);
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
       align-items: center;
       justify-content: center;
+    }
+
+    /* ---------- DESKTOP (>= 768px): sidebar fixa, sem drawer ---------- */
+
+    @media (min-width: 768px) {
+      #app-screen {
+        display: flex !important;
+        flex-direction: row;
+        min-height: 100vh;
+      }
+
+      #sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        width: 260px;
+        max-width: 260px;
+        transform: translateX(0);
+      }
+
+      #sidebar-close,
+      #sidebar-toggle,
+      #sidebar-backdrop {
+        display: none;
+      }
+
+      #main-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      #app-header {
+        padding: var(--space-4) var(--space-6);
+      }
     }
 
     #logout-btn {
@@ -321,9 +552,39 @@
   </div>
 
   <div id="app-screen" style="display: none;">
-    <h1>Hello World · Assistente</h1>
-    <div id="status">Conectando...</div>
-    <button id="logout-btn" type="button" onclick="signOut()">Sair</button>
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-logo" aria-hidden="true">A</span>
+        <span class="sidebar-title">Assistente</span>
+        <button id="sidebar-close" type="button" onclick="toggleSidebar()" aria-label="Fechar menu">✕</button>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item" type="button" onclick="goToPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('chat')"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">Chat</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('tasks')"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Tarefas</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('agenda')"><span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Agenda</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('docs')"><span class="nav-icon" aria-hidden="true">📁</span><span class="nav-label">Documentos</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('cedtec')"><span class="nav-icon" aria-hidden="true">🎓</span><span class="nav-label">CEDTEC</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('sitio')"><span class="nav-icon" aria-hidden="true">🌱</span><span class="nav-label">Sítio</span></button>
+        <button class="nav-item" type="button" onclick="goToPage('config')"><span class="nav-icon" aria-hidden="true">⚙️</span><span class="nav-label">Configurações</span></button>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="logout-btn" type="button" onclick="signOut()">Sair</button>
+      </div>
+    </aside>
+
+    <div id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+    <main id="main-content">
+      <header id="app-header">
+        <button id="sidebar-toggle" type="button" onclick="toggleSidebar()" aria-label="Abrir menu">☰</button>
+        <h2 id="page-title">Dashboard</h2>
+      </header>
+      <div id="page-container">
+        <h1>Hello World · Assistente</h1>
+        <div id="status">Conectando...</div>
+      </div>
+    </main>
   </div>
 
   <!-- Toggle de tema (handler do botão + sincroniza ícone) -->

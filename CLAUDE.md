@@ -239,6 +239,10 @@ supabase functions deploy [nome-da-funcao] --project-ref [ref-do-projeto]
 // AUTH
 window.signIn = signIn;
 window.signOut = signOut;
+
+// NAVEGAÇÃO
+window.toggleSidebar = toggleSidebar;
+window.goToPage = goToPage;
 ```
 
 ---

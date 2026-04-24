@@ -101,8 +101,31 @@ async function signOut() {
 }
 
 // ============================================================
+// NAVEGAÇÃO — sidebar/drawer + roteamento placeholder
+// ============================================================
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  sidebar.classList.toggle('open');
+  backdrop.classList.toggle('open');
+}
+
+function goToPage(page) {
+  // Navegação real é Tarefa 1.7 — por enquanto só feedback do clique.
+  alert('Página: ' + page);
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('open');
+}
+
+// ============================================================
 // WINDOW BRIDGE — funções chamadas por onclick no HTML (REGRA 4)
 // ============================================================
 
+// AUTH
 window.signIn = signIn;
 window.signOut = signOut;
+
+// NAVEGAÇÃO
+window.toggleSidebar = toggleSidebar;
+window.goToPage = goToPage;
