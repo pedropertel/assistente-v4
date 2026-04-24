@@ -103,6 +103,7 @@
       position: fixed;
       top: var(--space-4);
       right: var(--space-4);
+      z-index: 1001;
       width: 44px;
       height: 44px;
       background: var(--bg-secondary);
@@ -132,6 +133,130 @@
     #theme-toggle:focus-visible {
       border-color: var(--accent);
     }
+
+    /* ============================================================
+       TELA DE LOGIN
+       Overlay full-viewport. Sem lógica ainda (Tarefa 1.4).
+       ============================================================ */
+
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--bg-primary);
+      padding: var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition);
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-xl);
+      padding: var(--space-8);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      text-align: center;
+      transition:
+        background var(--transition),
+        box-shadow var(--transition);
+    }
+
+    .login-logo {
+      font-size: 64px;
+      line-height: 1;
+      margin-bottom: var(--space-2);
+    }
+
+    .login-title {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text-primary);
+    }
+
+    .login-tagline {
+      margin: 0 0 var(--space-2) 0;
+      font-size: 14px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+    }
+
+    #login-email,
+    #login-password {
+      width: 100%;
+      min-height: 48px;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      /* font-size 16px é CRÍTICO: menor que isso o iOS dá zoom no focus */
+      font-size: 16px;
+      font-family: inherit;
+      outline: none;
+      transition:
+        border-color var(--transition),
+        box-shadow var(--transition),
+        background var(--transition),
+        color var(--transition);
+    }
+
+    #login-email::placeholder,
+    #login-password::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    #login-email:focus,
+    #login-password:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91, 106, 240, 0.15);
+    }
+
+    #login-btn {
+      width: 100%;
+      min-height: 48px;
+      margin-top: var(--space-2);
+      background: var(--accent);
+      color: #FFFFFF;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 16px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    #login-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .login-forgot {
+      margin-top: var(--space-2);
+      color: var(--text-secondary);
+      font-size: 14px;
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+
+    .login-forgot:hover {
+      color: var(--accent);
+    }
+
+    #login-error {
+      margin-top: var(--space-2);
+      min-height: 20px;
+      color: var(--danger);
+      font-size: 14px;
+      line-height: 1.4;
+    }
   </style>
 
   <!-- Bootstrap anti-FOUC: aplica a classe light ANTES de pintar -->
@@ -145,6 +270,19 @@
 </head>
 <body>
   <button id="theme-toggle" type="button" aria-label="Alternar tema">☀️</button>
+
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-logo" aria-hidden="true">🧠</div>
+      <h2 class="login-title">Assistente</h2>
+      <p class="login-tagline">Seu sistema operacional pessoal</p>
+      <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="email">
+      <input type="password" id="login-password" placeholder="Senha" autocomplete="current-password">
+      <button id="login-btn" type="button">Entrar</button>
+      <a href="#" class="login-forgot">Esqueci minha senha</a>
+      <div id="login-error"></div>
+    </div>
+  </div>
 
   <h1>Hello World · Assistente</h1>
   <div id="status">Conectando...</div>
