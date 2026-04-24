@@ -4,11 +4,172 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Assistente</title>
+
+  <style>
+    /* ============================================================
+       DESIGN SYSTEM — CSS VARIABLES
+       Tema escuro = default no :root
+       Tema claro  = sobrescreve em html.light
+       ============================================================ */
+
+    :root {
+      /* Backgrounds */
+      --bg-primary:   #0F0F14;
+      --bg-secondary: #1A1A22;
+      --bg-tertiary:  #242430;
+
+      /* Text */
+      --text-primary:   #F5F5F7;
+      --text-secondary: #A0A0B0;
+      --text-tertiary:  #6B6B80;
+
+      /* Accent (cor da marca, mantida do PWA antigo) */
+      --accent:       #5B6AF0;
+      --accent-hover: #7280F5;
+
+      /* Bordas */
+      --border: #2A2A38;
+
+      /* Estados */
+      --success: #22C55E;
+      --warning: #F59E0B;
+      --danger:  #EF4444;
+
+      /* Raios */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+
+      /* Espaçamentos */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-6: 24px;
+      --space-8: 32px;
+
+      /* Sombras (sutis no dark) */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+      /* Transição padrão */
+      --transition: 0.2s ease;
+    }
+
+    html.light {
+      --bg-primary:   #FFFFFF;
+      --bg-secondary: #F5F5F7;
+      --bg-tertiary:  #EDEDF0;
+
+      --text-primary:   #1A1A22;
+      --text-secondary: #5B5B6E;
+      --text-tertiary:  #9999AA;
+
+      --border: #E0E0E8;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    /* ============================================================
+       RESET MÍNIMO
+       ============================================================ */
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      padding: var(--space-4);
+      transition: background var(--transition), color var(--transition);
+    }
+
+    /* ============================================================
+       BOTÃO DE TEMA FLUTUANTE
+       ============================================================ */
+
+    #theme-toggle {
+      position: fixed;
+      top: var(--space-4);
+      right: var(--space-4);
+      width: 44px;
+      height: 44px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        background var(--transition),
+        color var(--transition),
+        border-color var(--transition),
+        box-shadow var(--transition);
+    }
+
+    #theme-toggle:hover {
+      background: var(--bg-tertiary);
+      box-shadow: var(--shadow-md);
+    }
+
+    #theme-toggle:focus-visible {
+      border-color: var(--accent);
+    }
+  </style>
+
+  <!-- Bootstrap anti-FOUC: aplica a classe light ANTES de pintar -->
+  <script>
+    (function () {
+      if (localStorage.getItem('assistente-theme') === 'light') {
+        document.documentElement.classList.add('light');
+      }
+    })();
+  </script>
 </head>
 <body>
+  <button id="theme-toggle" type="button" aria-label="Alternar tema">☀️</button>
+
   <h1>Hello World · Assistente</h1>
   <div id="status">Conectando...</div>
 
+  <!-- Toggle de tema (handler do botão + sincroniza ícone) -->
+  <script>
+    (function () {
+      const btn = document.getElementById('theme-toggle');
+
+      function updateIcon() {
+        const isLight = document.documentElement.classList.contains('light');
+        btn.textContent = isLight ? '🌙' : '☀️';
+      }
+
+      btn.addEventListener('click', function () {
+        const isLight = document.documentElement.classList.toggle('light');
+        localStorage.setItem('assistente-theme', isLight ? 'light' : 'dark');
+        updateIcon();
+      });
+
+      updateIcon();
+    })();
+  </script>
+
+  <!-- Supabase: validação de conexão (mantido da Tarefa 0.2) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
   <script>
     const supabaseJs = window.supabase;
