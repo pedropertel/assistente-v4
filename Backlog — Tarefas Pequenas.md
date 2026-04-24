@@ -58,14 +58,25 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 0.2 — Criar projeto Supabase e tabela de teste
+### ✅ Tarefa 0.2 — Criar projeto Supabase e tabela de teste
+
+**Status:** Concluída em 2026-04-24 (preview aprovado e mergeada pra `main` na mesma sessão).
+
+**Decisão tomada:** Reusar o projeto Supabase existente `msbwplsknncnxwsalumd`, com `DROP SCHEMA public CASCADE` + recriação. Schema `auth`, `storage`, Edge Functions e Secrets preservados.
 
 **Objetivo:** Ter o banco novo conectado ao app, com uma tabela `teste` pra validar a conexão.
 
 **Prompt pro Claude Code:**
 > Na branch `dev`, crie um projeto Supabase novo (ou limpe o existente `msbwplsknncnxwsalumd` se Pedro preferir reaproveitar — perguntar a ele). Crie uma tabela `teste` com colunas `id` (uuid) e `msg` (text). Insira uma linha `msg = 'conectado'`. No `index.html`, adicione um script que busca essa linha e mostra o texto na tela. Atualize `CLAUDE.md` com as novas URLs e anon key. Faça push na dev e me mande o preview.
 
-**Critério de aprovação:** Pedro abre o preview e vê "conectado" na tela.
+**Entregável:**
+- `DROP SCHEMA public CASCADE` + recriação no projeto `msbwplsknncnxwsalumd` ✅
+- Tabela `teste` (`id uuid`, `msg text`, `created_at timestamptz`) com RLS + policy `allow_all` ✅
+- Linha `'conectado'` inserida ✅
+- `index.html` com CDN do `supabase-js@2.39.3` e script que busca e exibe `Banco: conectado` ✅
+- `CLAUDE.md` com URL do Supabase e Publishable Key (nomenclatura nova) ✅
+
+**Critério de aprovação:** Pedro abre o preview e vê "conectado" na tela. ✅
 
 ---
 
