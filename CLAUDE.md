@@ -235,7 +235,10 @@ supabase functions deploy [nome-da-funcao] --project-ref [ref-do-projeto]
 
 > Esta seção é atualizada pelo Claude Code após cada tarefa que adicionar novas funções chamadas por HTML.
 
-*(vazio — projeto recomeçado)*
+```js
+// AUTH
+window.signIn = signIn;
+```
 
 ---
 

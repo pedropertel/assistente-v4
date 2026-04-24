@@ -276,9 +276,9 @@
       <div class="login-logo" aria-hidden="true">🧠</div>
       <h2 class="login-title">Assistente</h2>
       <p class="login-tagline">Seu sistema operacional pessoal</p>
-      <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="email">
-      <input type="password" id="login-password" placeholder="Senha" autocomplete="current-password">
-      <button id="login-btn" type="button">Entrar</button>
+      <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter') signIn()">
+      <input type="password" id="login-password" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter') signIn()">
+      <button id="login-btn" type="button" onclick="signIn()">Entrar</button>
       <a href="#" class="login-forgot">Esqueci minha senha</a>
       <div id="login-error"></div>
     </div>
