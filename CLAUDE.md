@@ -1,6 +1,7 @@
 # CLAUDE.md — Assistente: Sistema de Inteligência Pessoal
 
 > **LEIA ESTE ARQUIVO INTEIRO ANTES DE QUALQUER AÇÃO.**  
+> Leia também `VISAO.md` — é a bússola de prioridades. Quando a tarefa envolver decidir profundidade ou escopo de algo, consulte `VISAO.md` antes de perguntar.  
 > Este é o contrato entre Pedro e o Claude Code. Violar qualquer regra abaixo = quebrar o projeto.  
 > Atualizado em: 2026-04-24 · Projeto recomeçado pela última vez.
 
