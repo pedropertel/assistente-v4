@@ -102,14 +102,23 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.2 — Criar `js/core/supabase.js` (instância única)
+### ✅ Tarefa 1.2 — Criar `js/core/supabase.js` (instância única)
+
+**Status:** Concluída em 2026-04-24 (preview aprovado e mergeada pra `main` na mesma sessão).
 
 **Objetivo:** Ter o arquivo que cria a instância única do Supabase, importável por qualquer módulo.
 
 **Prompt pro Claude Code:**
 > Crie `js/core/supabase.js` que cria a ÚNICA instância do cliente Supabase e exporta como `supabase`. Importe o SDK via CDN UMD no `<script>` do `index.html` ANTES do module. Em `app.js` (criar também), faça um teste mínimo: importa `supabase`, chama `supabase.from('teste').select()`, loga o resultado no console. Nada de auth ainda.
 
-**Critério de aprovação:** Pedro abre o preview, abre o console do browser no celular (ou pede pro Claude Code explicar como ver), e o Claude Code confirma que o log apareceu com os dados.
+**Entregável:**
+- `js/core/`, `js/modules/` criados (com `.gitkeep` em modules) ✅
+- `js/core/supabase.js`: instância única, comentário sobre REGRA 5 ✅
+- `js/app.js`: entry point que importa supabase e atualiza `#status` ✅
+- `index.html`: script inline removido, substituído por UMD + `<script type="module">` ✅
+- Visual idêntico ao da Tarefa 1.1 (Hello World + Banco: conectado + tema funcionando) ✅
+
+**Critério de aprovação:** Pedro abre o preview, abre o console do browser no celular (ou pede pro Claude Code explicar como ver), e o Claude Code confirma que o log apareceu com os dados. ✅ (Pedro abriu console no Safari Mac, sem erros)
 
 ---
 
