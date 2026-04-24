@@ -204,13 +204,15 @@ supabase functions deploy [nome-da-funcao] --project-ref [ref-do-projeto]
 | App em produção (main) | https://assistente-v4.vercel.app |
 | App de teste (dev) | https://assistente-v4-git-dev-pedropertels-projects.vercel.app |
 | GitHub | https://github.com/pedropertel/assistente-v4 |
-| Supabase | `(a preencher na Tarefa 0.2)` |
+| Supabase | https://msbwplsknncnxwsalumd.supabase.co |
 
 ---
 
 ## Credenciais
 
-- Supabase Anon Key: *(a preencher após criar novo projeto — NUNCA colocar service_role aqui)*
+- Supabase Publishable Key: `sb_publishable_0C7x7G3Za4i4OpReOLErow_LEP1D-sc`
+  - Formato novo do Supabase (substituiu "anon key"). Chave pública, pode ficar no frontend. Quem protege os dados é o RLS + policies — nunca o sigilo da chave.
+  - **NUNCA** colocar a `service_role` key em lugar nenhum do projeto.
 - ANTHROPIC_API_KEY: nos Secrets da Edge Function do Supabase (não expor no frontend)
 - Usuário: pedro.pertel@gmail.com
 

@@ -7,5 +7,28 @@
 </head>
 <body>
   <h1>Hello World · Assistente</h1>
+  <div id="status">Conectando...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
+  <script>
+    const supabaseJs = window.supabase;
+    const SUPABASE_URL = 'https://msbwplsknncnxwsalumd.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_0C7x7G3Za4i4OpReOLErow_LEP1D-sc';
+    const supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    (async () => {
+      const status = document.getElementById('status');
+      const { data, error } = await supabase
+        .from('teste')
+        .select('msg')
+        .limit(1)
+        .single();
+      if (error) {
+        status.textContent = 'Erro: ' + error.message;
+      } else {
+        status.textContent = 'Banco: ' + data.msg;
+      }
+    })();
+  </script>
 </body>
 </html>
