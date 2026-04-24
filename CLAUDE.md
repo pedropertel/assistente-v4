@@ -199,14 +199,12 @@ supabase functions deploy [nome-da-funcao] --project-ref [ref-do-projeto]
 
 ## URLs do projeto
 
-> Preencher após o setup inicial (Tarefa 0 do backlog).
-
 | Recurso | URL |
 |---------|-----|
-| App em produção (main) | `(a preencher)` |
-| App de teste (dev) | `(preview gerado pelo Vercel a cada push na dev)` |
-| GitHub | `(a preencher)` |
-| Supabase | `(a preencher)` |
+| App em produção (main) | https://assistente-v4.vercel.app |
+| App de teste (dev) | https://assistente-v4-git-dev-pedropertels-projects.vercel.app |
+| GitHub | https://github.com/pedropertel/assistente-v4 |
+| Supabase | `(a preencher na Tarefa 0.2)` |
 
 ---
 
