@@ -238,6 +238,7 @@ supabase functions deploy [nome-da-funcao] --project-ref [ref-do-projeto]
 ```js
 // AUTH
 window.signIn = signIn;
+window.signOut = signOut;
 ```
 
 ---
@@ -246,9 +247,9 @@ window.signIn = signIn;
 
 > Atualizar a cada conclusão de tarefa do backlog.
 
-- 🔴 Infraestrutura: a configurar (Tarefa 0)
-- 🔴 Código: a criar do zero
-- 🔴 Banco de dados: a criar do zero
+- ✅ Infraestrutura: GitHub `pedropertel/assistente-v4` + Vercel + Supabase `msbwplsknncnxwsalumd`
+- 🟡 Código: Fase 1 em andamento (auth completo via `onAuthStateChange`, design system com tema dark/light persistido, cliente Supabase isolado em `js/core/`). Faltam sidebar, router, modais, toast, utils.
+- 🟡 Banco: schema `public` recriado, só a tabela `teste` existe. As tabelas reais (entidades, tarefas, eventos, etc.) entram na Fase 2 do backlog.
 
 ---
 

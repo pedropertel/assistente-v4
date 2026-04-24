@@ -1,20 +1,59 @@
 import { supabase } from './core/supabase.js';
 
-async function initApp() {
-  const status = document.getElementById('status');
-  const { data, error } = await supabase
-    .from('teste')
-    .select('msg')
-    .limit(1)
-    .single();
-  if (error) {
-    status.textContent = 'Erro: ' + error.message;
-  } else {
-    status.textContent = 'Banco: ' + data.msg;
+// Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
+let appInitialized = false;
+
+// ============================================================
+// AUTH — onAuthStateChange é a ÚNICA fonte de verdade (REGRA 3)
+// ============================================================
+
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('[auth]', event, session ? 'com sessão' : 'sem sessão');
+
+  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+    if (!appInitialized) {
+      appInitialized = true;
+      initApp(session);
+    }
   }
+
+  if (event === 'SIGNED_OUT') {
+    appInitialized = false;
+    showLogin();
+  }
+});
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-screen').style.display = 'none';
 }
 
-initApp();
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'flex';
+}
+
+async function initApp(session) {
+  console.log('[initApp] logado como', session.user.email);
+  showApp();
+
+  const statusEl = document.getElementById('status');
+  try {
+    const { data, error } = await supabase
+      .from('teste')
+      .select('msg')
+      .limit(1)
+      .single();
+
+    if (error) {
+      statusEl.textContent = 'Erro: ' + error.message;
+    } else {
+      statusEl.textContent = 'Banco: ' + data.msg;
+    }
+  } catch (err) {
+    statusEl.textContent = 'Erro: ' + err.message;
+  }
+}
 
 async function signIn() {
   const email = document.getElementById('login-email').value;
@@ -52,7 +91,18 @@ function traduzErroLogin(error) {
   return msg || 'Erro desconhecido ao tentar entrar.';
 }
 
+async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error('[signOut]', error);
+    alert('Erro ao sair: ' + error.message);
+  }
+  // O onAuthStateChange captura SIGNED_OUT e chama showLogin() automaticamente.
+}
+
 // ============================================================
-// WINDOW BRIDGE — funções chamadas por onclick no HTML
+// WINDOW BRIDGE — funções chamadas por onclick no HTML (REGRA 4)
 // ============================================================
+
 window.signIn = signIn;
+window.signOut = signOut;

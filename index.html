@@ -257,6 +257,42 @@
       font-size: 14px;
       line-height: 1.4;
     }
+
+    /* ============================================================
+       APP SCREEN — tela pós-login
+       ============================================================ */
+
+    #app-screen {
+      min-height: 100vh;
+      padding: var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #logout-btn {
+      min-height: 44px;
+      padding: var(--space-2) var(--space-4);
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      transition:
+        background var(--transition),
+        color var(--transition),
+        border-color var(--transition);
+    }
+
+    #logout-btn:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
   </style>
 
   <!-- Bootstrap anti-FOUC: aplica a classe light ANTES de pintar -->
@@ -284,8 +320,11 @@
     </div>
   </div>
 
-  <h1>Hello World · Assistente</h1>
-  <div id="status">Conectando...</div>
+  <div id="app-screen" style="display: none;">
+    <h1>Hello World · Assistente</h1>
+    <div id="status">Conectando...</div>
+    <button id="logout-btn" type="button" onclick="signOut()">Sair</button>
+  </div>
 
   <!-- Toggle de tema (handler do botão + sincroniza ícone) -->
   <script>
