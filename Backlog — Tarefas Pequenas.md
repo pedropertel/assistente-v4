@@ -122,14 +122,24 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.3 — Tela de login (HTML + CSS, sem lógica)
+### ✅ Tarefa 1.3 — Tela de login (HTML + CSS, sem lógica)
+
+**Status:** Concluída em 2026-04-24 (preview aprovado e mergeada pra `main` na mesma sessão).
 
 **Objetivo:** Uma tela de login bonita e mobile-first, **sem funcionalidade ainda**.
 
 **Prompt pro Claude Code:**
 > Adicione no `index.html` a tela de login: div `#login-screen` visível por padrão, com logo (emoji ou texto por enquanto), campo email, campo senha, botão "Entrar". Design system aplicado. Funciona em 375px. Nenhum `onclick` ainda — só o HTML/CSS.
 
-**Critério de aprovação:** Pedro vê a tela de login bonita no celular.
+**Entregável:**
+- Overlay full-viewport (`#login-screen`, z-index 1000) com card central (max-width 400px) ✅
+- Logo 🧠 64px, título "Assistente" 32px/700, tagline "Seu sistema operacional pessoal" ✅
+- Inputs email/senha (48px altura, 16px font anti-zoom iOS), botão "Entrar" `--accent`, link "Esqueci minha senha", `#login-error` reservado ✅
+- Foco com borda `--accent` + glow sutil ✅
+- Adapta cores em ambos os temas; botão de tema (z-index 1001) continua acessível por cima ✅
+- Sem `onclick` no botão (escopo só visual) ✅
+
+**Critério de aprovação:** Pedro vê a tela de login bonita no celular. ✅
 
 ---
 
