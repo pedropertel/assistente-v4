@@ -127,6 +127,37 @@ Ao terminar uma tarefa, adicione uma entrada em `080 - Dev Log/Dev Log — AAAA-
 - Se algo ficou pendente
 - Se alguma decisão nova foi tomada (e criar o arquivo correspondente)
 
+### REGRA 12 — Princípio de Customização Total
+
+Pedro NUNCA mais usa Claude Code, Supabase Dashboard ou terminal depois que o sistema estiver pronto.
+
+Toda criação, edição, configuração e exclusão acontece nas telas do app:
+- Categorias do Sítio: tela
+- Personas (Marcos, Bruno, Marcela, Alemão, Roteador): tela
+- Entidades (empresas): tela
+- Configurações de IA (modelo, temperatura, max_tokens): tela
+- Labels de status/prioridade/tipos: tela (via tabela `configuracoes`)
+- Tarefas, eventos, documentos: tela
+- TUDO: tela
+
+Claude Code só volta pra:
+- Evoluir o sistema (novas features)
+- Corrigir bugs estruturais
+- Melhorar arquitetura
+- NUNCA pra mexer em dados de produção
+
+**CONSEQUÊNCIAS PRA TODAS AS PRÓXIMAS TAREFAS:**
+
+1. **Seeds existem APENAS como sugestão inicial** pra Pedro não começar com banco vazio. Todos os seeds podem ser editados ou apagados pelo usuário via tela.
+
+2. Quando uma decisão de "valores fixos" for tomada (ex: 25 categorias do Sítio), ela é **PONTO DE PARTIDA, não imutável**.
+
+3. **Vocabulário interno** (`status='fazendo'`, `prioridade='alta'`, `tipo='reuniao'`) fica em CHECK constraint porque é estrutural do código (kanban tem 4 colunas, etc.). Mas o **nome que aparece na tela** ("fazendo" vs "em produção") fica customizável via tabela `configuracoes` (Tarefa 2.9).
+
+4. **Toda tabela do sistema PRECISA ter sua tela equivalente na Fase 4** com: listagem, criação, edição, arquivamento/exclusão.
+
+5. **Soft-delete** (campo `arquivada`/`arquivado`/`ativa`) é sempre preferível a hard-delete. Hard-delete só com confirmação explícita do usuário ("apagar permanentemente").
+
 ---
 
 ## Estrutura de arquivos do projeto

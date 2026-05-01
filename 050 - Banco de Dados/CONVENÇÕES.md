@@ -359,6 +359,41 @@ A regra é apenas: `interno = true` + `ordem ≤ 0` + `modelo_override` previsí
 
 ---
 
+## Customização total (REGRA 12 do CLAUDE.md)
+
+> Convenção firmada na Tarefa 2.6.1.
+
+Pedro NUNCA mais mexe em dados via Claude Code, Supabase Dashboard ou terminal depois que o sistema estiver pronto. **Toda CRUD acontece nas telas do app.** Isso dirige o schema desde já — toda tabela criada na Fase 2 precisa estar pronta pra ser editada por humano via UI na Fase 4.
+
+### Regras pra toda tabela nova
+
+- **Coluna de soft-delete** (`ativa`/`arquivada`/`arquivado` boolean, depende do contexto) — usuário "apaga" arquivando, hard-delete só com confirmação explícita.
+- **Schema flexível** — sem CHECK em campos que o usuário pode querer editar. CHECK só em **vocabulário interno do código**.
+- **Slug ou nome editável** pelo usuário — `nome` text livre, `descricao` text livre, etc.
+- **Suporte a CRUD completo via UI** (Fase 4 vai construir as telas) — listagem, criação, edição, arquivamento/exclusão.
+
+### Vocabulário interno vs preferência do usuário
+
+CHECK constraint só pra **vocabulário estrutural do código**:
+
+| Tipo | Exemplo | Por que CHECK fixo |
+|---|---|---|
+| Status do kanban | `tarefas.status IN ('backlog','a_fazer','fazendo','feito')` | Kanban tem 4 colunas estruturais; código depende. |
+| Papel da mensagem | `chat_mensagens.papel IN ('user','assistant','system')` | Compatibilidade com API Anthropic. |
+| Tipo de persona interna | `personas.interno boolean` + `ordem ≤ 0` | Convenção de UI (esconder internas). |
+| Tipo de evento | `eventos.tipo IN ('reuniao','tarefa','pessoal','lembrete','bloqueio')` | Renderização visual diferenciada. |
+| Origem | `tarefas.origem IN ('manual','chat','voz','sistema')` | Fluxo interno de criação. |
+
+**A customização visual** desses vocabulários (ex.: Pedro quer ver "Em Produção" em vez de "Fazendo" na UI) acontece via tabela `configuracoes` (Tarefa 2.9), que mapeia valor interno → label customizada pra UI. **Não muda CHECK no banco.**
+
+### Seeds = ponto de partida, não imutáveis
+
+Todo seed inserido (entidades, personas, categorias, etc.) é **sugestão inicial** pra Pedro não começar com banco vazio. Pode ser editado ou apagado pela UI sem cerimônia. Schema **não** trava nenhum seed como obrigatório (ex.: não há CHECK garantindo que a entidade `cedtec` existe).
+
+Se algum seed for crítico pro funcionamento (ex.: a persona `roteador` interna), o código da Edge Function precisa lidar com ausência (criar se não existe, ou degradar funcionalidade graciosamente).
+
+---
+
 ## Idempotência de `ALTER TABLE`
 
 Toda tarefa que evolui schema (adicionar coluna, FK, índice em tabela existente) precisa ser **re-executável** sem erro. Padrões:
