@@ -448,6 +448,27 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - `CONVENÇÕES.md` ganhou **2 exceções registradas**: CASCADE em `chat_anexos.mensagem_id` (com nota sobre Storage não ser apagado pelo CASCADE) e prefixo `chat_anexos/` no bucket compartilhado (com critérios pra reavaliar) ✅
 - Documentação completa em `Tabela — chat_mensagens.md` (~340 linhas) e `Tabela — chat_anexos.md` (~290 linhas) — exemplos JS de "carregar últimas N", "reconstruir cadeia", "upload completo", "apagar mensagem com cleanup do Storage", "salvar anexo na biblioteca permanente" ✅
 
+### ✅ Tarefa 2.6.1 — REGRA 12 (Princípio de Customização Total)
+
+**Status:** Concluída em 2026-05-01 (inserida fora da sequência original do backlog, entre 2.6 e 2.7). Tarefa puramente de documentação — sem SQL, sem código. Mergeada pra `main` na mesma sessão.
+
+**Motivação:** durante o início da Tarefa 2.7 (Sítio), Pedro questionou se as 25 categorias seriam editáveis. A resposta — SIM — virou regra inviolável que vale pra TUDO no sistema, e precisa dirigir todas as próximas tarefas.
+
+**Princípio:** Pedro NUNCA mais usa Claude Code, Supabase Dashboard ou terminal pra mexer em dados depois que o sistema estiver pronto. Toda criação/edição/configuração/exclusão acontece nas telas do app. Claude Code volta apenas pra evoluir o sistema (features, bugs estruturais, arquitetura) — nunca pra dados.
+
+**Entregável:**
+- Nova **REGRA 12** no CLAUDE.md (após REGRA 10) com 5 consequências práticas pras tarefas seguintes ✅
+- Nova seção **"Customização total (REGRA 12 do CLAUDE.md)"** no `CONVENÇÕES.md` com regras pra toda tabela nova (soft-delete, schema flexível, slug/nome editáveis, CRUD via UI), tabela de vocabulário interno (CHECK fixo) vs preferência do usuário (customizável via tabela `configuracoes` da Tarefa 2.9), e nota sobre seeds como ponto de partida ✅
+- Esta entrada no Backlog ✅
+- Entrada no Dev Log de 2026-05 com decisão arquitetural completa ✅
+
+**Impacto pras próximas tarefas:**
+- **2.7+ (todas):** seeds são ponto de partida, não imutáveis. Toda tabela com `ativa`/`arquivada` boolean. CHECK só em vocabulário estrutural do código.
+- **2.9 (configuracoes):** será o lugar onde labels visuais de vocabulário interno ficam customizáveis (`status='fazendo'` no banco vira "Em Produção" na UI se Pedro quiser).
+- **Fase 4 (módulos UI):** toda tabela do sistema PRECISA ter sua tela equivalente — listagem + criação + edição + arquivamento. Sem exceção.
+
+---
+
 ### 🔴 Tarefa 2.7 — Tabelas do Sítio
 `sitio_categorias` + `sitio_lancamentos` + inserir 6 centros de custo.
 
