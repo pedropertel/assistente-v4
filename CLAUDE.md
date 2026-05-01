@@ -260,8 +260,8 @@ window.utils = utils;
 > Atualizar a cada conclusão de tarefa do backlog.
 
 - ✅ Infraestrutura: GitHub `pedropertel/assistente-v4` + Vercel + Supabase `msbwplsknncnxwsalumd`
-- 🟡 Código: Fase 1 em andamento (auth completo via `onAuthStateChange`, design system com tema dark/light persistido, cliente Supabase isolado em `js/core/`). Faltam sidebar, router, modais, toast, utils.
-- 🟡 Banco: schema `public` recriado, só a tabela `teste` existe. As tabelas reais (entidades, tarefas, eventos, etc.) entram na Fase 2 do backlog.
+- ✅ Código (Fase 1 — fundação concluída em 2026-05-01): auth completo via `onAuthStateChange`, design system dark/light persistido, sidebar/drawer mobile-first, router com 8 páginas placeholder, sistema de toast e modal, utils (fmtDate/fmtMoney/fmtRelative/debounce/slugify). Núcleo modular em `js/core/` (supabase, router, toast, modal, utils).
+- 🟡 Banco (Fase 2 em andamento): tabela `entidades` criada (6 registros: 5 empresas + Pessoal), com RLS + policy `auth_full_access` + trigger `set_updated_at` genérico reaproveitável. Tabela `teste` da 0.2 ainda existe (sanity ping em `initApp`). Faltam tarefas 2.2–2.9 (tarefas, eventos, documentos, agentes, chat, sítio, cedtec, configurações).
 
 ---
 
