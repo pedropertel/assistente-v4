@@ -311,18 +311,30 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.10 — Utils (`utils.js`)
+### ✅ Tarefa 1.10 — Utils (`utils.js`)
+
+**Status:** Concluída em 2026-05-01 (preview aprovado e mergeada pra `main` na mesma sessão). **Última tarefa da Fase 1.**
 
 **Objetivo:** Helpers `fmtDate`, `fmtMoney`, `fmtRelative`, `debounce`, `slugify`.
 
 **Prompt pro Claude Code:**
 > Crie `js/core/utils.js` com as funções: `fmtDate(iso)` → "24/04/2026", `fmtMoney(cents)` → "R$ 1.234,56", `fmtRelative(iso)` → "há 2h", `debounce(fn, ms)`, `slugify(str)`. Exporte todas.
 
-**Critério de aprovação:** Claude Code roda os 5 testes no console e mostra o resultado ao Pedro.
+**Entregável:**
+- `fmtDate(input, { includeTime })` — pt-BR via `Intl.DateTimeFormat`, parseDate defensivo (date-only não escorrega de dia em Brasília) ✅
+- `fmtMoney(cents, { showSymbol, showSign })` — centavos → reais via `Intl.NumberFormat`, prefixo manual de sinal ✅
+- `fmtRelative(input)` — "agora mesmo" / "há N min/h" / "ontem"/"amanhã" / "há N dias" / fmtDate como fallback após 7d ✅
+- `debounce(fn, delay=300)` — clássico setTimeout/clearTimeout ✅
+- `slugify(str)` — NFD + remove diacríticos + lowercase + hífens ✅
+- `window.utils` exposto pra debug; `CLAUDE.md` Window Bridge com seção `// UTILS (debug/console)` ✅
+
+**Critério de aprovação:** Claude Code roda os 5 testes no console e mostra o resultado ao Pedro. ✅ *(18 casos validados localmente com Node antes do push; Pedro confirmou os 4 restantes no console do preview)*
 
 ---
 
-**🎯 Fim da Fase 1 — Fundação pronta. App logável, com navegação, modais, toasts.**
+**🎯 ✅ FASE 1 — FUNDAÇÃO CONCLUÍDA em 2026-05-01.**
+
+12 tarefas fechadas (10 do plano original + 2 inserções fora-de-sequência: 1.6.5 mobile-first iPhone e 1.7.5 ajustes visuais). App logável com navegação entre 8 páginas placeholder, design system completo, mobile-first iPhone 15 Pro Max, núcleo modular em `js/core/` (supabase, router, toast, modal, utils). Sem dívidas técnicas pendentes. Ver Dev Log de 2026-05-01 pro marco completo.
 
 ---
 
