@@ -381,8 +381,19 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - Documentação completa em `050 - Banco de Dados/Tabela — eventos.md` ✅
 - **Bônus:** `050 - Banco de Dados/CONVENÇÕES.md` criado com seção mãe sobre fuso horário (lição aprendida ao validar a 2.3) + idempotência + FKs + naming + RLS — referência única pras próximas tabelas ✅
 
-### 🔴 Tarefa 2.4 — Tabelas `pastas` + `documentos`
-Schema + RLS + bucket `documentos` no Storage.
+### ✅ Tarefa 2.4 — Tabelas `pastas` + `documentos` + bucket Storage
+
+**Status:** Concluída em 2026-05-01. **Maior tarefa da Fase 2 até agora** — 2 tabelas relacionadas + primeiro uso de Supabase Storage. Mergeada pra `main` na mesma sessão.
+
+**Entregável:**
+- Tabela `pastas` (12 colunas) — hierarquia self-referential, **máximo 3 níveis** (CHECK + trigger), 2 índices únicos parciais (raiz/filhas pra contornar NULL em UNIQUE composta), trigger `validar_pasta_coerencia` (auto-calcula nivel + valida entidade) ✅
+- Tabela `documentos` (16 colunas) — metadados, `tags text[]` indexado via GIN, `storage_path UNIQUE`, `bigint` em `tamanho_bytes`, trigger `validar_documento_pasta` ✅
+- 5 origens em `documentos`: `manual/chat/sistema/email/whatsapp` (sem `voz`, com `email`+`whatsapp` pra Marcela salvar anexos automaticamente na Fase 3) ✅
+- Bucket Storage `documentos` (privado, 50 MB, MIME aberto) — **reutilizado de projeto antigo** após validação e ajuste (Public OFF, MIME types limpos) ✅
+- 4 policies do Storage (upload/leitura/update/delete `_autenticado`) — já existiam corretas no bucket antigo, mantidas ✅
+- Convenção de Storage adicionada a `CONVENÇÕES.md` (bucket privado, path plano `{id}.{extensao}`, 4 policies por bucket, `storage_path UNIQUE`, lição sobre reaproveitar bucket de projeto antigo) ✅
+- Documentação completa em `Tabela — pastas.md` e `Tabela — documentos.md` (fluxo upload→INSERT→download, signed URL, busca por tag) ✅
+- 3 seeds de pastas (Marketing/CEDTEC, Criativos Maio 2026 dentro dela, Documentos pessoais/Pessoal); `documentos` fica vazia (uploads reais começam na Fase 3) ✅
 
 ### 🔴 Tarefa 2.5 — Tabela `agentes`
 Schema + RLS + inserir 4 agentes (Marcos, Bruno, Marcela, Alemão).
@@ -433,6 +444,14 @@ A ser definida conforme o uso real for revelando prioridades.
 ## Tarefas concluídas
 
 *(nenhuma ainda — mover tarefas pra cá conforme forem aprovadas em produção, com data)*
+
+---
+
+## Tech Debt — herdado de projetos antigos
+
+> Coisas que apareceram no Supabase reutilizado e ainda precisam ser tratadas. Não bloqueiam o trabalho atual, mas viram tarefa antes do tema relacionado avançar.
+
+- [ ] **Bucket `agentes` no Storage** está com `Public = ON` e 4 policies aplicadas à role `public` (não `authenticated`). Precisa ser resolvido **antes da Tarefa 2.5** (agentes): ou apagar (se vamos refazer do zero junto com a tabela `agentes`) ou ajustar `Public → OFF` + recriar policies pra `authenticated`. Decisão a tomar no início da 2.5.
 
 ---
 

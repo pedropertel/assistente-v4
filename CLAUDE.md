@@ -261,7 +261,7 @@ window.utils = utils;
 
 - ✅ Infraestrutura: GitHub `pedropertel/assistente-v4` + Vercel + Supabase `msbwplsknncnxwsalumd`
 - ✅ Código (Fase 1 — fundação concluída em 2026-05-01): auth completo via `onAuthStateChange`, design system dark/light persistido, sidebar/drawer mobile-first, router com 8 páginas placeholder, sistema de toast e modal, utils (fmtDate/fmtMoney/fmtRelative/debounce/slugify). Núcleo modular em `js/core/` (supabase, router, toast, modal, utils).
-- 🟡 Banco (Fase 2 em andamento): 3 tabelas reais — `entidades` (6 registros), `tarefas` (kanban + trigger auto-`concluida_em`, 3 seeds), `eventos` (agenda com recorrência simples, lembretes em array, preparada pra sync Google Calendar, 3 seeds). Função `set_updated_at()` genérica reaproveitável. Convenções de banco em `050 - Banco de Dados/CONVENÇÕES.md` (fuso horário, idempotência, FKs, naming). Tabela `teste` da 0.2 ainda existe (sanity ping em `initApp`). Faltam tarefas 2.4–2.9 (documentos, agentes, chat, sítio, cedtec, configurações).
+- 🟡 Banco (Fase 2 em andamento): 5 tabelas reais — `entidades` (6 registros), `tarefas` (kanban + trigger auto-`concluida_em`), `eventos` (agenda + sync Google), `pastas` (hierarquia 3 níveis self-referential com trigger de coerência), `documentos` (metadados + bucket Storage). Bucket `documentos` no Storage (privado, 50 MB, 4 policies pra `authenticated` — criado originalmente em projeto anterior, validado/ajustado nesta Fase 2). Funções genéricas reaproveitáveis: `set_updated_at`, `validar_pasta_coerencia`, `validar_documento_pasta`. Convenções em `050 - Banco de Dados/CONVENÇÕES.md` (fuso, idempotência, FKs, naming, Storage). Faltam tarefas 2.5–2.9 (agentes, chat, sítio, cedtec, configurações).
 
 ---
 

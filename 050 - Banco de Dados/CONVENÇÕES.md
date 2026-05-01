@@ -184,9 +184,66 @@ Aparecem no Supabase Dashboard, em ferramentas de visualização, e ajudam quand
 
 ---
 
+## Storage (vale pra qualquer bucket futuro)
+
+> Convenção firmada na Tarefa 2.4 quando criamos o bucket `documentos`.
+
+### Bucket sempre privado
+
+`Public bucket = OFF` por padrão. Arquivos do Pedro **nunca** devem ser acessíveis sem autenticação.
+
+Se algum dia precisar de algo realmente público (ex.: foto de perfil de agente exposta numa URL fixa), criar **outro bucket** público em vez de mudar este. Mistura privado/público no mesmo bucket vira pegadinha.
+
+### Path físico plano
+
+```
+storage_path = "{id}.{extensao}"
+```
+
+**Não replicar a hierarquia lógica no path físico.** Razões:
+
+- Renomear/mover pasta lógica não move arquivo físico (zero trabalho de migração).
+- UUID elimina colisões.
+- Listar bucket plano é mais rápido que walk recursivo.
+- Segurança via policy + tabela de metadados, não via obscuridade de path.
+
+A organização lógica vive na tabela de metadados (ex.: `documentos.pasta_id`, `documentos.tags`).
+
+### 4 policies por bucket
+
+Sempre as 4 operações, restritas a `bucket_id = '<nome>'` e role `authenticated`:
+
+| Policy | Operação |
+|---|---|
+| `upload_autenticado` | INSERT |
+| `leitura_autenticado` | SELECT |
+| `update_autenticado` | UPDATE |
+| `delete_autenticado` | DELETE |
+
+Convenção de nome em pt-BR. Bucket público (caso raro) usa `*_publico` no lugar.
+
+### Tabela de metadados com `storage_path` UNIQUE
+
+Toda tabela que aponta pra arquivo no Storage tem coluna `storage_path text NOT NULL UNIQUE`. UNIQUE protege contra dois registros apontarem pro mesmo blob (defesa contra bug de upload duplicado).
+
+### Reaproveitar bucket de projeto antigo
+
+Se o nome de bucket que você quer já existe (resíduo de projeto anterior no mesmo Supabase), **NÃO** criar policies novas direto. **Conferir e ajustar primeiro:**
+
+1. Public bucket → confirmar OFF (ou ajustar).
+2. File size limit → ajustar pro valor desejado.
+3. Allowed MIME types → ajustar.
+4. Listar policies existentes — se estiverem corretas (operações certas, role `authenticated`, restritas ao bucket), **reusar**. Se estiverem erradas (ex.: role `public` ou bucket público), corrigir antes de prosseguir.
+
+Lição aprendida: o bucket `documentos` na Tarefa 2.4 era do projeto antigo, estava `Public ON` com MIME types restritos. Foi ajustado pra `Public OFF` + MIME aberto, e as 4 policies que já existiam (configuradas certas) foram mantidas.
+
+---
+
 ## Relacionado
 
 - [[Tabela — entidades]]
 - [[Tabela — tarefas]]
 - [[Tabela — eventos]]
+- [[Tabela — pastas]]
+- [[Tabela — documentos]]
 - [[CLAUDE.md]] — REGRA 5 (instância única Supabase)
