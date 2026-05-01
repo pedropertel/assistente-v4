@@ -225,14 +225,25 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.7 — Sistema de rotas (router.js)
+### ✅ Tarefa 1.7 — Sistema de rotas (router.js)
+
+**Status:** Aprovada em preview em 2026-04-24; merge pra `main` feito em 2026-05-01 (ficou pendente entre sessões, sem impacto).
 
 **Objetivo:** Navegar entre páginas vazias.
 
 **Prompt pro Claude Code:**
 > Crie `js/core/router.js` com `goPage(pageName)` que esconde todas as `<section class="page">` e mostra só a pedida. Crie uma section vazia pra cada uma das 8 páginas com só um título. Ligue os itens da sidebar no `goPage` via window bridge.
 
-**Critério de aprovação:** Pedro clica em cada item do menu e vê a página correspondente (vazia, só título).
+**Entregável:**
+- `js/core/router.js` com `PAGES`, `goPage(pageId)`, `getCurrentPage()` ✅
+- 8 `<section class="page" id="page-X">` no `#page-container` (Dashboard visível, demais com `hidden`) ✅
+- `.nav-item[data-page]` em todos os 8 botões da sidebar; `onclick` chama `goPage` ✅
+- Item ativo destacado na sidebar via `.active` aplicada pelo router ✅
+- Drawer fecha sozinho ao navegar em mobile ✅
+- `initApp` chama `goPage('dashboard')` na entrada; `#status` removido do DOM (vai só pro console) ✅
+- `window.goPage` substitui `window.goToPage`; `CLAUDE.md` Window Bridge sincronizado ✅
+
+**Critério de aprovação:** Pedro clica em cada item do menu e vê a página correspondente (vazia, só título). ✅
 
 ---
 
