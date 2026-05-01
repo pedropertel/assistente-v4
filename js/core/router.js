@@ -13,7 +13,7 @@ export const PAGES = {
   config:    { title: 'Configurações', icon: '⚙️' },
 };
 
-let currentPage = 'dashboard';
+let currentPage = 'chat';
 
 export function goPage(pageId) {
   if (!PAGES[pageId]) {

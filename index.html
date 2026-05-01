@@ -322,13 +322,12 @@
       height: 36px;
       flex-shrink: 0;
       border-radius: var(--radius-md);
-      background: var(--accent);
-      color: #FFFFFF;
+      background: transparent;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
-      font-size: 18px;
+      font-size: 24px;
+      line-height: 1;
     }
 
     .sidebar-title {
@@ -584,13 +583,13 @@
   <div id="app-screen" style="display: none;">
     <aside id="sidebar">
       <div class="sidebar-header">
-        <span class="sidebar-logo" aria-hidden="true">A</span>
+        <span class="sidebar-logo" aria-hidden="true">🧠</span>
         <span class="sidebar-title">Assistente</span>
         <button id="sidebar-close" type="button" onclick="toggleSidebar()" aria-label="Fechar menu">✕</button>
       </div>
       <nav class="sidebar-nav">
-        <button class="nav-item" type="button" data-page="dashboard" onclick="goPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
         <button class="nav-item" type="button" data-page="chat" onclick="goPage('chat')"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">Chat</span></button>
+        <button class="nav-item" type="button" data-page="dashboard" onclick="goPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
         <button class="nav-item" type="button" data-page="tasks" onclick="goPage('tasks')"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Tarefas</span></button>
         <button class="nav-item" type="button" data-page="agenda" onclick="goPage('agenda')"><span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Agenda</span></button>
         <button class="nav-item" type="button" data-page="docs" onclick="goPage('docs')"><span class="nav-icon" aria-hidden="true">📁</span><span class="nav-label">Documentos</span></button>

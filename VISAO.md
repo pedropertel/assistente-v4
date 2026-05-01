@@ -52,3 +52,16 @@ lembrar, mas também para me ajudar. Quero sugestões, ideias. Quero
 criar uma inteligência sobre essas empresas e alavancar tudo."
 
 Então o sistema não só organiza — ele alavanca decisões.
+
+## Ordem visual da navegação (decisão tomada na Tarefa 1.7.5)
+
+Sidebar de cima pra baixo: Chat, Dashboard, Tarefas, Agenda, 
+Documentos, CEDTEC, Sítio, Configurações.
+
+Logo: 🧠 (mesmo da tela de login).
+
+Página default ao logar: Chat.
+
+Justificativa: Chat é o eixo central do sistema (a interface 
+primária é a conversa). Dashboard é resumo executivo, vem em 
+segundo. Os demais seguem ordem de uso esperado.

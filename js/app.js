@@ -37,7 +37,7 @@ function showApp() {
 async function initApp(session) {
   console.log('[initApp] logado como', session.user.email);
   showApp();
-  goPage('dashboard');
+  goPage('chat');
 
   // Ping de sanity da conexão — inofensivo, detecta regressão cedo.
   try {
