@@ -340,11 +340,30 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ## Fase 2 — Banco de dados (feito em pedacinhos também)
 
-### 🔴 Tarefa 2.1 — Tabela `entidades`
-Criar a tabela + RLS + inserir as 6 entidades (CEDTEC, Pincel Atômico, Sítio, Gráfica, Agência, Pessoal).
+### ✅ Tarefa 2.1 — Tabela `entidades`
 
-### 🔴 Tarefa 2.2 — Tabela `tarefas`
-Schema + RLS + uma tarefa de teste.
+**Status:** Concluída em 2026-05-01 (preview/SQL executado no Supabase Dashboard, 6 seeds inseridos — CEDTEC, Pincel Atômico, Sítio, Gráfica, Agência, Pessoal). Mergeada pra `main` em 2026-05-01 junto com a 2.2.
+
+**Entregável:**
+- Tabela raiz `entidades` com `id/slug/nome/tipo/descricao/icone/cor_hex/ordem/ativa/created_at/updated_at` ✅
+- RLS habilitada + policy `auth_full_access` pra `authenticated` ✅
+- Função `set_updated_at()` genérica (reaproveitada nas próximas tabelas) + trigger `BEFORE UPDATE` ✅
+- 6 seeds idempotentes via `ON CONFLICT (slug) DO NOTHING` ✅
+- Documentação completa em `050 - Banco de Dados/Tabela — entidades.md` ✅
+
+### ✅ Tarefa 2.2 — Tabela `tarefas`
+
+**Status:** Concluída em 2026-05-01 (SQL aprovado por Pedro após executar no Supabase, 3 seeds com JOIN funcionando). Mergeada pra `main` na mesma sessão.
+
+**Entregável:**
+- Tabela `tarefas` com 14 colunas, FK pra `entidades(id)` ON DELETE RESTRICT ✅
+- 4 status (backlog/a_fazer/fazendo/feito), 4 prioridades, 4 origens — todos via CHECK ✅
+- Coluna `agente_id` sem FK ainda (vira FK na Tarefa 2.5) ✅
+- Trigger especial `set_concluida_em()` auto-preenche/zera `concluida_em` em mudanças de status ✅
+- 4 índices: 2 normais + 2 parciais (`prazo WHERE NOT NULL`, `arquivada WHERE arquivada=false`) ✅
+- RLS + policy `auth_full_access` (mesmo padrão da 2.1) ✅
+- 3 seeds idempotentes via `WHERE NOT EXISTS` (convenção registrada na doc — pra tabelas sem unique constraint natural) ✅
+- Documentação completa em `050 - Banco de Dados/Tabela — tarefas.md` ✅
 
 ### 🔴 Tarefa 2.3 — Tabela `eventos`
 Schema + RLS.
