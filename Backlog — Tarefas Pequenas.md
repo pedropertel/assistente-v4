@@ -286,14 +286,28 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.9 — Sistema de modal
+### ✅ Tarefa 1.9 — Sistema de modal
+
+**Status:** Concluída em 2026-05-01 (preview aprovado e mergeada pra `main` na mesma sessão). Trouxe junto o sistema de botões genéricos do design system (`.btn` + variantes) e a variável `--shadow-lg`.
 
 **Objetivo:** Sistema reutilizável de modais.
 
 **Prompt pro Claude Code:**
 > Crie `js/core/modal.js` com `open(title, bodyHTML, footerHTML)` e `close()`. Suporta empilhar modais. Expor `window.closeModal`.
 
-**Critério de aprovação:** Claude Code abre um modal de teste. Pedro vê, fecha no X, fecha clicando fora, tenta empilhar 2 modais.
+**Entregável:**
+- `js/core/modal.js` com `show(config)` / `close()` — `config = { title?, body, actions?, dismissible? }` ✅
+- 4 tipos de fechamento: botão, X, Esc, clique no overlay (todos respeitam `dismissible`) ✅
+- `actions` configurável com 3 variantes de botão (primary/secondary/danger) e `onClick` opcional ✅
+- Body suporta texto puro ou HTML simples (heurística `includes('<')`) ✅
+- Listeners limpos no `close()` (sem vazamento de Esc) ✅
+- Animação fade + scale-up (overlay 200ms, modal scale 0.95→1) ✅
+- `body.modal-open { overflow: hidden }` trava scroll do fundo ✅
+- Sistema `.btn` / `.btn-primary` / `.btn-secondary` / `.btn-danger` adicionado ao design system ✅
+- `--shadow-lg` adicionado (dark: 30%, light: 15%) ✅
+- `window.showModal` / `window.closeModal` expostos; `CLAUDE.md` Window Bridge atualizado ✅
+
+**Critério de aprovação:** Claude Code abre um modal de teste. Pedro vê, fecha no X, fecha clicando fora, tenta empilhar 2 modais. ✅ *(Empilhamento real não suportado — abrir 2º modal fecha o 1º. Decisão registrada no Dev Log: vira tarefa própria se virar demanda.)*
 
 ---
 
