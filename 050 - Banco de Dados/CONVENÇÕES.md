@@ -96,15 +96,39 @@ A UI prefixa o `#` ao renderizar. Convenção: armazena dado, não formatação.
 
 ---
 
-## FKs — `ON DELETE RESTRICT` por padrão
+## FKs — estruturais vs metadados
+
+### FKs estruturais → `ON DELETE RESTRICT`
+
+São FKs que definem **a quem o registro pertence**. Sem o pai, o filho não faz sentido.
 
 ```sql
-entidade_id uuid NOT NULL REFERENCES entidades(id) ON DELETE RESTRICT
+entidade_id  uuid NOT NULL REFERENCES entidades(id) ON DELETE RESTRICT  -- toda tarefa/evento/doc pertence a uma entidade
+pasta_pai_id uuid          REFERENCES pastas(id)    ON DELETE RESTRICT  -- subpasta pertence a uma pasta-pai
+pasta_id     uuid          REFERENCES pastas(id)    ON DELETE RESTRICT  -- documento (opcionalmente) pertence a uma pasta
 ```
 
-**Nunca CASCADE por default.** Apagar uma entidade que ainda tem dados (tarefas, eventos, etc.) deve falhar — força o usuário a arquivar/transferir antes. Combina com soft-delete (`ativa = false` em entidades, `arquivada = true` em tarefas).
+**Nunca CASCADE por default.** Apagar uma entidade que ainda tem dados deve **falhar** — força o usuário a arquivar/transferir antes. Combina com soft-delete (`entidades.ativa = false`, `pastas.arquivada = true`, `tarefas.arquivada = true`, etc.).
 
-**Exceção:** FKs "associativas" não-essenciais usam `ON DELETE SET NULL`. Ex.: `agente_id` em tarefas/eventos — apagar um agente desliga das linhas mas não impede o delete.
+### FKs de metadados → `ON DELETE SET NULL`
+
+São FKs **associativas** que registram **quem fez/quando rolou**, mas não definem propriedade essencial.
+
+```sql
+agente_id  uuid REFERENCES agentes(id)  ON DELETE SET NULL   -- "qual agente criou"
+persona_id uuid REFERENCES personas(id) ON DELETE SET NULL   -- "qual persona estava ativa"
+```
+
+Se o agente/persona for desativado/apagado, o registro de tarefa/evento/documento **deve sobreviver** — só perde a referência. Apagar um agente não pode destruir histórico de tarefas que ele ajudou a criar.
+
+### Resumo
+
+| Tipo de FK | Pergunta que responde | ON DELETE |
+|---|---|---|
+| Estrutural | "A quem isto pertence?" | `RESTRICT` |
+| Metadados | "Quem fez isto?" / "Em qual contexto foi criado?" | `SET NULL` |
+
+**CASCADE não é usado em nenhum lugar do projeto.** Sempre que parecer tentador, alguma das 2 opções acima cobre o caso melhor.
 
 ---
 
@@ -239,6 +263,70 @@ Lição aprendida: o bucket `documentos` na Tarefa 2.4 era do projeto antigo, es
 
 ---
 
+## Idempotência de `ALTER TABLE`
+
+Toda tarefa que evolui schema (adicionar coluna, FK, índice em tabela existente) precisa ser **re-executável** sem erro. Padrões:
+
+### Adicionar coluna
+
+```sql
+ALTER TABLE public.tarefas ADD COLUMN IF NOT EXISTS persona_id uuid;
+```
+
+`ADD COLUMN IF NOT EXISTS` desde Postgres 9.6. Default em todas as versões modernas do Supabase.
+
+### Adicionar/alterar FK
+
+`ADD CONSTRAINT IF NOT EXISTS` **não existe** pra FKs no Postgres. Usa o padrão drop+add:
+
+```sql
+ALTER TABLE public.tarefas DROP CONSTRAINT IF EXISTS fk_tarefas_agente;
+ALTER TABLE public.tarefas
+  ADD CONSTRAINT fk_tarefas_agente
+  FOREIGN KEY (agente_id) REFERENCES public.agentes(id)
+  ON DELETE SET NULL;
+```
+
+Idempotente sem `IF NOT EXISTS` direto. Funciona pra qualquer constraint (UNIQUE, CHECK, FK).
+
+### Adicionar índice
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_tarefas_agente
+  ON public.tarefas (agente_id)
+  WHERE agente_id IS NOT NULL;
+```
+
+`CREATE INDEX IF NOT EXISTS` desde Postgres 9.5.
+
+### Adicionar trigger
+
+```sql
+DROP TRIGGER IF EXISTS trg_tarefas_updated_at ON public.tarefas;
+CREATE TRIGGER trg_tarefas_updated_at
+  BEFORE UPDATE ON public.tarefas
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+```
+
+Mesmo padrão drop+add — `CREATE TRIGGER IF NOT EXISTS` não existe.
+
+### Resumo: comandos idempotentes que usamos
+
+| Operação | Comando |
+|---|---|
+| Adicionar coluna | `ADD COLUMN IF NOT EXISTS` |
+| Adicionar FK/UNIQUE/CHECK | `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` |
+| Criar índice | `CREATE INDEX IF NOT EXISTS` |
+| Criar trigger | `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER` |
+| Criar/recriar função | `CREATE OR REPLACE FUNCTION` |
+| Habilitar RLS | `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` (já idempotente — re-execução é no-op) |
+| Criar policy | `DROP POLICY IF EXISTS` + `CREATE POLICY` |
+
+Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Dashboard sem rollback automático — script frágil = risco real.
+
+---
+
 ## Relacionado
 
 - [[Tabela — entidades]]
@@ -246,4 +334,6 @@ Lição aprendida: o bucket `documentos` na Tarefa 2.4 era do projeto antigo, es
 - [[Tabela — eventos]]
 - [[Tabela — pastas]]
 - [[Tabela — documentos]]
+- [[Tabela — agentes]]
+- [[Tabela — personas]]
 - [[CLAUDE.md]] — REGRA 5 (instância única Supabase)
