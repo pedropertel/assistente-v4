@@ -2,6 +2,7 @@ import { supabase } from './core/supabase.js';
 import { goPage } from './core/router.js';
 import { show as showToast } from './core/toast.js';
 import { show as showModal, close as closeModal } from './core/modal.js';
+import * as utils from './core/utils.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;
@@ -131,3 +132,6 @@ window.goPage = goPage;
 window.showToast = showToast;
 window.showModal = showModal;
 window.closeModal = closeModal;
+
+// UTILS (debug/console)
+window.utils = utils;

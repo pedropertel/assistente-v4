@@ -248,6 +248,9 @@ window.goPage = goPage;
 window.showToast = showToast;
 window.showModal = showModal;
 window.closeModal = closeModal;
+
+// UTILS (debug/console)
+window.utils = utils;
 ```
 
 ---
