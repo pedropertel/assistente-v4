@@ -365,8 +365,21 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - 3 seeds idempotentes via `WHERE NOT EXISTS` (convenção registrada na doc — pra tabelas sem unique constraint natural) ✅
 - Documentação completa em `050 - Banco de Dados/Tabela — tarefas.md` ✅
 
-### 🔴 Tarefa 2.3 — Tabela `eventos`
-Schema + RLS.
+### ✅ Tarefa 2.3 — Tabela `eventos`
+
+**Status:** Concluída em 2026-05-01 (SQL aprovado por Pedro após executar no Supabase, 3 seeds com `AT TIME ZONE 'America/Sao_Paulo'` retornando horários corretos). Mergeada pra `main` na mesma sessão.
+
+**Entregável:**
+- Tabela `eventos` com 17 colunas, FK pra `entidades(id)` ON DELETE RESTRICT ✅
+- 5 tipos de evento (`reuniao/tarefa/pessoal/lembrete/bloqueio`), 5 padrões de recorrência (`nenhuma/diaria/semanal/mensal/anual`), 5 origens (inclui `google_calendar`) ✅
+- `lembretes_min integer[]` (array de minutos antes), default `'{}'` ✅
+- `google_event_id text UNIQUE` preparada pra sync bidirecional Google Calendar ✅
+- Constraint `chk_eventos_horario CHECK (fim > inicio)` ✅
+- 5 índices: `entidade_id`, `inicio`, composto `(inicio, fim)` pra conflitos, `arquivado` parcial, `google_event_id` parcial ✅
+- RLS + policy `auth_full_access` ✅
+- 3 seeds idempotentes via `WHERE NOT EXISTS` (Bett Brasil, voo Punta Cana, bloqueio Meta) ✅
+- Documentação completa em `050 - Banco de Dados/Tabela — eventos.md` ✅
+- **Bônus:** `050 - Banco de Dados/CONVENÇÕES.md` criado com seção mãe sobre fuso horário (lição aprendida ao validar a 2.3) + idempotência + FKs + naming + RLS — referência única pras próximas tabelas ✅
 
 ### 🔴 Tarefa 2.4 — Tabelas `pastas` + `documentos`
 Schema + RLS + bucket `documentos` no Storage.
