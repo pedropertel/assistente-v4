@@ -162,6 +162,22 @@ Comparado com escape manual (`'Você é o Assistente. Pedro disse ''olá'' e per
 
 ---
 
+## ⚠️ Atualização (Tarefa 2.5.1) — `modelo` agora é fallback, não escolha final
+
+A partir da **Tarefa 2.5.1**, o sistema usa **router pattern** pra escolher o modelo correto por mensagem (ver [[Tabela — personas]] → "Router pattern"). O fluxo passou a ser:
+
+1. Persona interna **Roteador** (Haiku) classifica a mensagem → devolve `persona_slug` + `nivel_complexidade`.
+2. Edge Function (Fase 3) escolhe o modelo final assim:
+   - Se a persona escolhida tem `modelo_override` preenchido → usa esse.
+   - Senão, mapeia `nivel_complexidade` pro modelo padrão (Haiku/Sonnet/Opus — ver [[CONVENÇÕES]] → "Router pattern e escolha de modelo").
+3. **`agente.modelo` (esta coluna) só é usado como fallback** — quando não há persona ativa e o roteador não decidiu nada (caso raro).
+
+Em prática, com o router em produção, o `modelo` da tabela `agentes` raramente é consultado. A configuração de modelo passa a viver mais em `personas` (`modelo_override` e `nivel_complexidade`).
+
+A coluna `modelo` continua aqui porque (a) o agente único pode existir antes de qualquer persona estar ativa (ex.: primeira mensagem de uma sessão), (b) abre porta pra agentes futuros que não usem router. Não vou removê-la.
+
+---
+
 ## Row Level Security
 
 ```sql

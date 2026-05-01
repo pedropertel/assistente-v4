@@ -33,7 +33,7 @@ CREATE TABLE public.personas (
 );
 ```
 
-### Colunas (12 no total)
+### Colunas (15 no total)
 
 | Coluna | Tipo | Notas |
 |---|---|---|
@@ -43,10 +43,13 @@ CREATE TABLE public.personas (
 | `descricao` | `text` | Curta — listas e tooltips. |
 | `icone` | `text` | Emoji. |
 | `cor_hex` | `text` | HEX **sem `#`**. |
-| `contexto` | `text` | Texto QUE descreve quando ativar e qual tom usar. **Concatenado ao `prompt_base` do agente em runtime.** |
+| `contexto` | `text` | Texto que descreve quando ativar e qual tom usar. **Concatenado ao `prompt_base` do agente em runtime.** |
 | `entidades_alvo` | `text[]` | Slugs de entidades onde a persona é naturalmente acionada. **Vazio = transversal.** Indexado via GIN. |
 | `ativa` | `boolean` | Soft-disable. |
-| `ordem` | `integer` | Ordem em listas. |
+| `ordem` | `integer` | Ordem em listas. Internas geralmente em `0` ou abaixo. |
+| `modelo_override` | `text` | (2.5.1) String exata do modelo Anthropic. Quando preenchida, **força** este modelo ignorando `nivel_complexidade`. NULL = deixa o roteador escolher pela complexidade. |
+| `interno` | `boolean` | (2.5.1) Persona invisível na UI. `true` pra utilitários como o Roteador. |
+| `nivel_complexidade` | `text` | (2.5.1) `simples`/`medio`/`complexo`. Mapeia pro modelo Anthropic em runtime. Sobrescrito por `modelo_override` se preenchido. |
 | `created_at` | `timestamptz` | Criação. |
 | `updated_at` | `timestamptz` | Trigger. |
 
@@ -83,6 +86,161 @@ Resultado: o modelo recebe **uma identidade** (Assistente) + **um modo** (Marcos
 3. **Inferida pelo conteúdo:** Edge Function classifica a mensagem ("isso parece sobre Meta Ads") e sugere persona.
 
 A persona **escolhida** fica registrada em `tarefas.persona_id`, `eventos.persona_id`, `documentos.persona_id` quando o agente cria registros — pra rastreabilidade ("quem foi o tom usado quando esse documento foi salvo").
+
+---
+
+## Router pattern (2.5.1) — IA pequena escolhe IA grande
+
+A partir da Tarefa 2.5.1, o sistema usa **router pattern** pra escolher o modelo Anthropic correto pra cada mensagem do Pedro:
+
+1. **Roteador (persona interna, sempre Haiku 4.5)** classifica a mensagem ANTES da resposta real e devolve JSON estrito:
+   ```json
+   {
+     "persona_slug": "marcos|bruno|marcela|alemao|null",
+     "nivel_complexidade": "simples|medio|complexo",
+     "razao": "..."
+   }
+   ```
+2. **Edge Function** (a ser implementada na Fase 3) lê esse JSON, escolhe a persona e o modelo apropriados, e dispara a chamada real ao modelo escolhido.
+
+### Por quê
+
+- **Haiku é fraco em raciocínio complexo** (proposta comercial, análise estratégica) — usar pra tudo entrega resposta ruim.
+- **Sonnet é equilibrado mas ~5× mais caro**; **Opus é o melhor mas ~25× mais caro**.
+- Roteador resolve: paga Haiku barato pra classificar, paga Sonnet/Opus só onde precisa.
+
+### Mapeamento padrão `nivel_complexidade` → modelo
+
+| Nível | Modelo padrão | Quando usar |
+|---|---|---|
+| `simples` | `claude-haiku-4-5-20251001` | Anotar, listar, classificar, resposta curta operacional. |
+| `medio` | `claude-sonnet-4-6` | Análise, comparação, decisão baseada em dados. |
+| `complexo` | `claude-opus-4-7` | Redação importante, estratégia, planejamento de longo prazo. |
+
+> Esse mapeamento é **convencional** — vive no código da Edge Function, não no banco. Se algum dia mudar (ex.: simples virar Haiku 5.0), atualiza-se em um lugar só. Tabela de mapeamento global vive em `CONVENÇÕES.md`.
+
+### Como `modelo_override` se sobrepõe
+
+Quando uma persona tem `modelo_override` preenchido, ela **sempre** roda nesse modelo — independente do `nivel_complexidade`. É o "escape hatch" pra casos que precisam de garantia de modelo:
+
+- **Roteador**: `modelo_override = 'claude-haiku-4-5-20251001'`. Defesa em profundidade — mesmo se o mapeamento global mudar no futuro, o Roteador continua em Haiku 4.5 explícito.
+- Personas reais hoje têm `modelo_override = NULL` — deixam a Edge Function decidir pelo `nivel_complexidade`.
+
+### Os 4 níveis atuais das personas reais
+
+| Persona | nivel_complexidade | Razão |
+|---|---|---|
+| Marcos | `medio` | Operacional, mas decisões de pausar/escalar campanha pedem Sonnet. |
+| Bruno | `complexo` | Proposta comercial e redação importante exigem Opus. |
+| Marcela | `simples` | Operacional puro — listas, agenda, briefing curto. |
+| Alemão | `simples` | Anotação de lançamento, conversa rural, voz → texto. |
+
+### Fluxo completo de uma mensagem do Pedro
+
+```
+Pedro envia mensagem
+        │
+        ▼
+┌────────────────────────────────────────────────┐
+│ Edge Function chat-claude (Fase 3)             │
+│                                                │
+│ 1. Chama Roteador (Haiku via modelo_override)  │
+│    com a mensagem + entidade ativa             │
+│                                                │
+│ 2. Roteador devolve JSON:                      │
+│    { persona_slug, nivel_complexidade, razao } │
+│                                                │
+│ 3. Edge Function:                              │
+│    - busca persona escolhida                   │
+│    - se persona.modelo_override existe → usa   │
+│    - senão → mapeia nivel_complexidade → modelo│
+│                                                │
+│ 4. Monta prompt:                               │
+│    agente.prompt_base + persona.contexto       │
+│                                                │
+│ 5. Chama modelo escolhido com o prompt e o     │
+│    histórico de chat_mensagens                 │
+└────────────────────────────────────────────────┘
+        │
+        ▼
+Resposta volta pro Pedro,
+gravada em chat_mensagens com persona_id e modelo usado.
+```
+
+---
+
+## A persona `Roteador` (interna)
+
+| Campo | Valor |
+|---|---|
+| `slug` | `roteador` |
+| `nome` | Roteador |
+| `icone` | 🎯 |
+| `cor_hex` | `6B6B80` (cinza neutro — não compete com personas reais) |
+| `entidades_alvo` | `{}` (transversal — analisa qualquer entidade) |
+| `ordem` | `0` (vem antes das personas reais) |
+| `interno` | `true` (invisível na UI) |
+| `modelo_override` | `claude-haiku-4-5-20251001` |
+| `nivel_complexidade` | `simples` (defesa em profundidade — não vai ser usado porque `modelo_override` prevalece) |
+
+### Contexto do Roteador
+
+> Mantido aqui como referência. Fonte de verdade é o banco.
+
+```
+Você é o ROTEADOR do sistema de IA do Pedro.
+
+PAPEL:
+Sua única função é classificar a mensagem do Pedro e decidir
+qual persona ativar + qual nível de complexidade aplicar. Você
+não responde a mensagem do Pedro — só classifica.
+
+INPUT QUE VOCÊ RECEBE:
+- A mensagem do Pedro
+- Contexto da entidade ativa (se houver): cedtec, pincel-atomico,
+  sitio, grafica, agencia, pessoal
+- Lista das personas disponíveis e suas entidades_alvo
+
+OUTPUT QUE VOCÊ DEVE RETORNAR (JSON estrito, sem texto extra):
+{
+  "persona_slug": "marcos|bruno|marcela|alemao|null",
+  "nivel_complexidade": "simples|medio|complexo",
+  "razao": "explicação curta da escolha"
+}
+
+REGRAS DE CLASSIFICAÇÃO DE PERSONA:
+1. Identifica a entidade pelo conteúdo da mensagem:
+   - "CPL", "Meta Ads", "campanha", "conjunto", "criativo" → cedtec
+   - "escola-cliente", "Pincel", "Bett", "lead comercial" → pincel-atomico
+   - "café", "saca", "talhão", "sítio", "adubo" → sitio
+   - "agenda", "compromisso", "tarefa do dia" sem contexto específico → null (Marcela cobre transversal)
+   - Pessoal, família, saúde → null (sem persona específica)
+2. Casa entidade com persona:
+   - cedtec → marcos
+   - pincel-atomico → bruno
+   - sitio → alemao
+   - transversal/agenda → marcela
+   - sem persona clara → null
+
+REGRAS DE NÍVEL DE COMPLEXIDADE:
+- simples: anotar, listar, classificar, resposta curta operacional
+- medio: análise, comparação, decisão baseada em dados
+- complexo: redação importante, estratégia, planejamento de longo prazo
+
+PROIBIÇÕES:
+- Nunca responde a mensagem do Pedro — só classifica.
+- Nunca retorna texto fora do JSON.
+- Se ambíguo, escolhe o nível mais alto (defensivo: melhor pagar
+  Sonnet sem precisar do que entregar resposta ruim com Haiku).
+```
+
+### Por que persona, não tabela própria
+
+Roteador podia viver numa tabela `roteadores` separada, mas vive em `personas` com `interno = true` porque:
+
+- **Mesmo schema** — slug, nome, contexto, modelo. Não há campo que justifique tabela própria.
+- **Reaproveitamento de listas** — UI já filtra `WHERE interno = false`, sem precisar UNION com outra tabela.
+- **Fácil expansão** — outras personas internas no futuro (ex.: "Sumarizador" pra resumos automáticos, "Categorizador" pra documentos) entram como linhas em `personas` com `interno = true`. Convenção: `ordem ≤ 0` pra internas, `ordem ≥ 1` pra visíveis.
 
 ---
 

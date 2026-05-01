@@ -412,6 +412,25 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - Capabilities deixadas pra Fase 3 (não vão no schema desta tarefa) ✅
 - Documentação completa em `Tabela — agentes.md` e `Tabela — personas.md` (incluindo prompt_base do Assistente e os 4 contextos completos como referência, exemplos JS de inferência de persona por entidade) ✅
 
+### ✅ Tarefa 2.5.1 — Router pattern (modelo_override + nivel_complexidade + persona Roteador)
+
+**Status:** Concluída em 2026-05-01 (evolução da 2.5, inserida fora da sequência original do backlog entre 2.5 e 2.6). Mergeada pra `main` na mesma sessão.
+
+**Motivação:** após o fechamento da 2.5, decisão arquitetural refinada — Haiku 4.5 (default do agente) é fraco em raciocínio complexo (proposta comercial, análise estratégica). Sonnet/Opus são caros. Solução: router pattern. Persona interna ("Roteador", sempre Haiku) classifica cada mensagem antes da resposta; Edge Function da Fase 3 escolhe Haiku/Sonnet/Opus pelo nível.
+
+**Entregável:**
+- `ALTER TABLE personas ADD COLUMN IF NOT EXISTS` × 3: `modelo_override text`, `interno boolean DEFAULT false`, `nivel_complexidade text` ✅
+- CHECK constraint nomeada `chk_personas_nivel_complexidade` (idempotente via DROP+ADD) — aceita NULL ou (`simples`/`medio`/`complexo`) ✅
+- COMMENT em todas as colunas novas ✅
+- UPDATEs idempotentes (só preenche onde está NULL): Marcos=`medio`, Bruno=`complexo`, Marcela=`simples`, Alemão=`simples` ✅
+- INSERT da persona Roteador (interno=true, modelo_override='claude-haiku-4-5-20251001', ordem=0, contexto de ~9.3 KB com regras de classificação e formato JSON estrito) ✅
+- `Tabela — personas.md` ganhou seções "Router pattern (2.5.1)" + "A persona Roteador (interna)" com mapeamento, fluxo completo e contexto de referência ✅
+- `Tabela — agentes.md` ganhou seção "Atualização 2.5.1" — `modelo` agora é fallback ✅
+- `CONVENÇÕES.md` ganhou seção "Router pattern e escolha de modelo" (mapeamento, quando usar modelo_override, padrão pra adicionar personas internas) ✅
+- `CLAUDE.md` Status atual: 4 → 5 personas (+ Roteador interno) + menção ao router pattern ✅
+
+---
+
 ### 🔴 Tarefa 2.6 — Tabela `chat_mensagens`
 Schema + RLS.
 

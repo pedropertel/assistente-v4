@@ -263,6 +263,67 @@ Lição aprendida: o bucket `documentos` na Tarefa 2.4 era do projeto antigo, es
 
 ---
 
+## Router pattern e escolha de modelo
+
+> Convenção firmada na Tarefa 2.5.1.
+
+O sistema escolhe o modelo Anthropic por mensagem usando **router pattern** — uma IA pequena (Haiku) classifica a mensagem antes da IA grande responder. Configuração vive na tabela [[Tabela — personas]] via `modelo_override` + `nivel_complexidade`.
+
+### Mapeamento padrão `nivel_complexidade` → modelo
+
+| Nível | Modelo padrão | Custo relativo |
+|---|---|---|
+| `simples` | `claude-haiku-4-5-20251001` | 1× |
+| `medio` | `claude-sonnet-4-6` | ~5× |
+| `complexo` | `claude-opus-4-7` | ~25× |
+
+Mapeamento vive **na Edge Function** (Fase 3), não em tabela do banco. Mudar o mapeamento global = mudar 1 lugar no código. Banco mantém apenas o nível por persona; resolução do nome do modelo é responsabilidade da Edge Function.
+
+### Quando preencher `modelo_override`
+
+Use **`modelo_override`** quando a persona precisa de **garantia** de modelo, ignorando o mapeamento global. Casos válidos:
+
+- **Personas internas** que dependem de comportamento previsível (ex.: Roteador sempre Haiku — se o mapeamento de "simples" mudar, Roteador continua Haiku).
+- **Casos especiais** onde Pedro definiu manualmente "essa persona sempre usa X" e não quer que mude com a evolução geral.
+
+Em personas normais, deixa `modelo_override = NULL` e ajusta `nivel_complexidade` — assim, quando o mapeamento global evoluir, todas se beneficiam automaticamente.
+
+### Personas internas (`interno = true`)
+
+Convenção pra utilitários invisíveis na UI:
+
+- `interno = true` esconde da lista de personas selecionáveis.
+- `ordem ≤ 0` pra internas, `ordem ≥ 1` pra visíveis ao Pedro.
+- `slug` curto e descritivo (ex.: `roteador`, `sumarizador`, `categorizador` — quando existirem).
+- Geralmente têm `modelo_override` preenchido (comportamento previsível).
+- UI **sempre** filtra `WHERE interno = false` ao listar personas pro Pedro escolher.
+
+### Adicionar nova persona interna no futuro
+
+```sql
+INSERT INTO public.personas
+  (slug, nome, descricao, icone, cor_hex, contexto, entidades_alvo,
+   ordem, interno, modelo_override, nivel_complexidade)
+VALUES (
+  'sumarizador',
+  'Sumarizador',
+  'Resume conversas longas em 3-5 linhas. Persona interna.',
+  '📝',
+  '6B6B80',
+  $contexto$Você é o SUMARIZADOR. Sua única função é... [...] $contexto$,
+  ARRAY[]::text[],
+  -1,                              -- ordem negativa pra ficar antes do Roteador (0)
+  true,                            -- interno
+  'claude-haiku-4-5-20251001',     -- previsibilidade
+  'simples'
+)
+ON CONFLICT (slug) DO NOTHING;
+```
+
+A regra é apenas: `interno = true` + `ordem ≤ 0` + `modelo_override` previsível.
+
+---
+
 ## Idempotência de `ALTER TABLE`
 
 Toda tarefa que evolui schema (adicionar coluna, FK, índice em tabela existente) precisa ser **re-executável** sem erro. Padrões:
