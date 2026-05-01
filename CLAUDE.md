@@ -261,7 +261,7 @@ window.utils = utils;
 
 - ✅ Infraestrutura: GitHub `pedropertel/assistente-v4` + Vercel + Supabase `msbwplsknncnxwsalumd`
 - ✅ Código (Fase 1 — fundação concluída em 2026-05-01): auth completo via `onAuthStateChange`, design system dark/light persistido, sidebar/drawer mobile-first, router com 8 páginas placeholder, sistema de toast e modal, utils (fmtDate/fmtMoney/fmtRelative/debounce/slugify). Núcleo modular em `js/core/` (supabase, router, toast, modal, utils).
-- 🟡 Banco (Fase 2 em andamento): tabela `entidades` criada (6 registros: 5 empresas + Pessoal), com RLS + policy `auth_full_access` + trigger `set_updated_at` genérico reaproveitável. Tabela `teste` da 0.2 ainda existe (sanity ping em `initApp`). Faltam tarefas 2.2–2.9 (tarefas, eventos, documentos, agentes, chat, sítio, cedtec, configurações).
+- 🟡 Banco (Fase 2 em andamento): 2 tabelas reais — `entidades` (6 registros: 5 empresas + Pessoal) e `tarefas` (kanban 4 colunas, 4 prioridades, FK pra entidades, trigger auto-`concluida_em`, 3 seeds). Função `set_updated_at()` genérica reaproveitável. Tabela `teste` da 0.2 ainda existe (sanity ping em `initApp`). Faltam tarefas 2.3–2.9 (eventos, documentos, agentes, chat, sítio, cedtec, configurações).
 
 ---
 
