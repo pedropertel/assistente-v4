@@ -247,6 +247,23 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
+### ✅ Tarefa 1.7.5 — Ajustes visuais da sidebar (logo + ordem)
+
+**Status:** Concluída em 2026-05-01 (inserida fora da sequência original do backlog, entre 1.7 e 1.8). Preview aprovado e mergeada pra `main` na mesma sessão.
+
+**Objetivo:** Alinhar o logo da sidebar com a tela de login (🧠) e reordenar a navegação pra refletir o "interface primária = conversa" do `VISAO.md`.
+
+**Entregável:**
+- Logo `A` → `🧠` no `<span class="sidebar-logo">` ✅
+- CSS `.sidebar-logo`: removido `background: var(--accent)` / `color: white` / `font-weight: 700`; adicionado `background: transparent`, `font-size: 24px`, `line-height: 1` ✅
+- Ordem da `.sidebar-nav` invertida: Chat agora é #1, Dashboard #2 ✅
+- Página default ao logar trocada de Dashboard pra Chat (`initApp` + `currentPage` no router) ✅
+- `VISAO.md` ganhou seção "Ordem visual da navegação" registrando a decisão ✅
+
+**Critério de aprovação:** Pedro loga e cai em Chat com Chat destacado na sidebar; logo 🧠 sem fundo colorido; clicar em Dashboard troca; logout/login mantém Chat como default. ✅
+
+---
+
 ### 🔴 Tarefa 1.8 — Sistema de toast
 
 **Objetivo:** Sistema reutilizável de notificações.
