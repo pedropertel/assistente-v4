@@ -246,6 +246,8 @@ window.goPage = goPage;
 
 // FEEDBACK
 window.showToast = showToast;
+window.showModal = showModal;
+window.closeModal = closeModal;
 ```
 
 ---

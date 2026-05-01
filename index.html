@@ -52,6 +52,7 @@
       /* Sombras (sutis no dark) */
       --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
       --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.4);
 
       /* Transição padrão */
       --transition: 0.2s ease;
@@ -70,6 +71,7 @@
 
       --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
       --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.15);
     }
 
     /* ============================================================
@@ -612,6 +614,156 @@
         right: var(--space-6);
         transform: none;
       }
+    }
+
+    /* ============================================================
+       BOTÕES GENÉRICOS — base reutilizável (.btn + variantes)
+       ============================================================ */
+
+    .btn {
+      min-height: 40px;
+      padding: var(--space-2) var(--space-4);
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        background var(--transition),
+        color var(--transition),
+        border-color var(--transition),
+        opacity var(--transition);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+      border-color: var(--text-secondary);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #FFFFFF;
+    }
+
+    .btn-danger:hover {
+      opacity: 0.9;
+    }
+
+    /* ============================================================
+       MODAL — diálogo centralizado com overlay
+       ============================================================ */
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    #modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1500;
+      padding: var(--space-4);
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    #modal-overlay.modal-overlay-enter {
+      opacity: 1;
+    }
+
+    #modal-overlay.modal-overlay-exit {
+      opacity: 0;
+    }
+
+    .modal {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      max-height: calc(100dvh - var(--space-8));
+      padding: var(--space-6);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow-y: auto;
+      transform: scale(0.95) translateY(10px);
+      transition: transform var(--transition);
+    }
+
+    #modal-overlay.modal-overlay-enter .modal {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: var(--space-2);
+      right: var(--space-2);
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 24px;
+      font-family: inherit;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .modal-title {
+      margin: 0 0 var(--space-3) 0;
+      padding-right: var(--space-6);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      margin-bottom: var(--space-4);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: var(--space-2);
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .modal-actions .btn {
+      min-width: 96px;
     }
   </style>
 
