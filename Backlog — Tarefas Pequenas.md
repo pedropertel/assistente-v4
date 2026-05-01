@@ -264,14 +264,25 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 1.8 — Sistema de toast
+### ✅ Tarefa 1.8 — Sistema de toast
+
+**Status:** Concluída em 2026-05-01 (preview aprovado e mergeada pra `main` na mesma sessão). Fecha também a pendência carryover da Tarefa 1.5.
 
 **Objetivo:** Sistema reutilizável de notificações.
 
 **Prompt pro Claude Code:**
 > Crie `js/core/toast.js` com `show(msg, type)` onde type = 'success' | 'error' | 'info'. Limite a 3 toasts visíveis. Auto-remove em 3s. Expor `window.showToast`.
 
-**Critério de aprovação:** Pedro pede pro Claude Code disparar 3 toasts via console. Todos aparecem, desaparecem em 3s, têm cores diferentes.
+**Entregável:**
+- `js/core/toast.js` com `show(msg, type, duration)`, 4 tipos (`success`/`error`/`info`/`warning`), `MAX_TOASTS=3`, default `3000ms` ✅
+- `ensureContainer()` lazy cria `#toast-container` na primeira chamada ✅
+- Animação enter/exit com `force reflow` + `transition` 200ms ✅
+- Mobile: bottom centralizado com `env(safe-area-inset-bottom)`. Desktop (≥ 768px): canto inferior direito ✅
+- `pointer-events: none` no container, `auto` em cada toast (não bloqueia cliques no app) ✅
+- `signOut()` agora usa `showToast(..., 'error')` em vez de `alert()` (fecha pendência da 1.5) ✅
+- `window.showToast` exposto; `CLAUDE.md` Window Bridge com seção `// FEEDBACK` ✅
+
+**Critério de aprovação:** Pedro pede pro Claude Code disparar 3 toasts via console. Todos aparecem, desaparecem em 3s, têm cores diferentes. ✅
 
 ---
 
