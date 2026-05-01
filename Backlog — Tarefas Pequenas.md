@@ -431,8 +431,22 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 2.6 — Tabela `chat_mensagens`
-Schema + RLS.
+### ✅ Tarefa 2.6 — Tabelas `chat_mensagens` + `chat_anexos`
+
+**Status:** Concluída em 2026-05-01. **Tarefa central** — coração do sistema (memória persistente do agente único). Mergeada pra `main` na mesma sessão.
+
+**Decisão arquitetural:** lista plana, não threads. Coerente com "cérebro único" — o histórico é montado no cliente filtrando por `entidade_id` + `created_at` + (opcional) `persona_id`. Schema continua suportando `conversa_id` futuro se virar dor.
+
+**Entregável:**
+- Tabela `chat_mensagens` (18 colunas) — `papel` (user/assistant/system, mesmos termos da API Anthropic), `conteudo` markdown, FKs SET NULL pra entidades/agentes/personas (histórico sobrevive a deletes), métricas completas (`tokens_entrada`/`tokens_saida`/`custo_usd numeric(10,6)`/`custo_brl numeric(10,4)`/`latencia_ms`), `mensagem_pai_id` self-reference SET NULL pra rastreio de cadeias, `erro` text pra falhas de chamada, `favorita` boolean ✅
+- Roteador grava em `chat_mensagens` com `papel='system'` + `persona_id=<roteador>` — debug e auditoria ✅
+- 6 índices: `papel`, `entidade_id` parcial, `persona_id` parcial, `mensagem_pai_id` parcial, `created_at DESC`, `favorita` parcial ✅
+- Tabela `chat_anexos` (11 colunas) — 4 tipos (imagem/audio/documento/video), `mensagem_id NOT NULL` com **ON DELETE CASCADE** (exceção consciente — anexo é filho biológico), `documento_id` opcional SET NULL (vínculo com biblioteca permanente), `duracao_segundos` pra audio/video, `transcricao` pra audio, `storage_path` UNIQUE com prefixo `chat_anexos/` (exceção consciente ao path plano) ✅
+- 3 índices em `chat_anexos`: `mensagem_id`, `documento_id` parcial, `tipo` ✅
+- 2 seeds em `chat_mensagens` (user "primeira mensagem" sem métricas + assistant Haiku com 250in/87out/$0.000343/R$0.0019/1240ms) ✅
+- 1 seed em `chat_anexos` (imagem PNG 145 kB vinculada à mensagem do user) ✅
+- `CONVENÇÕES.md` ganhou **2 exceções registradas**: CASCADE em `chat_anexos.mensagem_id` (com nota sobre Storage não ser apagado pelo CASCADE) e prefixo `chat_anexos/` no bucket compartilhado (com critérios pra reavaliar) ✅
+- Documentação completa em `Tabela — chat_mensagens.md` (~340 linhas) e `Tabela — chat_anexos.md` (~290 linhas) — exemplos JS de "carregar últimas N", "reconstruir cadeia", "upload completo", "apagar mensagem com cleanup do Storage", "salvar anexo na biblioteca permanente" ✅
 
 ### 🔴 Tarefa 2.7 — Tabelas do Sítio
 `sitio_categorias` + `sitio_lancamentos` + inserir 6 centros de custo.

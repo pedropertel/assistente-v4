@@ -128,7 +128,20 @@ Se o agente/persona for desativado/apagado, o registro de tarefa/evento/document
 | Estrutural | "A quem isto pertence?" | `RESTRICT` |
 | Metadados | "Quem fez isto?" / "Em qual contexto foi criado?" | `SET NULL` |
 
-**CASCADE não é usado em nenhum lugar do projeto.** Sempre que parecer tentador, alguma das 2 opções acima cobre o caso melhor.
+**CASCADE quase nunca é usado.** Sempre que parecer tentador, alguma das 2 opções acima cobre o caso melhor.
+
+### ⚠️ Exceção registrada — `chat_anexos.mensagem_id` (Tarefa 2.6)
+
+Única tabela do projeto com `ON DELETE CASCADE`. Justificativa:
+
+- Anexo é **parte intrínseca** da mensagem (filho biológico), não associação.
+- `mensagem_id` é `NOT NULL` — SET NULL não é opção (estado inválido).
+- RESTRICT exigiria limpeza manual ao apagar mensagem — péssima UX.
+- CASCADE reflete a verdade: apagar mensagem **deve** apagar anexos junto.
+
+⚠️ **CASCADE no banco NÃO apaga o arquivo físico no Storage.** Quem apaga a mensagem precisa fazer `supabase.storage.remove([storage_paths])` antes/depois — mesmo padrão de `documentos`. Detalhe coberto em [[Tabela — chat_anexos]].
+
+Se uma futura tabela tiver perfil parecido (filho biológico, NOT NULL no FK, sem cenário de sobrevivência), pode usar CASCADE também. Antes, registrar a exceção aqui.
 
 ---
 
@@ -249,6 +262,28 @@ Convenção de nome em pt-BR. Bucket público (caso raro) usa `*_publico` no lug
 ### Tabela de metadados com `storage_path` UNIQUE
 
 Toda tabela que aponta pra arquivo no Storage tem coluna `storage_path text NOT NULL UNIQUE`. UNIQUE protege contra dois registros apontarem pro mesmo blob (defesa contra bug de upload duplicado).
+
+### ⚠️ Exceção registrada — `chat_anexos` usa prefixo `chat_anexos/` (Tarefa 2.6)
+
+Única exceção à regra "path plano". Anexos de chat vivem no **mesmo bucket** `documentos` (compartilhado), mas com prefixo:
+
+```
+chat_anexos/{id}.{extensao}
+```
+
+Justificativa:
+
+- Anexos de chat são **efêmeros/contextuais** (vinculados a mensagens), diferente dos documentos da biblioteca que são intencionais e organizados em pastas.
+- Prefixo facilita **bulk-delete futuro** (`storage.remove(prefix='chat_anexos/')`) sem precisar de bucket separado agora.
+- Path físico ainda contém UUID (`{id}.{extensao}`) — preserva "não colide" e "não depende de renomeação lógica".
+
+**Quando reavaliar (migrar pra bucket dedicado `chat_anexos`):**
+
+1. Volume cresce muito (gigabytes de áudio acumulado) e dificulta listagem do bucket `documentos`.
+2. Policies precisam ser diferentes (ex.: TTL automático, MIMEs restritos).
+3. Custos de Storage começam a justificar separação por bucket.
+
+Migração futura é direta — `storage.move(...)` em batch + `UPDATE chat_anexos SET storage_path = REPLACE(...)` simultaneamente.
 
 ### Reaproveitar bucket de projeto antigo
 
@@ -397,4 +432,6 @@ Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Das
 - [[Tabela — documentos]]
 - [[Tabela — agentes]]
 - [[Tabela — personas]]
+- [[Tabela — chat_mensagens]]
+- [[Tabela — chat_anexos]]
 - [[CLAUDE.md]] — REGRA 5 (instância única Supabase)
