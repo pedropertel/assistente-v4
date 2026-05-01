@@ -469,8 +469,21 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-### 🔴 Tarefa 2.7 — Tabelas do Sítio
-`sitio_categorias` + `sitio_lancamentos` + inserir 6 centros de custo.
+### ✅ Tarefa 2.7 — Tabelas do Sítio (`sitio_categorias` + `sitio_lancamentos`)
+
+**Status:** Concluída em 2026-05-01. Mergeada pra `main` na mesma sessão. **Primeira tarefa nascida sob a REGRA 12** (2.6.1) — desenho refletiu "seeds = ponto de partida editável".
+
+**Entregável:**
+- Tabela `sitio_categorias` (12 colunas) — hierarquia 2 níveis (raiz + subcategoria) sem trigger de coerência (UI controla profundidade), 2 índices únicos parciais (raízes vs filhas) contornando NULL em UNIQUE composta, `ativa boolean` pra soft-delete REGRA 12, `tipo` denormalizado consciente (entrada/saida) pra queries de fluxo de caixa sem JOIN ✅
+- **29 seeds** (não 25 — contagem inicial errada, corrigida) — 8 categorias-raiz (Investimento/Receita/Insumos/Mão de obra/Equipamento/Operacional/Tributos/Outros) + 21 subcategorias cobrindo realidade rural de café. **Todas editáveis/arquiváveis pela UI** ✅
+- Tabela `sitio_lancamentos` (22 colunas) — `valor_centavos bigint` (até R$ 92 quatri), `data_lancamento date` sem hora (created_at sequencia intra-dia), `quantidade numeric(10,3)` + `unidade text` + `valor_unitario_centavos bigint` opcionais (sem trigger validando `qtde × unit = total` — descontos/frete), 5 formas de pagamento via CHECK, `fornecedor text` livre não-normalizado ✅
+- **Rastreio voz→lançamento:** `transcricao_original text` + `mensagem_origem_id uuid REFERENCES chat_mensagens(id) ON DELETE SET NULL` — Alemão estrutura, schema preserva o original pra debug/aprendizado ✅
+- 7 índices: entidade, categoria, tipo, `data DESC`, composto `(entidade_id, data DESC)`, arquivado parcial, mensagem_origem_id parcial ✅
+- 5 origens: `manual/chat/voz/sistema/importacao` (`importacao` reservado pra extrato bancário futuro) ✅
+- 6 FKs: 2 estruturais RESTRICT (entidade_id, categoria_id) + 4 metadados SET NULL (comprovante_doc_id, mensagem_origem_id, agente_id, persona_id) ✅
+- 3 seeds de lançamento (aporte R$ 50k transferência + adubo R$ 1.500 pix + diarista R$ 240 dinheiro) com JOIN duplo categoria→pai funcional ✅
+- `CONVENÇÕES.md` ganhou 3 seções novas: **Soft-delete formalizado** (tabela com todas as colunas e defaults), **Denormalização consciente** (regra de exceção + tabela com casos no projeto), **Tabelas customizáveis** (lista que cresce a cada tarefa) ✅
+- Documentação completa em `Tabela — sitio_categorias.md` (~250 linhas) e `Tabela — sitio_lancamentos.md` (~330 linhas) — fluxo voz documentado, exemplos JS de fluxo de caixa, criação manual e via voz, soft-archive ✅
 
 ### 🔴 Tarefa 2.8 — Tabelas do CEDTEC
 `cedtec_conta_meta` + `cedtec_recargas` + `meta_conexoes` + `meta_campanhas_cache`.

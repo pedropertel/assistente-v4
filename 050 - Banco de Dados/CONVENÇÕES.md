@@ -392,6 +392,53 @@ Todo seed inserido (entidades, personas, categorias, etc.) é **sugestão inicia
 
 Se algum seed for crítico pro funcionamento (ex.: a persona `roteador` interna), o código da Edge Function precisa lidar com ausência (criar se não existe, ou degradar funcionalidade graciosamente).
 
+### Soft-delete é o padrão (formalizado na 2.7)
+
+Toda tabela editável pelo usuário tem coluna boolean pra "arquivar sem apagar":
+
+| Tabela | Coluna | Default | Significado |
+|---|---|---|---|
+| `entidades` | `ativa` | `true` | Some da UI, FKs preservam histórico. |
+| `tarefas`, `eventos`, `documentos` | `arquivada`/`arquivado` | `false` | Some do kanban/agenda/biblioteca, histórico preserva. |
+| `pastas` | `arquivada` | `false` | Some da árvore. |
+| `agentes`, `personas` | `ativo`/`ativa` | `true` | Não responde mais a novas mensagens; histórico antigo preserva. |
+| `chat_mensagens` | (sem soft-delete — `favorita` é destaque, não arquivamento) | — | — |
+| `chat_anexos` | (sem — imutáveis; CASCADE limpa quando mensagem-pai é apagada) | — | — |
+| `sitio_categorias` | `ativa` | `true` | Some das listas, lançamentos antigos preservam referência. |
+| `sitio_lancamentos` | `arquivado` | `false` | Some do fluxo de caixa, histórico preserva. |
+
+**Hard-delete só com confirmação explícita** ("apagar permanentemente") na UI da Fase 4. Default é arquivar.
+
+### Denormalização consciente (firmada na 2.7)
+
+Em alguns casos, **repetir um campo do pai no filho** é trade-off aceitável quando:
+
+1. **Query de leitura é muito mais frequente que update** — ler é o caminho quente.
+2. **JOIN evita-se vale a complexidade extra** — economia mensurável em queries comuns.
+3. **Risco de desalinhamento é aceitável** — usuário ou aplicação são responsáveis pela coerência semântica.
+
+Exemplos no projeto:
+
+| Tabela | Campo denormalizado | Origem | Razão |
+|---|---|---|---|
+| `sitio_categorias.tipo` | `tipo` (entrada/saida) | Categoria-pai | `SUM(valor) WHERE tipo='saida'` sem JOIN com pai. |
+| `sitio_lancamentos.tipo` | `tipo` (entrada/saida) | `categoria.tipo` | Fluxo de caixa instantâneo sem JOIN duplo. |
+
+**Regra:** denormalizar é exceção consciente. Default é normalizar — JOIN é barato no PG. Documenta a razão na própria tabela quando fizer.
+
+### Tabelas customizáveis pelo usuário (Fase 4 vai construir telas CRUD)
+
+Lista atualizada conforme as tarefas vão entrando — toda tabela aqui precisa ter sua tela na Fase 4:
+
+- `entidades` — Pedro pode adicionar/editar/arquivar empresas
+- `tarefas`, `eventos`, `documentos` — CRUD óbvio
+- `pastas` — árvore editável
+- `personas` — incluindo customizar `prompt_base`/`contexto`/`modelo_override`/`nivel_complexidade`
+- `agentes` — incluindo `prompt_base`/`modelo`/`temperatura`/`max_tokens`
+- `sitio_categorias` — confirmada na 2.7 (29 seeds = ponto de partida)
+- `sitio_lancamentos` — incluindo input por voz (Alemão)
+- `configuracoes` — vai ser o centro da customização visual (labels de vocabulário interno) na 2.9
+
 ---
 
 ## Idempotência de `ALTER TABLE`
@@ -469,4 +516,6 @@ Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Das
 - [[Tabela — personas]]
 - [[Tabela — chat_mensagens]]
 - [[Tabela — chat_anexos]]
-- [[CLAUDE.md]] — REGRA 5 (instância única Supabase)
+- [[Tabela — sitio_categorias]]
+- [[Tabela — sitio_lancamentos]]
+- [[CLAUDE.md]] — REGRA 5 (instância única Supabase), REGRA 12 (customização total)
