@@ -243,6 +243,9 @@ window.signOut = signOut;
 // NAVEGAÇÃO
 window.toggleSidebar = toggleSidebar;
 window.goPage = goPage;
+
+// FEEDBACK
+window.showToast = showToast;
 ```
 
 ---

@@ -1,5 +1,6 @@
 import { supabase } from './core/supabase.js';
 import { goPage } from './core/router.js';
+import { show as showToast } from './core/toast.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;
@@ -97,7 +98,7 @@ async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error('[signOut]', error);
-    alert('Erro ao sair: ' + error.message);
+    showToast('Erro ao sair: ' + error.message, 'error');
   }
   // O onAuthStateChange captura SIGNED_OUT e chama showLogin() automaticamente.
 }
@@ -124,3 +125,6 @@ window.signOut = signOut;
 // NAVEGAÇÃO
 window.toggleSidebar = toggleSidebar;
 window.goPage = goPage;
+
+// FEEDBACK
+window.showToast = showToast;
