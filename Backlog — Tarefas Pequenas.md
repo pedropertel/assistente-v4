@@ -591,6 +591,19 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
+### ✅ Tarefa 3.0 — Reconciliar Backlog (2026-05-02)
+
+Commit isolado de reconciliação documental. Sem código. Backlog passa a refletir Fase 3 = IA backend e Fase 4 = UI dos módulos. Primeira tarefa formal da Fase 3.
+
+- Backlog reescrito (linhas 551-592): "Fase 3 — IA backend" com tabela das 10 sub-fases + decisões críticas; "Fase 4 — UI dos módulos" preserva conteúdo antigo da Fase 3 (kanban/drag-drop) com itens 4.1-4.8 ✅
+- CLAUDE.md "Status atual" atualizado: caminho curto 23.5h, plan file path, decisões críticas resumidas ✅
+- Dev Log — 2026-05.md ganhou entrada "Plano da Fase 3 oficializado" (oficialização) + esta entrada de fechamento da 3.0 ✅
+- Sem mudança de código, sem preview pra testar — pura documentação ✅
+
+**Próximo:** Tarefa 3.A.1 — estrutura `supabase/functions/_shared/`.
+
+---
+
 ## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
 
 > **Antes da reconciliação de 2026-05-02 esta era a Fase 3.** Continua o mesmo conteúdo: telas dos módulos visuais consumindo o banco da Fase 2 + a IA backend da Fase 3.
