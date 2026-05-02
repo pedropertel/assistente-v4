@@ -130,18 +130,29 @@ Se o agente/persona for desativado/apagado, o registro de tarefa/evento/document
 
 **CASCADE quase nunca é usado.** Sempre que parecer tentador, alguma das 2 opções acima cobre o caso melhor.
 
-### ⚠️ Exceção registrada — `chat_anexos.mensagem_id` (Tarefa 2.6)
+### ⚠️ Exceções registradas — `ON DELETE CASCADE`
 
-Única tabela do projeto com `ON DELETE CASCADE`. Justificativa:
+Padrão consolidado: **CASCADE só pra "filho biológico" com FK NOT NULL onde re-criação é trivial.**
 
-- Anexo é **parte intrínseca** da mensagem (filho biológico), não associação.
-- `mensagem_id` é `NOT NULL` — SET NULL não é opção (estado inválido).
-- RESTRICT exigiria limpeza manual ao apagar mensagem — péssima UX.
-- CASCADE reflete a verdade: apagar mensagem **deve** apagar anexos junto.
+Lista atual de ocorrências (4):
 
-⚠️ **CASCADE no banco NÃO apaga o arquivo físico no Storage.** Quem apaga a mensagem precisa fazer `supabase.storage.remove([storage_paths])` antes/depois — mesmo padrão de `documentos`. Detalhe coberto em [[Tabela — chat_anexos]].
+| # | Tabela | FK | Tarefa | Justificativa específica |
+|---|---|---|---|---|
+| 1 | `chat_anexos.mensagem_id` | mensagem-pai | 2.6 | Anexo é filho biológico da mensagem. Re-criação trivial (anexo é efêmero). |
+| 2 | `meta_campanhas_cache.conexao_id` | conexão Meta | 2.8 | Cache é filho biológico da conexão. Re-criação trivial (re-sync da Graph API). |
+| 3 | `meta_adsets_cache.conexao_id` | conexão Meta | 2.8 | Idem. |
+| 4 | `meta_ads_cache.conexao_id` | conexão Meta | 2.8 | Idem. |
 
-Se uma futura tabela tiver perfil parecido (filho biológico, NOT NULL no FK, sem cenário de sobrevivência), pode usar CASCADE também. Antes, registrar a exceção aqui.
+**3 critérios pra CASCADE ser aceito:**
+1. Filho biológico (parte intrínseca, não associação).
+2. FK `NOT NULL` (SET NULL não é opção — estado inválido).
+3. Re-criação trivial (cache: re-sync; anexo: efêmero) ou impacto aceitável.
+
+Se a tabela nova falha em qualquer um dos 3, NÃO usar CASCADE. Default volta a ser RESTRICT/SET NULL conforme a regra estrutural vs metadados acima.
+
+⚠️ **CASCADE no banco NÃO apaga arquivos no Storage.** Quem apaga a entidade-pai precisa fazer `supabase.storage.remove([storage_paths])` antes/depois — mesmo padrão de `documentos` e `chat_anexos`.
+
+Pra registrar uma exceção nova: adicionar linha na tabela acima + nota no doc da tabela explicando os 3 critérios.
 
 ---
 
@@ -437,7 +448,48 @@ Lista atualizada conforme as tarefas vão entrando — toda tabela aqui precisa 
 - `agentes` — incluindo `prompt_base`/`modelo`/`temperatura`/`max_tokens`
 - `sitio_categorias` — confirmada na 2.7 (29 seeds = ponto de partida)
 - `sitio_lancamentos` — incluindo input por voz (Alemão)
+- `meta_credenciais` — Pedro adiciona/edita/remove tokens via UI (token vai pro Vault)
+- `meta_conexoes` — Pedro vincula entidade ↔ ad_account via UI
 - `configuracoes` — vai ser o centro da customização visual (labels de vocabulário interno) na 2.9
+
+---
+
+## Integração com sistemas externos
+
+> Convenção firmada na Tarefa 2.8 (Meta Ads).
+
+### Tokens/secrets vivem no Vault
+
+Qualquer credencial que dá acesso a sistema externo (Meta, Google, etc.) **NUNCA** vai em texto plano em tabela do `public`. Padrão:
+
+1. Token vai pro Supabase Vault via `vault.create_secret(secret, name, description)`.
+2. Tabela do `public` guarda **apenas** `vault_secret_id uuid UNIQUE` apontando pra `vault.secrets.id`.
+3. Edge Function lê em runtime via `vault.decrypted_secrets WHERE id = ?` (com privilégio adequado).
+4. Front nunca toca o token — envia comando, Edge Function chama API externa.
+
+**`vault_secret_id` é referência LÓGICA, não FK formal.** Schema `vault` é gerenciado pela extension Supabase — `REFERENCES vault.secrets(id)` exigiria privilégios cross-schema que o owner padrão da `public` não tem garantido. UNIQUE no campo evita 2 linhas apontando pro mesmo secret.
+
+Rotação: trocar valor no Vault, `vault_secret_id` permanece. Tabelas dependentes não precisam saber.
+
+### Cache de dados externos
+
+Quando cacheamos resposta de API externa (Meta Ads, futuro Google Ads, etc.):
+
+| Convenção | Por quê |
+|---|---|
+| **`text` pra ids externos** | Formato canônico da fonte. Ex.: `act_123456789` na Meta — não converter pra bigint. |
+| **`raw_data jsonb`** | Preserva resposta crua. Métricas obscuras consultáveis sem ALTER TABLE. |
+| **`sync_at timestamptz NOT NULL DEFAULT now()`** | Quando o snapshot foi capturado. |
+| **`sync_periodo_inicio` / `sync_periodo_fim` (date)** | Período da agregação das métricas. Sem isso, comparações ficam ambíguas. |
+| **UNIQUE composto `(conexao_id, id_externo)`** | Permite UPSERT idempotente do sync (`ON CONFLICT (...) DO UPDATE`). |
+| **FKs entre níveis = lógicas (não formais)** | Sync pode chegar fora de ordem (paginação inconsistente). FK formal travaria INSERT. Edge Function garante consistência eventual. |
+| **`ON DELETE CASCADE` em `conexao_id`** | Cache é filho biológico da conexão. Re-sync trivial. Exceção registrada acima. |
+
+### Estratégia híbrida pra métricas
+
+Mistura colunas dedicadas (pras métricas top consultadas em toda interação) + `raw_data jsonb` (pro resto). Performance onde importa, flexibilidade onde compensa.
+
+Critério: se Marcos consulta a métrica em **toda** análise → coluna dedicada com índice. Se é métrica obscura/ocasional → fica só em `raw_data`.
 
 ---
 
@@ -518,4 +570,9 @@ Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Das
 - [[Tabela — chat_anexos]]
 - [[Tabela — sitio_categorias]]
 - [[Tabela — sitio_lancamentos]]
+- [[Tabela — meta_credenciais]]
+- [[Tabela — meta_conexoes]]
+- [[Tabela — meta_campanhas_cache]]
+- [[Tabela — meta_adsets_cache]]
+- [[Tabela — meta_ads_cache]]
 - [[CLAUDE.md]] — REGRA 5 (instância única Supabase), REGRA 12 (customização total)

@@ -485,8 +485,30 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - `CONVENÇÕES.md` ganhou 3 seções novas: **Soft-delete formalizado** (tabela com todas as colunas e defaults), **Denormalização consciente** (regra de exceção + tabela com casos no projeto), **Tabelas customizáveis** (lista que cresce a cada tarefa) ✅
 - Documentação completa em `Tabela — sitio_categorias.md` (~250 linhas) e `Tabela — sitio_lancamentos.md` (~330 linhas) — fluxo voz documentado, exemplos JS de fluxo de caixa, criação manual e via voz, soft-archive ✅
 
-### 🔴 Tarefa 2.8 — Tabelas do CEDTEC
-`cedtec_conta_meta` + `cedtec_recargas` + `meta_conexoes` + `meta_campanhas_cache`.
+### ✅ Tarefa 2.8 — Módulo Meta Ads (5 tabelas: credenciais + conexões + cache hierárquico)
+
+**Status:** Concluída em 2026-05-01. **Maior tarefa de banco da Fase 2** — 5 tabelas, primeiro uso de Supabase Vault, 3 novas exceções CASCADE, hierarquia de cache em 3 níveis. Mergeada pra `main` na mesma sessão.
+
+**Decisões arquiteturais:**
+- **Vault pra tokens** (não pgcrypto, não RLS-only). Plano A confirmado — extension `supabase_vault 0.3.1` instalada no projeto.
+- **3 tabelas separadas** (campanhas/adsets/ads) em vez de 1 achatada com `nivel ENUM` — schema enxuto, queries claras, índices otimizados por nível.
+- **`raw_data jsonb`** em todas as 3 tabelas de cache — estratégia híbrida (colunas dedicadas pras métricas top + jsonb pro resto). Sem ALTER TABLE pra cada métrica nova da Meta.
+- **`campanha_id_meta` denormalizado em ads** — evita JOIN duplo em queries comuns.
+- **`targeting jsonb` em adsets** — 50+ campos possíveis, alta variabilidade, lógica AND/OR aninhada (`flexible_spec`) impossível em colunas planas.
+- **`creative_*` dedicado em ads** — não tabela `meta_creatives` separada. Reuso raro no fluxo do Pedro.
+- **Saldo cacheado ~5min** (não tempo real) — trade-off rate limit Meta vs UX.
+- **Sem registro de recargas** — Pedro foi explícito. Saldo via Graph API, não via histórico.
+
+**Entregável:**
+- `meta_credenciais` (10 colunas) — `vault_secret_id uuid UNIQUE` referenciando `vault.secrets.id` (FK lógica, schema separado), 1 seed placeholder com secret no Vault ✅
+- `meta_conexoes` (15 colunas) — multi-conta desde início, UNIQUE `(entidade_id, ad_account_id)`, saldo cacheado, gating de re-sync via `last_campanhas_sync_at`, 1 seed placeholder pra CEDTEC ✅
+- `meta_campanhas_cache` (31 colunas) — métricas top + raw_data jsonb, UNIQUE `(conexao_id, id_meta)` pra UPSERT idempotente do sync ✅
+- `meta_adsets_cache` (34 colunas) — `targeting jsonb`, `billing_event` + `optimization_goal`, FK lógica `campanha_id_meta` ✅
+- `meta_ads_cache` (33 colunas) — `creative_*` dedicado, FK lógica dupla (`adset_id_meta` + `campanha_id_meta` denormalizado) ✅
+- 4 ocorrências CASCADE consolidadas em CONVENÇÕES.md (era só 1 antes — chat_anexos) com 3 critérios formais ✅
+- Nova seção "Integração com sistemas externos" no CONVENÇÕES.md (Vault + cache de APIs) ✅
+- 5 docs de tabela em `050 - Banco de Dados/` ✅
+- Status: 11 → 16 tabelas, Fase 2 a 89% (falta apenas 2.9) ✅
 
 ### 🔴 Tarefa 2.9 — Tabela `configuracoes`
 Chave/valor genérico.
