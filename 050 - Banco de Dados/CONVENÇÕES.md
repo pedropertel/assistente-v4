@@ -451,7 +451,9 @@ Lista atualizada conforme as tarefas vão entrando — toda tabela aqui precisa 
 - `sitio_lancamentos` — incluindo input por voz (Alemão)
 - `meta_credenciais` — Pedro adiciona/edita/remove tokens via UI (token vai pro Vault)
 - `meta_conexoes` — Pedro vincula entidade ↔ ad_account via UI
-- `configuracoes` — vai ser o centro da customização visual (labels de vocabulário interno) na 2.9
+- `configuracoes` — centro da customização visual (labels de vocabulário interno) — Tarefa 2.9
+- `ideias` — captura, refinamento, arquivamento via UI; conversão pra tarefa/evento na Fase 4 (Tarefa 2.10 bônus)
+- `personas` — Marina (Curadora de Ideias) entrou na 2.10; lista atual: Marcos, Bruno, Marcela, Alemão, Marina + Roteador interno
 
 ---
 
@@ -616,4 +618,5 @@ Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Das
 - [[Tabela — meta_adsets_cache]]
 - [[Tabela — meta_ads_cache]]
 - [[Tabela — configuracoes]]
+- [[Tabela — ideias]]
 - [[CLAUDE.md]] — REGRA 5 (instância única Supabase), REGRA 12 (customização total)

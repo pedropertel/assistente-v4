@@ -527,6 +527,27 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
+### ✅ Tarefa 2.10 (BÔNUS) — Módulo de Ideias
+
+**Status:** Concluída em 2026-05-01. **Tarefa bônus pós-fechamento da Fase 2** — pedida pelo Pedro depois da 2.9 ao descrever uma necessidade real ("ideias aleatórias que acho boas e depois esqueço"). Mergeada pra `main` na mesma sessão.
+
+**Decisão arquitetural:** Desenho A (tabela isolada) — simplicidade > flexibilidade pra MVP. Conversão pra tarefa/evento/doc fica pra Fase 4 ou tarefa futura via `status='convertida'` + `tags`/`entidade_id`/`proxima_acao_sugerida`. Schema permite evoluir pra Desenho C (FKs `convertida_em_tarefa_id` etc.) sem quebra.
+
+**Persona dedicada:** Marina (Curadora de Ideias) — 6ª persona, transversal (`entidades_alvo='{}'` igual Marcela), Sonnet 4.6 via router pattern (`nivel_complexidade='medio'`), postura "escuta sem interromper, propõe sem pressionar — ideia precisa maturar antes de virar tarefa".
+
+**Entregável:**
+- Tabela `ideias` (17 colunas) — `transcricao_original` + `mensagem_origem_id` pra rastreio voz→ideia (mesmo padrão de `sitio_lancamentos`), `tags text[]` com GIN, `proxima_acao_sugerida` text + `proxima_acao_aceita` boolean (sem FK pra tarefa — schema aberto), workflow `status` (capturada → refinada → convertida/arquivada) ✅
+- Persona Marina inserida em `public.personas` (slug `marina`, ícone 💡, cor `A855F7`, `nivel_complexidade='medio'`, contexto ~9.8 KB) ✅
+- 8 labels customizáveis em `configuracoes` (`ui_labels.ideia.status.*` × 4 + `ui_labels.ideia.origem.*` × 4) — segunda aplicação da REGRA 12 ✅
+- 7 índices: entidade parcial, status parcial (≠ arquivada), favorita parcial, tags GIN, persona parcial, created DESC, mensagem parcial ✅
+- 3 seeds (CEDTEC voz, transversal chat, pessoal manual) ✅
+- Doc completo em `050 - Banco de Dados/Tabela — ideias.md` (~280 linhas) com fluxo voz→Marina, workflow status, 6 exemplos JS ✅
+- `Tabela — personas.md` atualizado com seção "Marina" + tabela de níveis (4 → 5 personas reais) ✅
+- `CONVENÇÕES.md` "Tabelas customizáveis" ganhou `ideias` e nota sobre `personas` (Marina entrou) ✅
+- `CLAUDE.md` "Status atual": 17 → **18 tabelas**, 5 → 6 personas ✅
+
+---
+
 ## Fase 3 — Módulos (cada módulo em 3-5 tarefas)
 
 Ao chegar aqui, planejar cada módulo junto com o Claude Code, uma sub-tarefa de cada vez. Exemplo pro módulo Tarefas:
