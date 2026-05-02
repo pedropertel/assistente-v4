@@ -548,26 +548,67 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 
 ---
 
-## Fase 3 — Módulos (cada módulo em 3-5 tarefas)
+## Fase 3 — IA backend (Edge Functions + Anthropic + chat real)
 
-Ao chegar aqui, planejar cada módulo junto com o Claude Code, uma sub-tarefa de cada vez. Exemplo pro módulo Tarefas:
+> **Reconciliação de nomenclatura (2026-05-02):** o plano original do roadmap chamava "Fase 3 = UI dos módulos" e "Fase 4 = Chat IA". Durante a maratona da Fase 2 (2026-05-01) ficou claro que a IA tem que vir antes da UI dos módulos — chat é a interface primária do sistema (`VISAO.md`). A nomenclatura foi oficializada como **Fase 3 = IA backend / Fase 4 = UI dos módulos**.
 
-- 3.1 — Listar tarefas existentes numa tela simples
-- 3.2 — Botão "nova tarefa" que abre modal com formulário
-- 3.3 — Salvar nova tarefa no banco
-- 3.4 — Editar tarefa existente (clicar na tarefa abre modal de edição)
-- 3.5 — Deletar tarefa (com confirmação)
-- 3.6 — Transformar lista em kanban (3 colunas)
-- 3.7 — Drag & drop entre colunas
-- 3.8 — Lembretes (notificações)
+**Plano detalhado:** `.claude/plans/temporal-tinkering-castle.md` (Pedro abre via `/plan` no Claude Code).
 
-**Nunca pular direto pra "fazer o módulo Tarefas" — sempre dividir em sub-tarefas antes.**
+**Triplo /plan validado** — Pedro pediu plano em 3 lados (Claude.ai, Claude Code, ele próprio) pra evitar erro arquitetural na fase mais crítica. Convergência total após 2 rodadas de revisão.
+
+### Sub-fases (10 totais — 7 core + 3 opcionais)
+
+| Sub-fase | Objetivo | Horas |
+|---|---|---|
+| **3.0** | Reconciliar Backlog (esta entrada) | **0.5h** |
+| **3.A** | Fundação Edge Functions (Deno+TS, health-check, secrets) | **3h** |
+| **3.B** | Echo Anthropic (Haiku puro, sem router) — primeira chamada real | **3h** |
+| **3.C** | `prompt_base` real + placeholders + histórico de 20 mensagens | **2.5h** |
+| **3.D** | Router pattern real (Roteador → JSON → modelo dinâmico, chips de persona) | **5h** |
+| **3.F** | **🎯 Marcos viajando pro Meta (PRIORIDADE #1)** — Vault + tools + confirmação humana pra writes | **9.5h** |
+| **3.E** | Streaming SSE token-a-token (depois de Marcos) | 3.5h |
+| **3.G** | Polimento: cotação real, mapeamento via configuracoes, rate limit, logger | 3.5h |
+| **3.H** | Alemão (voz Web Speech → `sitio_lancamentos`) | 5h |
+| **3.I** | Marina (captura de ideias com tools) | 2h |
+| **3.J** | Marcela briefing matinal (cron) — opcional, adiável pra Fase 5 | 3h |
+
+**🎯 Caminho curto até Marcos em produção (PRIORIDADE #1 do VISAO.md):** 3.0 → 3.A → 3.B → 3.C → 3.D → 3.F = **23.5h** em 6 sub-fases.
+
+**Depois de Marcos em produção:** 3.E (streaming), 3.G (polimento), 3.H (Alemão voz), 3.I (Marina). Ordem flexível.
+
+**Opcional/empurrável pra Fase 5:** 3.J (Marcela cron briefing).
+
+**Total Fase 3 completa:** ~40.5h.
+
+### Decisões críticas batidas no martelo (registradas no Dev Log)
+
+- **Voz:** Web Speech API como default (custo zero, tempo real, Safari iOS processa local). Whisper fica como fallback futuro opcional (tarefa 3.K, fora da Fase 3).
+- **Function calling:** Anthropic `tools` parameter nativo + observabilidade via `chat_mensagens.tool_calls/tool_results jsonb` (ALTER TABLE na 3.F.0.5 — primeira da Fase 3).
+- **Bootstrap Meta:** SQL manual via Supabase Dashboard como dívida temporária. Primeira tela da Fase 4 é cadastro Meta credenciais.
+- **Streaming:** SSE depois de Marcos. Marcos sem streaming já é vitória.
+- **Mapeamento `nivel_complexidade → modelo`:** hardcoded no Edge primeiro, migra pra `configuracoes.ai_defaults.mapeamento_complexidade` na 3.G.2.
+- **Roteador continua structured output JSON** (não tool use — não é "chamar ferramenta", é "classificar").
 
 ---
 
-## Fase 4 — Chat com IA (Edge Function + UI)
+## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
 
-A ser detalhado quando chegar a hora. Previsão de 8-10 sub-tarefas pequenas.
+> **Antes da reconciliação de 2026-05-02 esta era a Fase 3.** Continua o mesmo conteúdo: telas dos módulos visuais consumindo o banco da Fase 2 + a IA backend da Fase 3.
+
+Ao chegar aqui, planejar cada módulo junto com o Claude Code, uma sub-tarefa de cada vez. Exemplo pro módulo Tarefas:
+
+- 4.1 — Listar tarefas existentes numa tela simples
+- 4.2 — Botão "nova tarefa" que abre modal com formulário
+- 4.3 — Salvar nova tarefa no banco
+- 4.4 — Editar tarefa existente (clicar na tarefa abre modal de edição)
+- 4.5 — Deletar tarefa (com confirmação)
+- 4.6 — Transformar lista em kanban (3 colunas)
+- 4.7 — Drag & drop entre colunas
+- 4.8 — Lembretes (notificações)
+
+**Nunca pular direto pra "fazer o módulo Tarefas" — sempre dividir em sub-tarefas antes.**
+
+**Primeira tela obrigatória da Fase 4:** cadastro Meta credenciais (paga a dívida temporária do bootstrap manual da 3.F.0). Depois disso, telas dos outros módulos em ordem de uso real do Pedro.
 
 ---
 
