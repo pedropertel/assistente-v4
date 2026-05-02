@@ -417,6 +417,7 @@ Toda tabela editável pelo usuário tem coluna boolean pra "arquivar sem apagar"
 | `chat_anexos` | (sem — imutáveis; CASCADE limpa quando mensagem-pai é apagada) | — | — |
 | `sitio_categorias` | `ativa` | `true` | Some das listas, lançamentos antigos preservam referência. |
 | `sitio_lancamentos` | `arquivado` | `false` | Some do fluxo de caixa, histórico preserva. |
+| `configuracoes` | (sem — hard-delete, configs descartáveis) | — | Pedro apaga config → sistema usa default hardcoded. `valor_default` na própria linha permite restaurar. Sem histórico útil. |
 
 **Hard-delete só com confirmação explícita** ("apagar permanentemente") na UI da Fase 4. Default é arquivar.
 
@@ -490,6 +491,45 @@ Quando cacheamos resposta de API externa (Meta Ads, futuro Google Ads, etc.):
 Mistura colunas dedicadas (pras métricas top consultadas em toda interação) + `raw_data jsonb` (pro resto). Performance onde importa, flexibilidade onde compensa.
 
 Critério: se Marcos consulta a métrica em **toda** análise → coluna dedicada com índice. Se é métrica obscura/ocasional → fica só em `raw_data`.
+
+---
+
+## Convenção de nomenclatura — chaves ponto-separadas
+
+> Convenção firmada na Tarefa 2.9.
+
+Pra tabelas chave-valor (hoje só `configuracoes`, futuras possíveis), as chaves seguem formato hierárquico ponto-separado:
+
+```
+categoria.modulo.subcategoria.item
+```
+
+### Exemplos
+
+| Chave | Significado |
+|---|---|
+| `ui_labels.tarefa.status.fazendo` | Label visível pro status `fazendo` do kanban |
+| `ui_labels.evento.tipo.reuniao` | Label do tipo de evento `reuniao` |
+| `ai_defaults.modelo` | Modelo Anthropic padrão |
+| `sistema.primeiro_setup_completo` | Flag interna de onboarding |
+| `integracao.meta.token_alerta_dias` (hipotético) | Quantos dias antes alertar token Meta expirando |
+
+### Razões
+
+- **Lookup O(1)** por chave exata. `WHERE chave = '...'` em índice único é instantâneo.
+- **Adicionar nova chave = 1 INSERT** (vs múltiplos em modelo normalizado com tabela `tipos_config`).
+- **Convenção testada** em config files (Spring, .NET, Django settings, env vars). Padrão familiar.
+- **Reordenar é rename.** Mudar componentes da hierarquia é UPDATE simples.
+
+### Convenção das categorias-raiz
+
+Lista crescente — REGRA 12 não amarra com CHECK. Conhecidas hoje:
+
+- `ui_labels` — labels visuais customizáveis (substitui vocabulário interno na UI)
+- `ai_defaults` — defaults dos agentes (modelo, temperatura)
+- `sistema` — estado interno do app
+- `integracao` — configurações de integrações futuras
+- `preferencia` — preferências do Pedro
 
 ---
 
@@ -575,4 +615,5 @@ Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Das
 - [[Tabela — meta_campanhas_cache]]
 - [[Tabela — meta_adsets_cache]]
 - [[Tabela — meta_ads_cache]]
+- [[Tabela — configuracoes]]
 - [[CLAUDE.md]] — REGRA 5 (instância única Supabase), REGRA 12 (customização total)

@@ -510,8 +510,20 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - 5 docs de tabela em `050 - Banco de Dados/` ✅
 - Status: 11 → 16 tabelas, Fase 2 a 89% (falta apenas 2.9) ✅
 
-### 🔴 Tarefa 2.9 — Tabela `configuracoes`
-Chave/valor genérico.
+### ✅ Tarefa 2.9 — Tabela `configuracoes`
+
+**Status:** Concluída em 2026-05-01. **Última tarefa da Fase 2.** Mergeada pra `main` na mesma sessão.
+
+**Decisão arquitetural:** chave-valor genérico (não tabelas específicas) com chaves ponto-separadas (`ui_labels.tarefa.status.fazendo`). `jsonb` no valor cobre string/number/boolean/object/array. Hard-delete (3ª exceção justificada ao soft-delete padrão — configs são descartáveis com `valor_default` pra restaurar).
+
+**Entregável:**
+- Tabela `configuracoes` (9 colunas) — `chave text UNIQUE` ponto-separada, `valor jsonb` flexível, `categoria text` sem CHECK (REGRA 12), `editavel_por_usuario boolean` flag UI, `valor_default jsonb` pra botão "Restaurar padrão" ✅
+- 16 seeds idempotentes via `ON CONFLICT (chave) DO NOTHING`: 13 `ui_labels` (4 status + 4 prioridades de tarefa + 5 tipos de evento) + 2 `ai_defaults` (modelo + temperatura) + 1 `sistema` (flag onboarding interna) ✅
+- 2 índices: `categoria` (queries por grupo) + `editavel_por_usuario` parcial (UI da tela de configurações) ✅
+- RLS + policy `auth_full_access` ✅
+- `CONVENÇÕES.md` ganhou: 3ª linha de exceção ao soft-delete (configuracoes); nova seção **"Convenção de nomenclatura — chaves ponto-separadas"** com regras e categorias-raiz conhecidas; "Tabelas customizáveis" ganhou `configuracoes` ✅
+- `CLAUDE.md` "Status atual": **Fase 2 marcada como COMPLETA (100%)**, próxima fase = Fase 3 ✅
+- Documentação completa em `Tabela — configuracoes.md` (~280 linhas) com 5 exemplos JS (getLabel com fallback, carregar tudo de uma vez, atualizar via UI, restaurar padrão, listar editáveis) ✅
 
 ---
 
