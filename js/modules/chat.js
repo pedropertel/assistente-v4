@@ -75,7 +75,11 @@ export async function enviarMensagem() {
 export async function carregarHistorico(entidadeId = null) {
   let q = supabase
     .from('chat_mensagens')
-    .select('id, papel, conteudo, modelo_usado, custo_brl, latencia_ms, erro, created_at')
+    .select(`
+      id, papel, conteudo, modelo_usado, custo_brl, latencia_ms, erro, created_at,
+      persona_id,
+      personas(slug, nome, icone, cor_hex)
+    `)
     .neq('papel', 'system')
     .order('created_at', { ascending: false })
     .limit(50);
@@ -134,11 +138,36 @@ function renderHistorico(mensagens) {
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${msg.papel}`;
 
+    // Chip da persona (3.D.4) — só assistant com persona_id preenchido.
+    // Mensagens pré-3.D (persona_id NULL) renderizam sem chip naturalmente.
+    // Roteador é interno=true e fica em rows papel='system' já filtradas
+    // pelo SELECT — chip nunca renderiza Roteador.
+    if (msg.papel === 'assistant' && msg.personas) {
+      const chip = document.createElement('span');
+      chip.className = 'chat-bubble-persona-chip';
+      chip.style.backgroundColor = '#' + msg.personas.cor_hex;
+
+      const icon = document.createElement('span');
+      icon.className = 'chip-icon';
+      icon.textContent = msg.personas.icone;
+
+      const name = document.createElement('span');
+      name.className = 'chip-name';
+      name.textContent = msg.personas.nome;
+
+      chip.appendChild(icon);
+      chip.appendChild(name);
+      bubble.appendChild(chip);
+      bubble.appendChild(document.createElement('br'));
+    }
+
+    // Conteúdo da mensagem — appendChild (não textContent, que apagaria
+    // o chip já adicionado acima).
     if (msg.erro) {
       bubble.classList.add('error');
-      bubble.textContent = `[erro] ${msg.erro}`;
+      bubble.appendChild(document.createTextNode(`[erro] ${msg.erro}`));
     } else {
-      bubble.textContent = msg.conteudo;
+      bubble.appendChild(document.createTextNode(msg.conteudo));
     }
 
     // Meta info pra assistant: latência + custo
