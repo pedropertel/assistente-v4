@@ -564,7 +564,7 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 | **3.A** | Fundação Edge Functions (Deno+TS, health-check, secrets) | **3h** |
 | **3.B** | Echo Anthropic (Haiku puro, sem router) — primeira chamada real | **3h** |
 | **3.C** | `prompt_base` real + placeholders + histórico de 20 mensagens | **2.5h** |
-| **3.D** | Router pattern real (Roteador → JSON → modelo dinâmico, chips de persona) | **5h** |
+| **3.D** ✅ | Router pattern real (Roteador → JSON → modelo dinâmico, chips de persona) | **5h** (real: ~8h em 8 sub-tarefas) |
 | **3.F** | **🎯 Marcos viajando pro Meta (PRIORIDADE #1)** — Vault + tools + confirmação humana pra writes | **9.5h** |
 | **3.E** | Streaming SSE token-a-token (depois de Marcos) | 3.5h |
 | **3.G** | Polimento: cotação real, mapeamento via configuracoes, rate limit, logger | 3.5h |
@@ -572,7 +572,7 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 | **3.I** | Marina (captura de ideias com tools) | 2h |
 | **3.J** | Marcela briefing matinal (cron) — opcional, adiável pra Fase 5 | 3h |
 
-**🎯 Caminho curto até Marcos em produção (PRIORIDADE #1 do VISAO.md):** 3.0 → 3.A → 3.B → 3.C → 3.D → 3.F = **23.5h** em 6 sub-fases.
+**🎯 Caminho curto até Marcos em produção (PRIORIDADE #1 do VISAO.md):** 3.0 → 3.A → 3.B → 3.C → 3.D → 3.F = **23.5h** em 6 sub-fases. **5/6 fechadas. Falta só 3.F (~9.5h).**
 
 **Depois de Marcos em produção:** 3.E (streaming), 3.G (polimento), 3.H (Alemão voz), 3.I (Marina). Ordem flexível.
 
@@ -711,6 +711,54 @@ Edge `chat-claude` passa a ler agente do banco e a IA ganha memória de curto pr
 **Próximo:** Tarefa 3.D — Router pattern real (Roteador classifica → escolhe modelo → Anthropic com persona; chips de persona na UI). Bruno e Marcela conversando como bônus.
 
 **Plano da 3.D aprovado em 2026-05-03** após /plan no Code (cruzado com outro Claude). Estrutura: **3.D.0** (adicionar Sonnet/Opus em MODEL_PRICING — pricing validado via WebFetch, ~15min) → **3.D.1** (helpers `escolherModelo`/`getRoteador`/`getPersonasReais` + `MAPA_COMPLEXIDADE_MODELO`, ~1h) → **3.D.2** (`chamarRoteador` + parse JSON + fail-soft + INSERT `papel='system'`, ~1.5h) → **3.D.3** (lookup persona + concat prompt + chamada Anthropic com modelo do Roteador, ~1h) → **3.D.4** (UI chip de persona, ~1h) → **3.D.5** (docs + fechamento, ~30min). **Total: ~5h.** Decisões críticas: **B3** mapeamento `simples→Haiku 4.5, medio→Sonnet 4.6, complexo→Opus 4.7` hardcoded até 3.G.2; **B4** pricing Sonnet $3/$15 + Opus $5/$25 (validado via doc oficial Anthropic — Opus 4.7 mais barato que histórico $15/$75); **B6** parse JSON fail-soft com default `persona=null/simples`; **B14** lista dinâmica de personas no user message do Roteador (resolve gap da Marina automaticamente); **B15** PULA UPDATE no prompt do Roteador (B14 é caminho único — UPDATE criaria dependência manual). 4 achados factuais REGRA 11 documentados (Roteador sem Marina, MODEL_PRICING incompleto, schema validado, contexto Roteador 9350 chars). Detalhamento ativo em `~/.claude/plans/temporal-tinkering-castle.md`.
+
+---
+
+### ✅ Tarefa 3.D — Router pattern real + 5 personas + UI chips (2026-05-03)
+
+**Sub-fase fechada com 8 sub-tarefas executadas vs 6 planejadas** (5 adições não-planejadas durante execução, 3 delas via REGRA 11). Sistema ganhou voz própria: cada mensagem passa pelo Roteador (Haiku via `modelo_override`), que devolve JSON `{persona_slug, nivel_complexidade}`. Mapeamento `simples→Haiku 4.5 / medio→Sonnet 4.6 / complexo→Opus 4.7`. Persona escolhida tem seu `contexto` concatenado ao `prompt_base` do Assistente. UI mostra chip colorido (cor + ícone + nome) em cada bolha assistant — Pedro identifica visualmente quem respondeu. Bruno e Marcela conversando como bônus (sem tools — Marcos/Alemão/Marina ganham tools nas 3.F/3.H/3.I).
+
+- **3.D.0** ✅ (~15min) — Sonnet 4.6 + Opus 4.7 em `MODEL_PRICING`. Pricing validado via WebFetch (Opus 4.7 = $5/$25, não $15/$75 do histórico). `_shared/anthropic.ts` +2 linhas, deploy v37.
+- **3.D.0.5** ✅ (não-planejada) — `STATUS.md` criado como fonte única de verdade (atualizado a cada fechamento de sub-tarefa). CLAUDE.md emagreceu (status duplicado removido). `Workflow de Desenvolvimento.md` ganhou ritual formal de fechamento (passo X.Y.5).
+- **3.D.1** ✅ (~1h) — Helpers `getRoteador`/`getPersonasReais` (cache em isolate) + `escolherModelo(persona, nivel)` + constante `MAPA_COMPLEXIDADE_MODELO`. `chat-claude/index.ts` +134 linhas (514→648), deploy v38.
+- **3.D.2** ✅ (~1.5h) — `chamarRoteador` + `parsearJsonRoteador` (fail-soft com default `persona=null/simples/'fallback: parse falhou'`) + INSERT `papel='system'` com JSON cru auditável. `chat-claude/index.ts` +253 linhas (648→901), deploy v39. Pipeline validado: curls "saldo CEDTEC?"→marcos, "Pincel?"→bruno, "que dia?"→marcela. Custo médio R$ 0.008/chamada do Roteador.
+- **3.D.3** ✅ (~1h) — Chamada principal usa `modeloEscolhido` + concat `prompt_base + persona.contexto`. `chat-claude` +25 linhas, deploy v40. TESTE A passou (Marcos respondendo Sonnet 4.6 em CEDTEC).
+- **3.D.3.1** ✅ (REGRA 11 — não-planejada) — Dedup user/assistant consecutivos em `buscarHistoricoMensagens`. Defesa contra `WHERE erro IS NULL` quebrar invariante de protocolo Anthropic (alternância strict). +14 linhas. Cleanup do banco (9 rows órfãs em 2 ondas).
+- **3.D.3.2** ✅ (REGRA 11 — não-planejada) — Opus 4.7 deprecou `temperature` por Adaptive Thinking. Helper `suportaTemperature` + Set `MODELOS_SEM_TEMPERATURE` em `_shared/anthropic.ts` (+26 linhas) + uso condicional na chamada principal (+10 linhas). Deploy v42. TESTE B passou pela primeira vez (Bruno escrevendo proposta comercial Pincel — voz própria + R$ 0.10/troca + 7s).
+- **3.D.4** ✅ (~1h) — UI chip de persona ativa. Nested join `personas(slug, nome, icone, cor_hex)` em `carregarHistorico` (PostgREST relacionado por FK `persona_id`). Render condicional do chip no `renderHistorico` (só pra `papel='assistant'`). CSS `.chat-bubble-persona-chip` (cor de fundo dinâmica, ícone + nome capitalize). `chat.js` +30 linhas, `index.html` +25 linhas. Hash dev `4fdf860`.
+- **3.D.4.1** ✅ (não-planejada) — Chip "Assistente" 🤖 cinza fallback pra mensagens sem persona (Roteador retornou `null` OU rows pré-3.D que não têm `persona_id`). Operador `??` no `renderHistorico` com objeto fallback `{icone: '🤖', nome: 'Assistente', cor_hex: '6B7280'}`. `chat.js` +6/-2 linhas. Hash dev `ea0b442`.
+- **3.D.4.2** ✅ (REGRA 11 — não-planejada) — Scroll interno do chat corrigido. Diagnóstico via 2 rodadas de log (rAF + setTimeout) revelou `clientHeight === scrollHeight` → não era race condition, era ausência de overflow. Causa raiz: gotcha flexbox — `flex: 1 + overflow-y: auto` exige `min-height: 0` em CADA item flex da cadeia ancestral. Fix em cascata: `#main-content` (`min-height: 100dvh` → `height: 100dvh; min-height: 0`), `#page-container` + `.page-chat` + `.chat-historico` (cada um ganha `min-height: 0`). Bonus: `body { padding: 0 }` (era 16px, criava overflow no body) + `padding-bottom: max(var(--space-3), env(safe-area-inset-bottom))` no `.chat-input-wrapper` (compensa remoção do padding pra input não colar no home-indicator do iPhone). `index.html` +7/-3 linhas. Hash dev `6a322cc`.
+- **3.D.5** ✅ (~30min) — Ritual de fechamento (esta entrada). 2 commits finais (`feat(3.D)` consolidando código + `docs(3.D)` consolidando documentação) + merge `--no-ff` dev → main.
+
+**Achados REGRA 11 (4 totais):**
+
+1. **Roteador NÃO conhecia Marina** (prompt do banco com 9350 chars mencionando só `marcos|bruno|marcela|alemao`) — resolvido por **B14** (lista dinâmica de personas no user message do Roteador), sem precisar UPDATE no prompt. **B15** rejeitou caminho alternativo de UPDATE manual (geraria dependência repetida a cada persona nova).
+2. **Opus 4.7 deprecou `temperature`** por Adaptive Thinking. Erro `400 invalid_request_error: "temperature is deprecated for this model."` na primeira chamada. Helper `suportaTemperature` + Set `MODELOS_SEM_TEMPERATURE` em `_shared/anthropic.ts`. Lista vai crescer (Opus 4.8, 5).
+3. **Filtro `WHERE erro IS NULL`** em `buscarHistoricoMensagens` quebrava cadeia messages alternada (Anthropic exige user→assistant→user strict). Quando assistant erro era filtrado mas user correspondente não, virava 2 user consecutivos. Dedup defensivo no helper (preserva alternância sem mexer na query SQL).
+4. **CSS scroll interno** — `flex: 1 + overflow-y: auto` não funciona sem `min-height: 0` em CADA item flex da cadeia (gotcha flexbox). Diagnóstico via log estruturado (clientHeight === scrollHeight === 3386 → sem overflow real, scroll caía no `<html>`).
+
+**Custo real validado em uso (sessão 3.D.3 testes):**
+
+| Persona | Modelo | Custo/troca | Latência |
+|---|---|---|---|
+| Roteador (fixo) | Haiku 4.5 | R$ 0.008 | ~500-800ms |
+| Marcos | Sonnet 4.6 | R$ 0.034 | ~3s |
+| Marcela | Haiku 4.5 | R$ 0.013 | ~1s |
+| Bruno | Opus 4.7 | R$ 0.10 | ~7s |
+
+Bruno é caso premium (uso pontual). Marcela é cotidiano. Custo médio esperado: R$ 0.015-0.040/troca (Roteador + chamada principal).
+
+**Aprendizados arquiteturais (replicar em próximas Edges):**
+
+- **Validar API parameters do modelo via doc oficial antes de hardcodar payload** — lista `MODELOS_SEM_TEMPERATURE` vai crescer; padrão pra `briefing-matinal`, tools, streaming.
+- **Filtros SQL podem quebrar invariantes de protocolo** (cadeia messages alternada) — dedup por role após filtros é defesa em profundidade barata.
+- **Roteador classifica por mensagem, não por persona** — comportamento intencional, gera ganho de custo (perguntas curtas caem em Haiku mesmo quando persona default seria Sonnet/Opus).
+- **Cascata `min-height: 0` em flex** — replicar em Fase 4 (kanban, listas, calendário com scroll interno).
+- **Log estruturado em catches/error branches** mesmo quando função "tá funcionando" — defesa em profundidade pra erros não-reproduzidos (`carregarHistorico` ganhou log detalhado em `a2f41c4`).
+
+**Hash do commit de código (3.D.0+0.5+1+2+3+3.1+3.2 consolidados):** `feat(3.D)` (será preenchido após PASSO 7). Plus commits isolados já em dev: `4fdf860` (3.D.4), `ea0b442` (3.D.4.1), `add73ce` (3.D.4.2 v1), `b259491` (debug logs scroll), `9ad5d15` (cleanup logs), `a2f41c4` (debug log carregarHistorico — mantido), `6a322cc` (3.D.4.2 final cascata). Total commits dev pra 3.D: ~10 (vs 1 esperado). Justificativa: muitas correções REGRA 11 ganharam commit isolado pra rastreabilidade.
+
+**Próximo:** Tarefa 3.F — Marcos viajando pro Meta (PRIORIDADE #1 do VISAO.md, ~9.5h). Streaming SSE (3.E, ~3.5h) entra como terceira na ordem, depois de Marcos + polimento.
 
 ---
 

@@ -7,6 +7,14 @@
 
 ---
 
+## Onde estamos
+
+**Veja sempre `STATUS.md` na raiz do projeto pro estado atual.** Esse arquivo é atualizado no ritual de fechamento de cada sub-tarefa e contém: fase ativa, sub-tarefa em andamento, próxima sub-tarefa, estado do repo, histórico recente.
+
+NUNCA confie em status mencionado em prompts iniciais ou em memória de sessão — `STATUS.md` é a fonte da verdade.
+
+---
+
 ## ⚠️ ANTES DE FAZER QUALQUER COISA
 
 1. Leia este arquivo até o fim.
@@ -340,39 +348,13 @@ window.handleChatKeydown = handleChatKeydown;
 
 ## Status atual do projeto
 
-> Atualizar a cada conclusão de tarefa do backlog.
+> **Status detalhado vive em `STATUS.md` na raiz** (atualizado a cada fechamento de sub-tarefa). Esta seção mantém só infra estável.
 
 - ✅ Infraestrutura: GitHub `pedropertel/assistente-v4` + Vercel + Supabase `msbwplsknncnxwsalumd`
-- ✅ Código (Fase 1 — fundação concluída em 2026-05-01): auth completo via `onAuthStateChange`, design system dark/light persistido, sidebar/drawer mobile-first, router com 8 páginas placeholder, sistema de toast e modal, utils (fmtDate/fmtMoney/fmtRelative/debounce/slugify). Núcleo modular em `js/core/` (supabase, router, toast, modal, utils).
-- ✅ **Banco (Fase 2 COMPLETA + bônus 2.10 — 9/9 tarefas + 2 evolutivas + 1 bônus):** **18 tabelas reais** cobrindo Core (`entidades`, `tarefas`, `eventos`, `pastas`, `documentos` + bucket Storage), Inteligência (`agentes`, `personas` incl. Roteador interno + Marina, `chat_mensagens`, `chat_anexos` — 1ª CASCADE), Sítio (`sitio_categorias`, `sitio_lancamentos` com rastreio voz→lançamento), Meta Ads (`meta_credenciais` via Supabase Vault, `meta_conexoes` multi-conta, `meta_campanhas_cache` + `meta_adsets_cache` + `meta_ads_cache` — 3 níveis com `raw_data jsonb`, 3 CASCADE adicionais), Sistema (`configuracoes` — chave-valor genérica), e **Módulo Ideias (2.10 bônus)**: `ideias` (captura rápida, Marina refina título/tags/categoria/próxima ação, rastreio voz→ideia via `transcricao_original` + `mensagem_origem_id`). **6 personas** ativas (Marcos, Bruno, Marcela, Alemão, Marina + Roteador interno). **Router pattern (2.5.1)** decide modelo por mensagem. **REGRA 12 (2.6.1)** customização total inviolável. Convenções em `050 - Banco de Dados/CONVENÇÕES.md`: fuso, idempotência ALTER TABLE, FKs RESTRICT/SET NULL/CASCADE (4 exceções), naming, Storage + prefixo-exceção, Router pattern, customização total, soft-delete padrão (3 exceções), denormalização consciente, integração com sistemas externos (Vault + cache), nomenclatura ponto-separada, **Edge Functions (3.A — convenções de nome, estrutura, CORS, logger, JWT legacy)**.
-- ✅ **Fase 3 em andamento — 4/9 sub-fases (3.0 ✅, 3.A ✅, 3.B ✅, 3.C ✅), próxima: 3.D.**
-  - **3.0** (2026-05-02) — Reconciliação documental: Backlog passa a refletir Fase 3 = IA / Fase 4 = UI.
-  - **3.A** (2026-05-02) — Fundação Edge Functions:
-    - Estrutura `supabase/functions/_shared/` com 3 utilitários: `cors.ts` (allowlist explícita prod + previews + Vary: Origin), `supabase-admin.ts` (cliente service_role lazy-cached), `logger.ts` (JSON estruturado com `request_id` UUID v4).
-    - Edge `health-check` em produção (smoke test de infra, custo zero, valida secrets sem expor valores). URL: `https://msbwplsknncnxwsalumd.supabase.co/functions/v1/health-check`.
-    - Helper `invokeFunction(name, payload)` em `js/core/supabase.js` — retorna `{ data, error }`, nunca joga exception, log defensivo sem payload.
-    - `window.invokeFunction` exposto pra debug no console.
-    - UI temporária `pingIA()` em `js/modules/chat.js` + página chat com botão "🏓 Ping IA" e card de status (será substituída na 3.B.3).
-    - **Gotcha JWT:** `sb_publishable_*` não funciona como Bearer no Edge Gateway. Front migrou pra anon JWT legacy (`eyJhbGc...`). Detalhes na seção Credenciais.
-  - **3.B** (2026-05-02) — Echo Anthropic + persistência + UI real:
-    - **Primeira chamada Anthropic real do projeto.** Edge `chat-claude` (URL `https://msbwplsknncnxwsalumd.supabase.co/functions/v1/chat-claude`) chama Haiku 4.5 (`claude-haiku-4-5-20251001`) com prompt fixo "responde curto", `max_tokens=1024`, `temperature=0.7`, timeout 60s.
-    - **SDK pinado:** `npm:@anthropic-ai/sdk@0.92.0`. Helper `_shared/anthropic.ts` com `getAnthropicClient()` lazy-cached + `MODEL_PRICING` (só Haiku — Sonnet/Opus entram na 3.D) + `calcCustoUSD()` fail-safe (custo zero + warning se modelo não mapeado).
-    - **Persistência completa em `chat_mensagens`:** INSERT user antes da chamada Anthropic → INSERT assistant depois com `mensagem_pai_id` linkando. Em erro Anthropic: INSERT assistant com `erro` preenchido (preserva cadeia). Sem transação — decisão arquitetural #8 do plan file.
-    - **Lookup do agente `assistente`** cacheado em variável de módulo do isolate Deno (`getAgenteAssistenteId()`). Mesmo padrão de outros caches: 1 query no cold-start, hit em todas as próximas chamadas.
-    - **UI real de chat** (`js/modules/chat.js` reescrito) substitui `pingIA`: textarea + botão Enviar + lista de bolhas. `enviarMensagem()` com bolha otimista (aparece imediato com `.optimistic`, vira sólida ou `.failed`). `carregarHistorico()` carrega últimas 50 mensagens em `initApp` via Window Bridge. `handleChatKeydown` — Enter envia, Shift+Enter quebra linha. Meta info por bolha assistant: `R$ 0.0XXX · Yms`.
-    - **Custo real validado:** ~R$ 0.001/chamada simples (3 trocas de teste = R$ 0.0039). Latência 784-1013ms (Haiku 4.5 + Edge `sa-east-1`). Cold-start de isolate visível na 1ª chamada.
-    - **`textContent` (não `innerHTML`)** nas bolhas — defesa XSS automática do browser, dispensa `escapeHtml`.
-    - **Convenções novas em `CONVENÇÕES.md`** → seção "Edge Functions" → subseções "Anthropic SDK" e "Anthropic — pricing e cotação" + padrão de cache de isolate (cliente lazy + lookup de configuração).
-  - **3.C** (2026-05-03) — `prompt_base` real + placeholders + histórico:
-    - Edge `chat-claude` lê agente do banco (`getAgenteAssistente()` cacheado por isolate, retorna `{id, prompt_base, modelo, temperatura, max_tokens}`). Constantes hardcoded `HARDCODED_PROMPT/MODELO/MAX_TOKENS/TEMPERATURE` removidas — REGRA 12 começa a valer pro chat.
-    - `prompt_base` no banco (4479 chars) ganhou bloco "CONTEXTO ATUAL" com placeholders `{usuario}`, `{data_hora}`, `{entidade_atual}`, `{persona_ativa}` (sub-tarefa 3.C.0 — UPDATE SQL idempotente).
-    - Helper `substituirPlaceholders` inline + `formatarDataHoraBrasilia` (Intl pt-BR + `timeZone: America/Sao_Paulo`). Chaves desconhecidas viram vazio + log warning `chat-claude.placeholder_orfao` (defesa contra typo).
-    - Helper `buscarHistoricoMensagens` busca últimas 20 da mesma entidade (`papel != 'system' AND erro IS NULL AND id != userMsgId`), reverte cronológico, vira `messages: [...historico, atual]` na chamada Anthropic. **IA ganha memória de curto prazo.**
-    - **Validação inequívoca:** sequência de 3 curls — "café preto sem açúcar" mencionado só no curl 1 foi referenciado pela IA no curl 3. Pipeline histórico → Anthropic confirmado end-to-end.
-    - **Bonus test fail-fast:** UPDATE temporário do agente pra slug inexistente → curl retorna 500 educativo, sem fallback hardcoded silencioso (REGRA 12 em ação).
-    - Custo real: ~R$ 0.006-0.010/chamada (vs R$ 0.001 da 3.B). Salto de tokens_entrada: 53 (3.B) → 762 (3.C.1) → 1064 (3.C.3 com histórico). Trivial pro orçamento.
-    - Convenções novas em `CONVENÇÕES.md` → "Substituição de placeholders em prompt_base" (regex, comportamento, observabilidade, naming).
-- **Próximo:** Fase 3.D — Router pattern real (Roteador classifica via JSON estrito → escolhe modelo via `modelo_override`/`nivel_complexidade` → Anthropic com persona escolhida; chips de persona na UI). **Plano oficializado em 2026-05-03** após /plan no Code (cruzado com outro Claude). 6 sub-tarefas (3.D.0 → 3.D.5), ~5h total. Decisões-chave: B3 mapeamento `simples→Haiku/medio→Sonnet 4.6/complexo→Opus 4.7` hardcoded até 3.G.2; B4 pricing validado via WebFetch (Sonnet $3/$15, **Opus 4.7 = $5/$25** — não $15/$75 como histórico); B6 parse JSON fail-soft; B14 lista dinâmica de personas no user message do Roteador (resolve gap da Marina sem UPDATE no prompt). 4 achados REGRA 11 documentados. Detalhamento ativo no topo de `~/.claude/plans/temporal-tinkering-castle.md`. **Caminho curto até Marcos em produção:** ~14.5h restantes (3.D 5h + 3.F 9.5h). Total Fase 3 completa: ~31.5h restantes. Decisões críticas: Web Speech API pra voz (Whisper fica como fallback futuro opcional), Anthropic `tools` parameter nativo + observabilidade via `chat_mensagens.tool_calls/tool_results jsonb` (ALTER TABLE na 3.F.0.5), bootstrap Meta via SQL manual (dívida temporária), streaming SSE depois de Marcos.
+- ✅ Stack confirmada: HTML/CSS/JS puro + ES Modules + Supabase (PostgREST + Auth + Storage + Vault + Edge Functions Deno) + Anthropic SDK + Vercel
+- ✅ Banco (Fase 2): 18 tabelas, 6 personas (Marcos/Bruno/Marcela/Alemão/Marina + Roteador interno), Vault pra tokens externos. Convenções em `050 - Banco de Dados/CONVENÇÕES.md`.
+- ✅ Edge Functions ativas: `health-check`, `chat-claude` (em evolução pela Fase 3).
+- 🟡 Fase 3 em andamento — **5/9 sub-fases fechadas (3.D em produção). Próxima: 3.F (Marcos + Meta Ads, prioridade #1). Veja `STATUS.md` pro detalhe atualizado.**
 
 ---
 
