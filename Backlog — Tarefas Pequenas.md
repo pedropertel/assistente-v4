@@ -672,7 +672,43 @@ Primeira tarefa de código da Fase 3. Estrutura, deploy, secrets e CORS funciona
 
 **Próximo:** Tarefa 3.C — `prompt_base` real + placeholders + histórico de 20 mensagens. Edge passa a ler `agentes` em vez de hardcoded.
 
-**Plano da 3.C aprovado em 2026-05-02** após terceiro triplo /plan (Pedro + Code + outro Claude). Estrutura: **3.C.0** (UPDATE SQL adicionando placeholders ao prompt_base — sub-tarefa nova, ~15min) → **3.C.1** (`getAgenteAssistente()` retorna obj inteiro, remove constantes hardcoded, ~45min) → **3.C.2** (helpers de placeholders + `{usuario}/{data_hora}/{entidade_atual}/{persona_ativa}`, ~45min) → **3.C.3** (helper de histórico + `messages: [...historico, atual]`, ~30min) → **3.C.4** (docs + fechamento, ~30min). **Total: ~2h45min.** Decisões críticas: cache do agente inteiro com TODO 4.x pra invalidação via `cache_version`/`updated_at`; max_tokens migra 1024 → 4096 (do banco); fallback se agente não encontrado é fail-fast 500 (não silencia bug); placeholder typo loga warning + remove (não fica literal); histórico filtra `erro IS NULL` + exclui mensagem user atual; `{entidade_atual}` quando NULL vira `'(geral)'`; helpers inline (não `_shared/`). 4 achados factuais (REGRA 11) registrados na seção "Estado validado" do plan file. Detalhamento ativo em `.claude/plans/temporal-tinkering-castle.md`.
+---
+
+### ✅ Tarefa 3.C — `prompt_base` real + placeholders + histórico (2026-05-03)
+
+Edge `chat-claude` passa a ler agente do banco e a IA ganha memória de curto prazo. Pipeline `INSERT user → SELECT últimas 20 mensagens (com exceto_id) → reverse → messages[] → Anthropic` validado end-to-end. **Bug encontrado: nenhum.** Pipeline funcionou na primeira tentativa de cada sub-tarefa.
+
+- **3.C.0 — UPDATE SQL pra adicionar placeholders ao `prompt_base`** ✅ (via MCP)
+  - UPDATE idempotente (`AND prompt_base NOT LIKE '%{usuario}%'`) — append do bloco "CONTEXTO ATUAL" com 4 placeholders.
+  - prompt_base: 4333 → 4479 chars (+146).
+- **3.C.1 — `getAgenteAssistente()` + remoção de constantes hardcoded** ✅
+  - Cache de objeto inteiro (`{id, prompt_base, modelo, temperatura, max_tokens}`) com filtro `.eq('ativo', true)`. Throw com mensagem educativa se não encontrar.
+  - Removidas: `HARDCODED_PROMPT`, `MODELO`, `MAX_TOKENS`, `TEMPERATURE`. Mantido: `COTACAO_USD_BRL` (TODO 3.G.1).
+  - Smoke ✅: tokens_entrada 53 → 747 (saltou 14× — prompt do banco vs 1 frase). Modelo vindo do banco confirmado via SELECT.
+  - Bonus fail-fast ✅: UPDATE temp `slug='assistente_test'` + redeploy → 500 educativo + log estruturado. Reverter funcionou.
+- **3.C.2 — Helpers de placeholders + chamada Anthropic com prompt processado** ✅
+  - `substituirPlaceholders(prompt, values, requestId)` com regex `/\{([a-zA-Z_]+)\}/g` + duplo passe (substituição + detecção de órfãos via `logWarn 'chat-claude.placeholder_orfao'`).
+  - `formatarDataHoraBrasilia()` via `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'long', timeStyle: 'short' })`.
+  - Smoke ✅: 3 testes — IA respondeu corretamente data/hora atual, "Pedro Pertel", e "modo geral/pessoal" (vê `(geral)` substituído).
+  - Bonus orfão ✅: UPDATE temp adiciona `{chave_inexistente_xyz}` → curl 200 + helper substituiu por vazio (+1 token apenas — vs ~5-8 se ficasse literal). Reverter funcionou.
+- **3.C.3 — `buscarHistoricoMensagens` + `messages: [...historico, atual]`** ✅
+  - Constante `MAX_HISTORICO = 20` (TODO 3.G.2 pra `configuracoes`).
+  - Helper filtra `papel != 'system' AND erro IS NULL AND id != exceto_id`, mesma entidade. Reverse pra cronológico. Falha graciosa (array vazio + warning, não bloqueia chamada).
+  - **Validação inequívoca de memória:** banco limpo (DELETE) → 3 curls em sequência:
+    - Curl 1 ("oi! me chamo Pedro e gosto de café preto sem açúcar de manhã"): tokens_entrada 762, IA cumprimenta + anota preferência.
+    - Curl 2 ("qual o meu nome?"): tokens_entrada 982 (+220, histórico de 2 msgs), IA responde "Pedro Pertel".
+    - Curl 3 ("e do que falei que gosto?"): tokens_entrada 1064 (+82, histórico de 4 msgs), IA responde **"Café preto sem açúcar — você acabou de me contar isso na primeira mensagem!"** ← prova inequívoca (info exclusiva do histórico, não do prompt_base).
+  - SELECT confirma 6 rows linkadas via `mensagem_pai_id`, tokens_entrada crescente, sem erros.
+- **3.C.4 — Documentação + ritual de fechamento** ✅
+  - JSDoc do topo do `chat-claude/index.ts` reescrito (estado consolidado da 3.C).
+  - Nova subseção "Substituição de placeholders em prompt_base" em `CONVENÇÕES.md` (regex, comportamento, observabilidade, naming).
+  - CLAUDE.md "Status atual" 3/9 → 4/9 + bloco da 3.C.
+  - Esta entrada do Backlog.
+  - Entrada extensa no Dev Log.
+
+**Hash do commit de código (3.C.1+2+3):** `2590b1e` (dev). Único arquivo modificado: `supabase/functions/chat-claude/index.ts` (325 → 514 linhas, +189 net).
+
+**Próximo:** Tarefa 3.D — Router pattern real (Roteador classifica → escolhe modelo → Anthropic com persona; chips de persona na UI). Bruno e Marcela conversando como bônus.
 
 ---
 
