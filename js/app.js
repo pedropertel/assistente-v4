@@ -1,8 +1,9 @@
-import { supabase } from './core/supabase.js';
+import { supabase, invokeFunction } from './core/supabase.js';
 import { goPage } from './core/router.js';
 import { show as showToast } from './core/toast.js';
 import { show as showModal, close as closeModal } from './core/modal.js';
 import * as utils from './core/utils.js';
+import { pingIA } from './modules/chat.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;
@@ -135,3 +136,11 @@ window.closeModal = closeModal;
 
 // UTILS (debug/console)
 window.utils = utils;
+
+// EDGE FUNCTIONS (debug/console)
+// Permite testar Edge Functions direto do console:
+//   await invokeFunction('health-check')
+window.invokeFunction = invokeFunction;
+
+// CHAT (3.A.3 — UI temporária, vai sair na 3.B.3)
+window.pingIA = pingIA;

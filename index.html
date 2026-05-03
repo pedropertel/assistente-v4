@@ -500,6 +500,83 @@
       text-align: center;
     }
 
+    /* Ping IA — UI temporária da Tarefa 3.A.3, sai na 3.B.3 */
+
+    .ping-subtitle {
+      margin: 0 0 var(--space-4);
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .ping-status {
+      margin-top: var(--space-4);
+    }
+
+    .ping-result {
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    .ping-result strong {
+      display: block;
+      margin-bottom: var(--space-2);
+      font-size: 15px;
+    }
+
+    .ping-result small {
+      display: block;
+      margin-top: var(--space-3);
+      color: var(--text-tertiary);
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .ping-result.ping-success {
+      border-left: 3px solid var(--success);
+    }
+
+    .ping-result.ping-error {
+      border-left: 3px solid var(--danger);
+      color: var(--text-primary);
+    }
+
+    .ping-env-table {
+      width: 100%;
+      margin-top: var(--space-3);
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .ping-env-table th,
+    .ping-env-table td {
+      padding: var(--space-2) var(--space-3);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ping-env-table th {
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ping-env-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .ping-env-table td:last-child {
+      text-align: right;
+      width: 40px;
+    }
+
     /* ---------- DESKTOP (>= 768px): sidebar fixa, sem drawer ---------- */
 
     @media (min-width: 768px) {
@@ -829,7 +906,22 @@
 
         <section class="page" id="page-chat" hidden>
           <h1>Chat</h1>
-          <p class="page-placeholder">Aqui vai aparecer o chat com os agentes (Marcos, Bruno, Marcela, Alemão). Em breve.</p>
+          <p class="ping-subtitle">UI temporária da Tarefa 3.A.3 — validação de Edge Functions. Vai ser substituída na 3.B.</p>
+
+          <button
+            type="button"
+            id="btn-ping-ia"
+            class="btn btn-primary"
+            onclick="pingIA()"
+          >
+            🏓 Ping IA
+          </button>
+
+          <div
+            id="ping-status"
+            class="ping-status"
+            aria-live="polite"
+          ></div>
         </section>
 
         <section class="page" id="page-tasks" hidden>

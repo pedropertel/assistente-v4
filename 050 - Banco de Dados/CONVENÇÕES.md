@@ -599,6 +599,124 @@ Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Das
 
 ---
 
+## Edge Functions (Supabase)
+
+> Convenção firmada na Tarefa 3.A. Toda Edge Function da Fase 3 em diante segue estes padrões.
+
+### Naming e estrutura de pastas
+
+- **Slug da função:** kebab-case, descritivo, verbo-substantivo ou substantivo composto. Ex.: `health-check`, `chat-claude`, `meta-sync`, `briefing-matinal`.
+- **Estrutura:**
+  ```
+  supabase/
+  └── functions/
+      ├── _shared/              # utilitários reusáveis entre funções
+      │   ├── cors.ts
+      │   ├── supabase-admin.ts
+      │   ├── logger.ts
+      │   └── ...               # helpers futuros (anthropic.ts, vault.ts, etc)
+      └── {nome-da-funcao}/
+          └── index.ts          # entry point (1 arquivo por função)
+  ```
+- **Pasta `_shared/`** com underscore prefix — convenção do Supabase pra excluir do "1 pasta = 1 função". Tree-shaking automático: a CLI só sobe os arquivos que a função realmente importa.
+
+### Imports
+
+- **Supabase SDK:** `import { createClient } from 'jsr:@supabase/supabase-js@2'` (JSR é a recomendação oficial atual; mais estável que esm.sh/skypack).
+- **Helpers internos:** import relativo, ex. `from '../_shared/cors.ts'`.
+- **Anthropic SDK:** TBD na 3.B (provavelmente `npm:@anthropic-ai/sdk`).
+- **Sem dependências externas além das listadas** sem registrar aqui antes.
+
+### CORS
+
+Toda Edge que recebe request de browser usa os helpers do `_shared/cors.ts`:
+
+```ts
+import { getCorsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
+
+Deno.serve((req) => {
+  const preflight = handleCorsPreflightRequest(req);
+  if (preflight) return preflight;
+
+  // ... lógica ...
+
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+  });
+});
+```
+
+- **Allowlist explícita** (`ALLOWED_ORIGINS_EXACT` + `ALLOWED_ORIGINS_REGEX`). Nunca wildcard `*` — incompatível com requests autenticados (browser bloqueia credenciais com Allow-Origin `*`).
+- Preview Vercel coberto via regex: `^https://assistente-v4-[a-z0-9-]+\.vercel\.app$`.
+- Pra adicionar nova origem: editar `cors.ts`, redeploy de TODAS as Edges (helper é compartilhado).
+- `Vary: Origin` sempre presente — boa prática contra cache cross-origin em CDN.
+
+### Logger estruturado JSON
+
+Toda Edge usa `_shared/logger.ts`. Padrão por invocação:
+
+```ts
+import { generateRequestId, logInfo, logError } from '../_shared/logger.ts';
+
+const request_id = generateRequestId();         // UUID v4
+logInfo('chat-claude.start', { request_id, entidade_id });
+try {
+  // ... lógica ...
+  logInfo('chat-claude.done', { request_id, latencia_ms, custo_usd, persona_slug, modelo });
+} catch (err) {
+  logError('chat-claude.fail', { request_id }, err);
+}
+```
+
+- **`request_id` é obrigatório em todos os logs da invocação** — permite filtrar a história completa de um request no Dashboard.
+- **Mensagem em formato `{funcao}.{evento}`** (`.start`, `.done`, `.fail`, `.tool_use`, etc) — facilita agregação por evento.
+- **Campos canônicos de context:** `request_id`, `entidade_id`, `persona_slug`, `modelo`, `latencia_ms`, `tokens_input`, `tokens_output`, `custo_usd`. Vira base do dashboard de observabilidade da Fase 5.
+- **Nunca logar payload** — pode conter dados sensíveis (mensagens de chat, credenciais Meta).
+- **`logDebug()` é silencioso por default**, ativa com env var `LOG_LEVEL=debug` no Supabase.
+
+### Padrão de retorno
+
+Sucesso (200):
+```json
+{ "ok": true, ...payload_específico_da_função }
+```
+
+Erro de negócio (4xx — input inválido, recurso não encontrado, etc):
+```json
+{ "ok": false, "error": "mensagem_legível", "code": "OPCIONAL" }
+```
+
+Erro interno (5xx — exception não tratada):
+```json
+{ "ok": false, "error": "internal" }
+```
+
+- **Detalhes de erro vão pro log estruturado, não pro body** — evita vazar stack trace pro front.
+- **Sempre incluir CORS headers no response de erro** (senão o browser bloqueia o body do erro também — usuário não vê nada).
+
+### Auth e secrets
+
+- **Edge Functions Gateway só aceita anon JWT clássica** (`eyJhbGc...`) como Bearer token. **`sb_publishable_*` NÃO funciona** — retorna `UNAUTHORIZED_INVALID_JWT_FORMAT`. Validado na 3.A.2.
+- **Front usa anon JWT legacy** em `js/core/supabase.js`. Quando o supabase-js evoluir pra suportar `sb_publishable_*` no Bearer header, a gente migra.
+- **Service role key NUNCA no frontend.** Vive como secret no Supabase (`SUPABASE_SERVICE_ROLE_KEY` — auto-injetada pela plataforma). Acessada via `getSupabaseAdmin()` em `_shared/supabase-admin.ts`.
+- **Secrets de APIs externas** (`ANTHROPIC_API_KEY`, etc) — Dashboard → Edge Functions → Secrets. Lidas em runtime via `Deno.env.get()`. Rotação não exige redeploy de código.
+- **Secret check obrigatório em Edge nova:** primeira coisa do handler é verificar se as env vars críticas existem. Se faltar, log + 500 com `code: 'MISSING_SECRET'`. Padrão da `health-check` (linha 47).
+
+### Deploy
+
+- **Comando:** `supabase functions deploy {nome-da-funcao}` (a partir da raiz do repo). CLI versão >= 2.x.
+- **CLI tem que estar linkada:** `supabase link --project-ref msbwplsknncnxwsalumd` (uma única vez por máquina; arquivos em `supabase/.temp/` ficam gitignored).
+- **Tree-shaking automático:** CLI só envia os arquivos que `index.ts` realmente importa. Validado na 3.A.2 (`supabase-admin.ts` não foi pra produção em `health-check` porque não é importado).
+- **Versionamento implícito:** cada deploy incrementa a versão. Lista com `supabase functions list`.
+- **Rollback:** redeploy da versão anterior do código (não tem botão "rollback" oficial). Em caso de bug, reverter o código no git e fazer novo deploy.
+
+### `.gitignore`
+
+A pasta `supabase/.temp/` (cache local da CLI: auth, link state, build artifacts) **NÃO vai pro repo**. Mesma regra pra `supabase/.branches/` (preview branches do CLI). Ver `.gitignore` na raiz.
+
+---
+
 ## Relacionado
 
 - [[Tabela — entidades]]
