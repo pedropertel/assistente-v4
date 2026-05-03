@@ -119,7 +119,7 @@ function appendBubbleOptimistic(texto) {
   bubble.className = 'chat-bubble user optimistic';
   bubble.textContent = texto;
   histEl.appendChild(bubble);
-  scrollToBottom();
+  scrollToBottom(true);
   return bubble;
 }
 
@@ -213,7 +213,14 @@ function hideEmptyState() {
   if (emptyEl) emptyEl.style.display = 'none';
 }
 
-function scrollToBottom() {
+function scrollToBottom(smooth = false) {
   const histEl = document.getElementById('chat-historico');
-  histEl.scrollTop = histEl.scrollHeight;
+  if (!histEl) return;
+  requestAnimationFrame(() => {
+    if (smooth) {
+      histEl.scrollTo({ top: histEl.scrollHeight, behavior: 'smooth' });
+    } else {
+      histEl.scrollTop = histEl.scrollHeight;
+    }
+  });
 }
