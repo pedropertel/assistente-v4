@@ -672,6 +672,8 @@ Primeira tarefa de código da Fase 3. Estrutura, deploy, secrets e CORS funciona
 
 **Próximo:** Tarefa 3.C — `prompt_base` real + placeholders + histórico de 20 mensagens. Edge passa a ler `agentes` em vez de hardcoded.
 
+**Plano da 3.C aprovado em 2026-05-02** após terceiro triplo /plan (Pedro + Code + outro Claude). Estrutura: **3.C.0** (UPDATE SQL adicionando placeholders ao prompt_base — sub-tarefa nova, ~15min) → **3.C.1** (`getAgenteAssistente()` retorna obj inteiro, remove constantes hardcoded, ~45min) → **3.C.2** (helpers de placeholders + `{usuario}/{data_hora}/{entidade_atual}/{persona_ativa}`, ~45min) → **3.C.3** (helper de histórico + `messages: [...historico, atual]`, ~30min) → **3.C.4** (docs + fechamento, ~30min). **Total: ~2h45min.** Decisões críticas: cache do agente inteiro com TODO 4.x pra invalidação via `cache_version`/`updated_at`; max_tokens migra 1024 → 4096 (do banco); fallback se agente não encontrado é fail-fast 500 (não silencia bug); placeholder typo loga warning + remove (não fica literal); histórico filtra `erro IS NULL` + exclui mensagem user atual; `{entidade_atual}` quando NULL vira `'(geral)'`; helpers inline (não `_shared/`). 4 achados factuais (REGRA 11) registrados na seção "Estado validado" do plan file. Detalhamento ativo em `.claude/plans/temporal-tinkering-castle.md`.
+
 ---
 
 ## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
