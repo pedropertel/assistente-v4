@@ -500,81 +500,108 @@
       text-align: center;
     }
 
-    /* Ping IA — UI temporária da Tarefa 3.A.3, sai na 3.B.3 */
+    /* Chat — UI da Tarefa 3.B */
 
-    .ping-subtitle {
-      margin: 0 0 var(--space-4);
-      color: var(--text-secondary);
-      font-size: 14px;
-      line-height: 1.5;
+    .page-chat {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      padding: 0;
     }
 
-    .ping-status {
-      margin-top: var(--space-4);
-    }
-
-    .ping-result {
+    .chat-historico {
+      flex: 1;
+      overflow-y: auto;
       padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .chat-empty {
+      margin: auto;
+      color: var(--text-tertiary);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      line-height: 1.5;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: white;
+      border-bottom-right-radius: var(--space-1);
+    }
+
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border-bottom-left-radius: var(--space-1);
+    }
+
+    .chat-bubble.assistant.error {
+      border-left: 3px solid var(--danger);
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .chat-bubble.user.optimistic {
+      opacity: 0.7;
+    }
+
+    .chat-bubble.user.failed {
+      opacity: 0.5;
+      border-left: 3px solid var(--danger);
+    }
+
+    .chat-bubble-meta {
+      display: block;
+      margin-top: var(--space-1);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .chat-input-wrapper {
+      display: flex;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border);
+    }
+
+    .chat-textarea {
+      flex: 1;
+      padding: var(--space-2) var(--space-3);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       background: var(--bg-secondary);
-      font-size: 14px;
-      line-height: 1.5;
       color: var(--text-primary);
-    }
-
-    .ping-result strong {
-      display: block;
-      margin-bottom: var(--space-2);
+      font-family: inherit;
       font-size: 15px;
+      line-height: 1.4;
+      resize: none;
+      min-height: 40px;
+      max-height: 120px;
     }
 
-    .ping-result small {
-      display: block;
-      margin-top: var(--space-3);
-      color: var(--text-tertiary);
-      font-size: 12px;
-      word-break: break-all;
+    .chat-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
     }
 
-    .ping-result.ping-success {
-      border-left: 3px solid var(--success);
-    }
-
-    .ping-result.ping-error {
-      border-left: 3px solid var(--danger);
-      color: var(--text-primary);
-    }
-
-    .ping-env-table {
-      width: 100%;
-      margin-top: var(--space-3);
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    .ping-env-table th,
-    .ping-env-table td {
-      padding: var(--space-2) var(--space-3);
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .ping-env-table th {
-      color: var(--text-secondary);
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .ping-env-table tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    .ping-env-table td:last-child {
-      text-align: right;
-      width: 40px;
+    .chat-btn-enviar {
+      flex-shrink: 0;
     }
 
     /* ---------- DESKTOP (>= 768px): sidebar fixa, sem drawer ---------- */
@@ -904,24 +931,28 @@
           <p class="page-placeholder">Aqui vai aparecer o resumo do seu dia. Em breve.</p>
         </section>
 
-        <section class="page" id="page-chat" hidden>
-          <h1>Chat</h1>
-          <p class="ping-subtitle">UI temporária da Tarefa 3.A.3 — validação de Edge Functions. Vai ser substituída na 3.B.</p>
-
-          <button
-            type="button"
-            id="btn-ping-ia"
-            class="btn btn-primary"
-            onclick="pingIA()"
-          >
-            🏓 Ping IA
-          </button>
-
-          <div
-            id="ping-status"
-            class="ping-status"
-            aria-live="polite"
-          ></div>
+        <section class="page page-chat" id="page-chat" hidden>
+          <div class="chat-historico" id="chat-historico" aria-live="polite">
+            <div class="chat-empty" id="chat-empty">Sem mensagens ainda. Manda um "oi" pra começar.</div>
+          </div>
+          <div class="chat-input-wrapper">
+            <textarea
+              id="chat-textarea"
+              class="chat-textarea"
+              placeholder="Mande uma mensagem..."
+              rows="1"
+              onkeydown="handleChatKeydown(event)"
+            ></textarea>
+            <button
+              type="button"
+              id="btn-enviar"
+              class="btn btn-primary chat-btn-enviar"
+              onclick="enviarMensagem()"
+              aria-label="Enviar mensagem"
+            >
+              Enviar
+            </button>
+          </div>
         </section>
 
         <section class="page" id="page-tasks" hidden>

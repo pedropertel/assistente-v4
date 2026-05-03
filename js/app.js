@@ -3,7 +3,11 @@ import { goPage } from './core/router.js';
 import { show as showToast } from './core/toast.js';
 import { show as showModal, close as closeModal } from './core/modal.js';
 import * as utils from './core/utils.js';
-import { pingIA } from './modules/chat.js';
+import {
+  carregarHistorico,
+  enviarMensagem,
+  handleChatKeydown,
+} from './modules/chat.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;
@@ -42,6 +46,9 @@ async function initApp(session) {
   console.log('[initApp] logado como', session.user.email);
   showApp();
   goPage('chat');
+  carregarHistorico().catch((err) => {
+    console.error('[initApp] carregarHistorico falhou', err);
+  });
 
   // Ping de sanity da conexão — inofensivo, detecta regressão cedo.
   try {
@@ -142,5 +149,6 @@ window.utils = utils;
 //   await invokeFunction('health-check')
 window.invokeFunction = invokeFunction;
 
-// CHAT (3.A.3 — UI temporária, vai sair na 3.B.3)
-window.pingIA = pingIA;
+// CHAT (3.B — chat real com persistência)
+window.enviarMensagem = enviarMensagem;
+window.handleChatKeydown = handleChatKeydown;

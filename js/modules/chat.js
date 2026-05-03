@@ -1,109 +1,183 @@
-import { invokeFunction } from '../core/supabase.js';
+import { invokeFunction, supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
-import { fmtDate } from '../core/utils.js';
 
 /**
- * pingIA — chama a Edge Function health-check e exibe resultado.
+ * enviarMensagem — envia mensagem do user pra Edge chat-claude e
+ * atualiza UI.
  *
- * Tarefa 3.A.3 (UI temporária). Vai ser substituída na 3.B.3
- * pela UI real de chat.
- *
- * Comportamento:
- *   1. Desabilita botão durante request (evita double-click)
- *   2. Exibe spinner/texto "pingando..."
- *   3. Chama invokeFunction('health-check')
- *   4. Em sucesso: showToast verde + render do payload
- *   5. Em erro: showToast vermelho + mensagem de erro
- *   6. Reabilita botão
+ * Fluxo:
+ *   1. Pega texto do textarea, valida não-vazio
+ *   2. Desabilita botão + textarea (defesa contra double-click
+ *      e contra Pedro mandar nova msg enquanto a anterior está
+ *      em flight — REGRA decisão #13 do plan)
+ *   3. Renderiza bolha user "otimista" (aparece imediato com
+ *      classe .optimistic)
+ *   4. Limpa textarea
+ *   5. Chama Edge chat-claude
+ *   6. Em sucesso: recarrega histórico (substitui bolha
+ *      otimista pela persistida + adiciona bolha assistant)
+ *   7. Em erro: marca bolha otimista como .failed + toast
+ *   8. Reabilita controles, foca textarea
  */
-export async function pingIA() {
-  const btn = document.getElementById('btn-ping-ia');
-  const status = document.getElementById('ping-status');
+export async function enviarMensagem() {
+  const ta = document.getElementById('chat-textarea');
+  const btn = document.getElementById('btn-enviar');
 
-  if (!btn || !status) {
-    console.error('[pingIA] elementos da UI não encontrados');
+  if (!ta || !btn) {
+    console.error('[chat] elementos não encontrados');
     return;
   }
 
+  const texto = ta.value.trim();
+  if (!texto) return;
+
   btn.disabled = true;
-  const labelOriginal = btn.textContent;
-  btn.textContent = '⏳ pingando...';
-  status.innerHTML = '';
+  ta.disabled = true;
+
+  // Otimista: bolha aparece imediato
+  const optimisticEl = appendBubbleOptimistic(texto);
+  ta.value = '';
 
   try {
-    const { data, error } = await invokeFunction('health-check');
+    const { error } = await invokeFunction('chat-claude', { texto });
 
     if (error) {
       showToast(`Erro: ${error.message}`, 'error');
-      status.innerHTML = `
-        <div class="ping-result ping-error">
-          <strong>❌ Falha</strong>
-          ${escapeHtml(error.message)}
-          ${error.status ? `<br><small>Status: ${error.status}</small>` : ''}
-          ${error.code ? `<br><small>Code: ${escapeHtml(error.code)}</small>` : ''}
-        </div>
-      `;
+      optimisticEl.classList.remove('optimistic');
+      optimisticEl.classList.add('failed');
       return;
     }
 
-    if (data && data.env_ok === true) {
-      showToast('Edge OK + secrets OK', 'success');
-    } else {
-      showToast('Edge OK, mas alguma secret está faltando', 'warning');
-    }
-
-    const envCheckRows = Object.entries(data.env_check || {})
-      .map(([key, val]) => `
-        <tr>
-          <td>${escapeHtml(key)}</td>
-          <td>${val ? '✅' : '❌'}</td>
-        </tr>
-      `).join('');
-
-    const requestIdShort = (data.request_id || '').slice(0, 8);
-    const tsFormatted = data.timestamp
-      ? fmtDate(data.timestamp, { includeTime: true })
-      : '(sem timestamp)';
-
-    status.innerHTML = `
-      <div class="ping-result ping-success">
-        <strong>${data.env_ok ? '✅ Tudo verde' : '⚠️ Parcial'}</strong>
-        <table class="ping-env-table">
-          <thead>
-            <tr><th>Variável</th><th>OK?</th></tr>
-          </thead>
-          <tbody>${envCheckRows}</tbody>
-        </table>
-        <small>
-          ${tsFormatted} · request_id: ${escapeHtml(requestIdShort)}…
-        </small>
-      </div>
-    `;
+    // Sucesso: recarrega histórico (substitui otimista +
+    // mostra resposta assistant)
+    await carregarHistorico();
   } catch (err) {
-    // Defesa de última instância. invokeFunction não joga
-    // exception em uso normal, mas se algo bem ruim acontecer
-    // (network falhou antes da lib pegar, etc), capturamos aqui.
-    console.error('[pingIA] exception inesperada:', err);
+    console.error('[chat] exception inesperada', err);
     showToast('Erro inesperado. Vê o console.', 'error');
+    optimisticEl.classList.remove('optimistic');
+    optimisticEl.classList.add('failed');
   } finally {
     btn.disabled = false;
-    btn.textContent = labelOriginal;
+    ta.disabled = false;
+    ta.focus();
   }
 }
 
 /**
- * escapeHtml — escapa string pra inserção segura em innerHTML.
- * Pequena defesa contra XSS caso a Edge devolva conteúdo
- * inesperado. Em produção real, melhor usar textContent ou
- * libs específicas. Pra esta UI temporária e single-user,
- * suficiente.
+ * carregarHistorico — busca últimas 50 mensagens do chat.
+ *
+ * 3.B: entidadeId sempre null (UI ainda não tem seletor de
+ * entidade). Filtra entidade_id IS NULL pra mostrar só chat
+ * geral.
+ * 3.D vai estender pra suportar histórico por entidade ativa
+ * + filtragem por persona quando relevante.
  */
-function escapeHtml(str) {
-  if (str === undefined || str === null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+export async function carregarHistorico(entidadeId = null) {
+  let q = supabase
+    .from('chat_mensagens')
+    .select('id, papel, conteudo, modelo_usado, custo_brl, latencia_ms, erro, created_at')
+    .neq('papel', 'system')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  q = entidadeId === null
+    ? q.is('entidade_id', null)
+    : q.eq('entidade_id', entidadeId);
+
+  const { data, error } = await q;
+
+  if (error) {
+    console.error('[chat] erro ao carregar histórico', error);
+    showToast('Erro ao carregar histórico', 'error');
+    return;
+  }
+
+  renderHistorico((data || []).reverse());
+}
+
+/**
+ * handleChatKeydown — Enter envia, Shift+Enter quebra linha.
+ */
+export function handleChatKeydown(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    enviarMensagem();
+  }
+}
+
+// ──────────── Helpers internos ────────────
+
+function appendBubbleOptimistic(texto) {
+  const histEl = document.getElementById('chat-historico');
+  hideEmptyState();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble user optimistic';
+  bubble.textContent = texto;
+  histEl.appendChild(bubble);
+  scrollToBottom();
+  return bubble;
+}
+
+function renderHistorico(mensagens) {
+  const histEl = document.getElementById('chat-historico');
+  histEl.innerHTML = '';
+
+  if (!mensagens.length) {
+    showEmptyState();
+    return;
+  }
+
+  hideEmptyState();
+
+  for (const msg of mensagens) {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${msg.papel}`;
+
+    if (msg.erro) {
+      bubble.classList.add('error');
+      bubble.textContent = `[erro] ${msg.erro}`;
+    } else {
+      bubble.textContent = msg.conteudo;
+    }
+
+    // Meta info pra assistant: latência + custo
+    if (msg.papel === 'assistant' && !msg.erro && msg.latencia_ms != null) {
+      const meta = document.createElement('small');
+      meta.className = 'chat-bubble-meta';
+      const custoTxt = msg.custo_brl != null
+        ? `R$ ${Number(msg.custo_brl).toFixed(4)}`
+        : '';
+      const latTxt = `${msg.latencia_ms}ms`;
+      meta.textContent = [custoTxt, latTxt].filter(Boolean).join(' · ');
+      bubble.appendChild(meta);
+    }
+
+    histEl.appendChild(bubble);
+  }
+
+  scrollToBottom();
+}
+
+function showEmptyState() {
+  let emptyEl = document.getElementById('chat-empty');
+  if (!emptyEl) {
+    emptyEl = document.createElement('div');
+    emptyEl.className = 'chat-empty';
+    emptyEl.id = 'chat-empty';
+    emptyEl.textContent = 'Sem mensagens ainda. Manda um "oi" pra começar.';
+    document.getElementById('chat-historico').appendChild(emptyEl);
+  } else {
+    emptyEl.style.display = '';
+  }
+}
+
+function hideEmptyState() {
+  const emptyEl = document.getElementById('chat-empty');
+  if (emptyEl) emptyEl.style.display = 'none';
+}
+
+function scrollToBottom() {
+  const histEl = document.getElementById('chat-historico');
+  histEl.scrollTop = histEl.scrollHeight;
 }
