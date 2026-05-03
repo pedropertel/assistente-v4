@@ -217,10 +217,23 @@ function scrollToBottom(smooth = false) {
   const histEl = document.getElementById('chat-historico');
   if (!histEl) return;
   requestAnimationFrame(() => {
+    console.log('[scroll v1]', {
+      scrollHeight: histEl.scrollHeight,
+      scrollTop: histEl.scrollTop,
+      clientHeight: histEl.clientHeight,
+      overflowY: getComputedStyle(histEl).overflowY,
+      filhos: histEl.children.length,
+    });
     if (smooth) {
       histEl.scrollTo({ top: histEl.scrollHeight, behavior: 'smooth' });
     } else {
       histEl.scrollTop = histEl.scrollHeight;
     }
+    setTimeout(() => {
+      console.log('[scroll v2 +50ms]', {
+        scrollHeight: histEl.scrollHeight,
+        scrollTop: histEl.scrollTop,
+      });
+    }, 50);
   });
 }
