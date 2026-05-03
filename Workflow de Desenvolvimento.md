@@ -154,6 +154,28 @@ Nunca dizer só "não funciona" — Claude Code não vai saber o que corrigir.
 
 ---
 
+## Ritual de fechamento de sub-tarefa (passo X.Y.5)
+
+Toda sub-tarefa termina atualizando:
+
+1. **`STATUS.md`** (raiz) — granularidade sub-tarefa. Atualiza:
+   - "Última atualização" pra data de hoje
+   - "Última sub-tarefa fechada" + "próxima sub-tarefa" + "em andamento"
+   - 1 linha nova no topo de "Histórico"
+   - "Estado do repo" se branch/versão da Edge mudou
+   - "Progresso da Fase X" se sub-fase fechou inteira
+2. **`080 - Dev Log/Dev Log — AAAA-MM.md`** — entrada da sessão (decisões, custo real, bugs encontrados, hashes).
+3. **`Backlog — Tarefas Pequenas.md`** — marca sub-tarefa como ✅ + atualiza "Próximo".
+4. **`CLAUDE.md`** — só se houve mudança em **regras/convenções** (status atual fica em `STATUS.md`, não duplicar).
+5. **Plan file** (`~/.claude/plans/temporal-tinkering-castle.md`) — só se sub-fase inteira fechou (move "DETALHAMENTO ATIVO" pra próxima sub-fase + remove a fechada).
+
+**Commits:**
+- `feat(X.Y): descrição curta` — código alterado nesta sub-fase (1 commit por sub-fase, não por sub-tarefa).
+- `docs(X.Y): fechamento — descrição curta` — atualizações dos 5 docs acima.
+- Mesmo padrão da 3.A/3.B/3.C: working tree acumula código durante todas as sub-tarefas, commit único no fim. `STATUS.md` é exceção — pode ser commitado junto com os docs no fechamento da sub-fase, ou sozinho em sub-tarefa intermediária se Pedro pedir snapshot público.
+
+---
+
 ## Como o preview do Vercel funciona
 
 O Vercel já vem configurado pra gerar **um preview automático toda vez que você faz push em qualquer branch que não é a main.**

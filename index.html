@@ -93,7 +93,7 @@
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       font-size: 16px;
       line-height: 1.5;
-      padding: var(--space-4);
+      padding: 0;
       transition: background var(--transition), color var(--transition);
     }
 
@@ -419,7 +419,8 @@
     /* ---------- MAIN CONTENT ---------- */
 
     #main-content {
-      min-height: 100dvh;
+      height: 100dvh;
+      min-height: 0;
       display: flex;
       flex-direction: column;
     }
@@ -463,6 +464,7 @@
 
     #page-container {
       flex: 1;
+      min-height: 0;
       padding: var(--space-6);
       overflow-y: auto;
     }
@@ -506,12 +508,14 @@
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
       overflow: hidden;
       padding: 0;
     }
 
     .chat-historico {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
       padding: var(--space-4);
       display: flex;
@@ -572,10 +576,33 @@
       color: var(--text-tertiary);
     }
 
+    .chat-bubble-persona-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 6px;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .chat-bubble-persona-chip .chip-icon {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .chat-bubble-persona-chip .chip-name {
+      text-transform: capitalize;
+    }
+
     .chat-input-wrapper {
       display: flex;
       gap: var(--space-2);
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom));
       background: var(--bg-primary);
       border-top: 1px solid var(--border);
     }

@@ -51,11 +51,14 @@ export function getAnthropicClient(): Anthropic {
   return cachedClient;
 }
 
-// Preços USD por 1M tokens. Validado 2026-05-02 via doc oficial Anthropic.
-// Apenas Haiku na 3.B — Sonnet/Opus entram na 3.D quando router for ativado.
+// Preços USD por 1M tokens. Haiku validado 2026-05-02; Sonnet 4.6 e Opus 4.7
+// validados 2026-05-03 via doc oficial Anthropic
+// (platform.claude.com/docs/en/about-claude/models/overview).
 // TODO 3.G.2: migrar pra `configuracoes.ai_defaults.precos_modelos`.
 export const MODEL_PRICING = {
   'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
+  'claude-sonnet-4-6':         { input: 3.00, output: 15.00 },
+  'claude-opus-4-7':           { input: 5.00, output: 25.00 },
 } as const;
 
 export function calcCustoUSD(
@@ -77,6 +80,32 @@ export function calcCustoUSD(
   }
   return (tokensIn / 1_000_000) * p.input
        + (tokensOut / 1_000_000) * p.output;
+}
+
+/**
+ * Modelos Anthropic que NÃO aceitam o parâmetro `temperature`.
+ *
+ * Opus 4.7 e modelos com Adaptive Thinking deprecaram `temperature` —
+ * a API responde com `400 invalid_request_error` ("`temperature` is
+ * deprecated for this model.") quando enviado.
+ *
+ * Validado em runtime na 3.D.3.2 (Opus 4.7 falhou com temperature=0.7).
+ * Adaptive Thinking documentado em
+ * platform.claude.com/docs/en/about-claude/models/overview.
+ *
+ * Padrão da Edge: chamar `suportaTemperature(modelo)` antes de adicionar
+ * `temperature` ao payload. Lista vai crescer conforme novos modelos
+ * com Adaptive Thinking entrarem (ex: Opus 4.8, Opus 5).
+ *
+ * TODO 3.G.2: migrar pra `configuracoes.ai_defaults.modelos_sem_temperature`
+ * (junto com MODEL_PRICING e MAPA_COMPLEXIDADE_MODELO).
+ */
+export const MODELOS_SEM_TEMPERATURE: ReadonlySet<string> = new Set([
+  'claude-opus-4-7',
+]);
+
+export function suportaTemperature(modelo: string): boolean {
+  return !MODELOS_SEM_TEMPERATURE.has(modelo);
 }
 
 export { Anthropic };

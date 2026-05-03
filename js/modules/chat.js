@@ -75,7 +75,11 @@ export async function enviarMensagem() {
 export async function carregarHistorico(entidadeId = null) {
   let q = supabase
     .from('chat_mensagens')
-    .select('id, papel, conteudo, modelo_usado, custo_brl, latencia_ms, erro, created_at')
+    .select(`
+      id, papel, conteudo, modelo_usado, custo_brl, latencia_ms, erro, created_at,
+      persona_id,
+      personas(slug, nome, icone, cor_hex)
+    `)
     .neq('papel', 'system')
     .order('created_at', { ascending: false })
     .limit(50);
@@ -87,7 +91,14 @@ export async function carregarHistorico(entidadeId = null) {
   const { data, error } = await q;
 
   if (error) {
-    console.error('[chat] erro ao carregar histórico', error);
+    console.error('[chat] erro ao carregar histórico — DETALHE:', {
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      statusCode: error?.statusCode,
+      full: error,
+    });
     showToast('Erro ao carregar histórico', 'error');
     return;
   }
@@ -115,7 +126,7 @@ function appendBubbleOptimistic(texto) {
   bubble.className = 'chat-bubble user optimistic';
   bubble.textContent = texto;
   histEl.appendChild(bubble);
-  scrollToBottom();
+  scrollToBottom(true);
   return bubble;
 }
 
@@ -134,11 +145,43 @@ function renderHistorico(mensagens) {
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${msg.papel}`;
 
+    // Chip da persona ativa (3.D.4 + 3.D.4.1) — toda assistant ganha chip.
+    // Persona escolhida pelo Roteador → chip colorido próprio (Marcos/Bruno/etc).
+    // Sem persona (Roteador retornou null OU mensagens pré-3.D) → fallback
+    // chip cinza "Assistente" 🤖. Pedro sempre identifica quem respondeu.
+    // Roteador é interno=true e fica em rows papel='system' já filtradas
+    // pelo SELECT — chip nunca renderiza Roteador.
+    if (msg.papel === 'assistant') {
+      const chipData = msg.personas ?? {
+        icone: '🤖',
+        nome: 'Assistente',
+        cor_hex: '6B7280',
+      };
+      const chip = document.createElement('span');
+      chip.className = 'chat-bubble-persona-chip';
+      chip.style.backgroundColor = '#' + chipData.cor_hex;
+
+      const icon = document.createElement('span');
+      icon.className = 'chip-icon';
+      icon.textContent = chipData.icone;
+
+      const name = document.createElement('span');
+      name.className = 'chip-name';
+      name.textContent = chipData.nome;
+
+      chip.appendChild(icon);
+      chip.appendChild(name);
+      bubble.appendChild(chip);
+      bubble.appendChild(document.createElement('br'));
+    }
+
+    // Conteúdo da mensagem — appendChild (não textContent, que apagaria
+    // o chip já adicionado acima).
     if (msg.erro) {
       bubble.classList.add('error');
-      bubble.textContent = `[erro] ${msg.erro}`;
+      bubble.appendChild(document.createTextNode(`[erro] ${msg.erro}`));
     } else {
-      bubble.textContent = msg.conteudo;
+      bubble.appendChild(document.createTextNode(msg.conteudo));
     }
 
     // Meta info pra assistant: latência + custo
@@ -177,7 +220,14 @@ function hideEmptyState() {
   if (emptyEl) emptyEl.style.display = 'none';
 }
 
-function scrollToBottom() {
+function scrollToBottom(smooth = false) {
   const histEl = document.getElementById('chat-historico');
-  histEl.scrollTop = histEl.scrollHeight;
+  if (!histEl) return;
+  requestAnimationFrame(() => {
+    if (smooth) {
+      histEl.scrollTo({ top: histEl.scrollHeight, behavior: 'smooth' });
+    } else {
+      histEl.scrollTop = histEl.scrollHeight;
+    }
+  });
 }
