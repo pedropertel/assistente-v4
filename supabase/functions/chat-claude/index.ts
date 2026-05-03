@@ -69,6 +69,7 @@ import {
   Anthropic,
   calcCustoUSD,
   getAnthropicClient,
+  suportaTemperature,
 } from '../_shared/anthropic.ts';
 import { getSupabaseAdmin } from '../_shared/supabase-admin.ts';
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
@@ -81,6 +82,25 @@ const COTACAO_USD_BRL = 5.0;
 // TODO 3.G.2: ler de configuracoes.ai_defaults.historico_max_mensagens
 // (decisão #7 do plan file aprovada — fica em 20 fixas até a 3.G.2 migrar).
 const MAX_HISTORICO = 20;
+
+/**
+ * Mapeamento `nivel_complexidade` → modelo Anthropic.
+ * Hardcoded até 3.G.2 migrar pra `configuracoes.ai_defaults.mapeamento_complexidade`.
+ *
+ * - simples:  tarefas curtas, factuais (Marcela, Alemão, fallback sem persona)
+ * - medio:    raciocínio moderado (Marcos, Marina)
+ * - complexo: análise estratégica e redação importante (Bruno)
+ *
+ * Conforme `Tabela — personas.md` linhas 112-118.
+ * Pricing dos 3 modelos em `_shared/anthropic.ts` MODEL_PRICING (validado 2026-05-03).
+ */
+const MAPA_COMPLEXIDADE_MODELO = {
+  simples:  'claude-haiku-4-5-20251001',
+  medio:    'claude-sonnet-4-6',
+  complexo: 'claude-opus-4-7',
+} as const;
+
+type NivelComplexidade = keyof typeof MAPA_COMPLEXIDADE_MODELO;
 
 function jsonResponse(
   req: Request,
@@ -115,6 +135,31 @@ interface AgenteRow {
 // TODO 4.x: invalidação via cache_version ou updated_at em agentes
 // quando UI de edição existir (botão "reload" é hacky).
 let cachedAgente: AgenteRow | null = null;
+
+// Linha do banco da tabela `personas` (campos que a Edge usa pro router).
+// `entidades_alvo` é `text[]` no PG — vira `string[]` no JS (vazio = transversal,
+// conforme convenção `Tabela — personas.md` linhas 259-280).
+// `modelo_override` quando preenchido força o modelo, ignorando `nivel_complexidade`.
+interface PersonaRow {
+  id: string;
+  slug: string;
+  nome: string;
+  contexto: string;
+  nivel_complexidade: NivelComplexidade;
+  modelo_override: string | null;
+  entidades_alvo: string[] | null;
+  icone: string | null;
+  cor_hex: string | null;
+}
+
+// Cache da persona interna 'roteador' (modelo_override='claude-haiku-4-5-20251001').
+// Mesmo padrão de cache de isolate. TODO 4.x: invalidação ativa.
+let cachedRoteador: PersonaRow | null = null;
+
+// Cache das 5 personas reais (interno=false, ativa=true) indexadas por slug.
+// Lookup O(1) por slug em chamarRoteador (lista dinâmica de personas) e na
+// fase de aplicar persona escolhida (3.D.3).
+let cachedPersonasReais: Map<string, PersonaRow> | null = null;
 
 async function getAgenteAssistente(supabase: SupabaseClient): Promise<AgenteRow> {
   if (cachedAgente) return cachedAgente;
@@ -248,12 +293,351 @@ async function buscarHistoricoMensagens(
     return [];
   }
 
-  return (data || [])
+  const mapped = (data || [])
     .reverse()
     .map((m) => ({
       role: m.papel as 'user' | 'assistant',
       content: m.conteudo,
     }));
+
+  // Defesa contra cadeia user/assistant inválida (3.D.3.1).
+  // Quando Anthropic falha, row assistant fica com `erro` preenchido e é
+  // filtrada pelo `WHERE erro IS NULL` acima. Sem dedup, isso cria
+  // "user órfão" no array → próxima chamada Anthropic rejeita
+  // (`messages must alternate between user and assistant`).
+  // Dedup mantém o mais novo de roles consecutivas (decisão B do
+  // Risco #8 do plan da 3.D — ver Dev Log 3.D.5 pro retrospecto).
+  const dedup: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  for (const m of mapped) {
+    if (dedup.length === 0 || dedup[dedup.length - 1].role !== m.role) {
+      dedup.push(m);
+    } else {
+      // Mesma role consecutiva — substitui pela mais nova (m).
+      dedup[dedup.length - 1] = m;
+    }
+  }
+  return dedup;
+}
+
+/**
+ * Busca persona interna 'roteador' do banco (cacheada por isolate).
+ * Mesmo padrão de `getAgenteAssistente`.
+ *
+ * Throw fail-fast se não encontrar — Roteador é peça obrigatória do
+ * fluxo da 3.D. REGRA 12: se Pedro deletou ou desativou o seed,
+ * mensagem educativa no log (sem fallback hardcoded silencioso).
+ */
+async function getRoteador(supabase: SupabaseClient): Promise<PersonaRow> {
+  if (cachedRoteador) return cachedRoteador;
+
+  const { data, error } = await supabase
+    .from('personas')
+    .select('id, slug, nome, contexto, nivel_complexidade, modelo_override, entidades_alvo, icone, cor_hex')
+    .eq('slug', 'roteador')
+    .eq('ativa', true)
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `Persona 'roteador' não encontrada ou inativa. ` +
+      `Verifique a tabela personas (slug='roteador', ativa=true).`,
+    );
+  }
+
+  cachedRoteador = data as PersonaRow;
+  return cachedRoteador;
+}
+
+/**
+ * Busca as 5 personas reais (interno=false, ativa=true) e devolve Map
+ * indexado por slug. Cacheada por isolate.
+ *
+ * Lookup O(1) por slug em chamarRoteador (lista dinâmica de personas no
+ * user message do Roteador) e na fase de aplicar persona escolhida (3.D.3).
+ *
+ * Falha graciosa: se query falhar OU retornar 0 rows, retorna Map vazio
+ * (cacheado) + log warning. Roteador continua funcionando, só sem opções
+ * de persona real (vai chutar persona_slug=null sempre — degradação
+ * aceitável vs erro 500).
+ */
+async function getPersonasReais(
+  supabase: SupabaseClient,
+  requestId: string,
+): Promise<Map<string, PersonaRow>> {
+  if (cachedPersonasReais) return cachedPersonasReais;
+
+  const { data, error } = await supabase
+    .from('personas')
+    .select('id, slug, nome, contexto, nivel_complexidade, modelo_override, entidades_alvo, icone, cor_hex')
+    .eq('ativa', true)
+    .eq('interno', false)
+    .order('slug');
+
+  if (error) {
+    logWarn('chat-claude.personas_reais_fail', { request_id: requestId });
+    cachedPersonasReais = new Map();
+    return cachedPersonasReais;
+  }
+
+  const map = new Map<string, PersonaRow>();
+  for (const p of (data || [])) {
+    map.set(p.slug, p as PersonaRow);
+  }
+  cachedPersonasReais = map;
+  return cachedPersonasReais;
+}
+
+/**
+ * Decide qual modelo Anthropic usar pra chamada principal:
+ *   1. Persona null (Roteador não escolheu ou retornou slug inválido) →
+ *      `modeloAgente` (fallback gracioso, IA vira "Assistente genérico"
+ *      como na 3.C).
+ *   2. Persona com `modelo_override` → usa esse (caso Roteador interno
+ *      hoje, mas pode haver outras personas com override no futuro).
+ *   3. Senão → mapeia `persona.nivel_complexidade` via `MAPA_COMPLEXIDADE_MODELO`.
+ *
+ * Função pura — sem I/O, sem cache, sem async. Receber `modeloAgente`
+ * em vez de chamar getAgenteAssistente preserva separação de
+ * responsabilidades.
+ */
+function escolherModelo(
+  persona: PersonaRow | null,
+  modeloAgente: string,
+): string {
+  if (!persona) return modeloAgente;
+  if (persona.modelo_override) return persona.modelo_override;
+  return MAPA_COMPLEXIDADE_MODELO[persona.nivel_complexidade];
+}
+
+/**
+ * Decisão do Roteador — JSON estrito esperado da chamada Anthropic Haiku.
+ *
+ * - persona_slug: 'marcos' | 'bruno' | 'marcela' | 'alemao' | 'marina' | null
+ *   (null quando a mensagem não casa com nenhuma persona específica).
+ * - nivel_complexidade: mapeia pro modelo via MAPA_COMPLEXIDADE_MODELO.
+ * - razao: explicação curta da escolha (debug post-mortem do INSERT system).
+ */
+interface RoteadorDecisao {
+  persona_slug: string | null;
+  nivel_complexidade: NivelComplexidade;
+  razao: string;
+}
+
+const NIVEIS_VALIDOS: ReadonlySet<NivelComplexidade> = new Set([
+  'simples',
+  'medio',
+  'complexo',
+]);
+
+/**
+ * Parse fail-soft do JSON retornado pelo Roteador.
+ *
+ * Estratégia em 3 camadas:
+ *   1. JSON.parse direto (caso ideal — Roteador respeitou "JSON estrito").
+ *   2. Regex extrai primeiro bloco `{...}` da string e tenta parse de novo
+ *      (cobre caso "Aqui está o JSON: {...}" — Haiku às vezes adiciona
+ *      preâmbulo apesar do prompt explícito).
+ *   3. Fallback: `{persona_slug: null, nivel_complexidade: 'simples',
+ *      razao: 'fallback: parse falhou'}`. Edge prossegue sem persona.
+ *
+ * Observabilidade: loga `chat-claude.roteador_parse_fallback` com raw
+ * truncado em 200 chars quando cai no fallback. Pedro vê no Dashboard
+ * Logs Explorer quando o Roteador estiver retornando JSON sujo
+ * consistentemente — sinaliza necessidade de refinar prompt.
+ *
+ * Função pura — sem I/O, sem cache, sem async.
+ */
+function parsearJsonRoteador(
+  raw: string,
+  requestId: string,
+): RoteadorDecisao {
+  const tentativas = [raw];
+  const matchBloco = raw.match(/\{[\s\S]*\}/);
+  if (matchBloco) tentativas.push(matchBloco[0]);
+
+  for (const candidato of tentativas) {
+    try {
+      const parsed = JSON.parse(candidato) as Partial<RoteadorDecisao>;
+      const personaSlug = typeof parsed.persona_slug === 'string'
+        ? parsed.persona_slug
+        : null;
+      const nivel = parsed.nivel_complexidade;
+      if (typeof nivel === 'string' && NIVEIS_VALIDOS.has(nivel as NivelComplexidade)) {
+        return {
+          persona_slug: personaSlug,
+          nivel_complexidade: nivel as NivelComplexidade,
+          razao: typeof parsed.razao === 'string' ? parsed.razao : '(sem razão)',
+        };
+      }
+    } catch {
+      // tenta próxima estratégia
+    }
+  }
+
+  logWarn('chat-claude.roteador_parse_fallback', {
+    request_id: requestId,
+    raw_truncado: raw.slice(0, 200),
+  });
+  return {
+    persona_slug: null,
+    nivel_complexidade: 'simples',
+    razao: 'fallback: parse falhou',
+  };
+}
+
+/**
+ * Orquestra a chamada do Roteador (1ª chamada Anthropic, Haiku via
+ * `modelo_override`):
+ *   1. Carrega Roteador + 5 personas reais (ambos cached por isolate).
+ *   2. Constrói lista dinâmica de personas no user message
+ *      (`B14` da decisão — resolve gap da Marina sem UPDATE no prompt).
+ *   3. Substitui placeholders em `roteador.contexto` (mesmos valores
+ *      do prompt principal — `{usuario}`, `{data_hora}`,
+ *      `{entidade_atual}`, `{persona_ativa}=''`).
+ *   4. Chama Anthropic Haiku 4.5 (`max_tokens=200`, `temperature=0`,
+ *      sem histórico — decisão B7).
+ *   5. Parse JSON via `parsearJsonRoteador` (fail-soft).
+ *   6. INSERT papel='system' com conteúdo=JSON da decisão. Persiste
+ *      MESMO em caso de falha da Anthropic ou parse (auditoria).
+ *   7. Retorna `{ decisao, systemMsgId, latenciaRouterMs }`.
+ *
+ * Custo esperado: ~R$ 0.001 por chamada (Haiku ~150 tok in + ~30 tok out).
+ * Latência: ~500-800ms warm. Decisão GRAVADA mas não APLICADA na 3.D.2 —
+ * chamada principal continua usando agente.modelo. Aplicação na 3.D.3.
+ */
+async function chamarRoteador(
+  client: Anthropic,
+  supabase: SupabaseClient,
+  texto: string,
+  entidade_id: string | null,
+  requestId: string,
+  userMsgId: string,
+  agenteId: string,
+): Promise<{
+  decisao: RoteadorDecisao;
+  systemMsgId: string | null;
+  latenciaRouterMs: number;
+}> {
+  const roteador = await getRoteador(supabase);
+  const personasMap = await getPersonasReais(supabase, requestId);
+
+  // Lista dinâmica (B14) — formato simples: nome + entidades_alvo
+  // (transversal quando vazio). Roteador já tem regras detalhadas de
+  // QUANDO ativar cada persona no próprio contexto.
+  const linhasPersonas: string[] = [];
+  for (const persona of personasMap.values()) {
+    const ents = persona.entidades_alvo ?? [];
+    const sufixo = ents.length === 0
+      ? '(transversal)'
+      : `(entidades: ${ents.join(', ')})`;
+    linhasPersonas.push(`- ${persona.slug} ${sufixo}`);
+  }
+  const listaDinamica = linhasPersonas.length > 0
+    ? `\n\nPERSONAS DISPONÍVEIS:\n${linhasPersonas.join('\n')}`
+    : '';
+
+  // System: contexto do Roteador com placeholders substituídos.
+  // {persona_ativa}='' porque Roteador é meta — não opera sob outra persona.
+  const systemRoteador = substituirPlaceholders(
+    roteador.contexto,
+    {
+      usuario: 'Pedro Pertel',
+      data_hora: formatarDataHoraBrasilia(),
+      entidade_atual: entidade_id ? '(entidade ativa)' : '(geral)',
+      persona_ativa: '',
+    },
+    requestId,
+  );
+
+  // Modelo: override do Roteador (sempre Haiku 4.5). Defesa contra
+  // modelo_override NULL no banco (improvável — schema permite mas seed
+  // sempre preenche pra Roteador).
+  const modeloRoteador = roteador.modelo_override
+    ?? 'claude-haiku-4-5-20251001';
+
+  let decisao: RoteadorDecisao;
+  let tokens_entrada = 0;
+  let tokens_saida = 0;
+  let custo_usd = 0;
+  let custo_brl = 0;
+  let erroRouter: string | null = null;
+
+  const t0 = Date.now();
+  try {
+    const response = await client.messages.create({
+      model: modeloRoteador,
+      max_tokens: 200,
+      temperature: 0,
+      system: systemRoteador,
+      messages: [{ role: 'user', content: texto + listaDinamica }],
+    });
+    const raw = response.content[0]?.type === 'text'
+      ? response.content[0].text
+      : '';
+    decisao = parsearJsonRoteador(raw, requestId);
+    tokens_entrada = response.usage.input_tokens;
+    tokens_saida = response.usage.output_tokens;
+    custo_usd = calcCustoUSD(modeloRoteador, tokens_entrada, tokens_saida);
+    custo_brl = custo_usd * COTACAO_USD_BRL;
+  } catch (err) {
+    erroRouter = err instanceof Error
+      ? err.message.slice(0, 500)
+      : 'Erro desconhecido na chamada do Roteador';
+    logWarn('chat-claude.roteador_call_fail', {
+      request_id: requestId,
+      erro: erroRouter,
+    });
+    decisao = {
+      persona_slug: null,
+      nivel_complexidade: 'simples',
+      razao: 'fallback: chamada do Roteador falhou',
+    };
+  }
+  const latenciaRouterMs = Date.now() - t0;
+
+  // INSERT system — mesmo na falha (auditoria). Métricas viram null
+  // quando Anthropic call falhou (response não chegou).
+  const { data: systemMsg, error: errSystem } = await supabase
+    .from('chat_mensagens')
+    .insert({
+      papel: 'system',
+      conteudo: JSON.stringify(decisao, null, 2),
+      entidade_id,
+      agente_id: agenteId,
+      persona_id: roteador.id,
+      modelo_usado: modeloRoteador,
+      tokens_entrada: tokens_entrada || null,
+      tokens_saida: tokens_saida || null,
+      custo_usd: custo_usd || null,
+      custo_brl: custo_brl || null,
+      latencia_ms: latenciaRouterMs,
+      mensagem_pai_id: userMsgId,
+      erro: erroRouter,
+    })
+    .select('id')
+    .single();
+
+  if (errSystem) {
+    // Persistência do system falhou — log mas não bloqueia. Edge segue
+    // com a decisão em memória; só perde rastreabilidade dessa row.
+    logError('chat-claude.insert_system_fail', { request_id: requestId, userMsgId }, errSystem);
+  }
+
+  logInfo('chat-claude.roteador_decision', {
+    request_id: requestId,
+    persona_slug: decisao.persona_slug,
+    nivel_complexidade: decisao.nivel_complexidade,
+    latencia_router_ms: latenciaRouterMs,
+    tokens_entrada,
+    tokens_saida,
+    custo_brl,
+  });
+
+  return {
+    decisao,
+    systemMsgId: (systemMsg?.id as string) ?? null,
+    latenciaRouterMs,
+  };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -309,21 +693,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = getSupabaseAdmin();
     const agente = await getAgenteAssistente(supabase);
 
-    // ──────────── Substituição de placeholders no prompt ────────────
-    // TODO 3.D: resolver entidade_atual pra nome real (SELECT em entidades
-    // pelo entidade_id) quando seletor de entidade entrar na UI.
-    // TODO multi-user (fora do roadmap): lookup do nome do user via session.
-    const promptProcessado = substituirPlaceholders(
-      agente.prompt_base,
-      {
-        usuario: 'Pedro Pertel',
-        data_hora: formatarDataHoraBrasilia(),
-        entidade_atual: entidade_id ? '(entidade ativa)' : '(geral)',
-        persona_ativa: '',
-      },
-      request_id,
-    );
-
     // ──────────── INSERT user ANTES da Anthropic ────────────
     const { data: userMsg, error: errUser } = await supabase
       .from('chat_mensagens')
@@ -348,6 +717,65 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const userMsgId = userMsg.id as string;
 
+    // ──────────── Roteador classifica (3.D.2) ────────────
+    // 1ª chamada Anthropic — decide persona + nível de complexidade.
+    // NOTA 3.D.2: decisão é GRAVADA (papel='system') mas NÃO APLICADA na
+    // chamada principal abaixo (continua usando agente.modelo + prompt sem
+    // persona, igual à 3.C). Aplicação efetiva na 3.D.3.
+    const client = getAnthropicClient();
+    const router = await chamarRoteador(
+      client,
+      supabase,
+      texto,
+      entidade_id,
+      request_id,
+      userMsgId,
+      agente.id,
+    );
+
+    // ──────────── Aplica decisão do Roteador (3.D.3) ────────────
+    // Lookup persona escolhida no Map cacheado (já populado por
+    // chamarRoteador na 3.D.2). Se Roteador alucinou slug que não existe,
+    // fail-soft pra persona=null + log warning. Custo zero — Map em memória.
+    const personasMap = await getPersonasReais(supabase, request_id);
+    let persona: PersonaRow | null = null;
+    if (router.decisao.persona_slug) {
+      const candidata = personasMap.get(router.decisao.persona_slug);
+      if (candidata) {
+        persona = candidata;
+      } else {
+        logWarn('chat-claude.persona_invalida', {
+          request_id,
+          slug_retornado: router.decisao.persona_slug,
+        });
+      }
+    }
+
+    // Concat prompt do agente + contexto da persona (separador `---`
+    // conforme convenção `Tabela — personas.md` linha 67). Substitui
+    // placeholders APÓS concat (decisão B13 — `{persona_ativa}` aparece
+    // no `prompt_base` mas valores futuros podem aparecer em `persona.contexto`).
+    // TODO 3.G ou Fase 4: resolver entidade_atual pra nome real (SELECT em
+    // entidades pelo entidade_id) quando seletor de entidade entrar na UI.
+    // TODO multi-user (fora do roadmap): lookup do nome do user via session.
+    const promptCru = persona
+      ? `${agente.prompt_base}\n\n---\n\n${persona.contexto}`
+      : agente.prompt_base;
+    const promptProcessadoComPersona = substituirPlaceholders(
+      promptCru,
+      {
+        usuario: 'Pedro Pertel',
+        data_hora: formatarDataHoraBrasilia(),
+        entidade_atual: entidade_id ? '(entidade ativa)' : '(geral)',
+        persona_ativa: persona?.nome ?? '',
+      },
+      request_id,
+    );
+
+    // Modelo: Roteador via persona.modelo_override ou MAPA[nivel_complexidade].
+    // Persona null → fallback pra agente.modelo (Haiku, comportamento 3.C).
+    const modeloEscolhido = escolherModelo(persona, agente.modelo);
+
     // ──────────── Busca histórico pra dar contexto à IA ────────────
     // Query roda DEPOIS do INSERT user (exceto_id evita duplicar a msg
     // atual no array). Falha graciosa: array vazio → IA responde sem
@@ -360,21 +788,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
 
     // ──────────── Chamada Anthropic (try interno) ────────────
-    const client = getAnthropicClient();
     const t0 = Date.now();
 
     let response;
     try {
-      response = await client.messages.create({
-        model: agente.modelo,
+      // Opus 4.7 (e modelos com Adaptive Thinking) não aceitam `temperature`.
+      // Helper `suportaTemperature` filtra — ver `_shared/anthropic.ts`.
+      const baseParams = {
+        model: modeloEscolhido,
         max_tokens: agente.max_tokens,
-        temperature: Number(agente.temperatura),
-        system: promptProcessado,
+        system: promptProcessadoComPersona,
         messages: [
           ...historico,
           { role: 'user', content: texto },
         ],
-      });
+      };
+      const params = suportaTemperature(modeloEscolhido)
+        ? { ...baseParams, temperature: Number(agente.temperatura) }
+        : baseParams;
+      response = await client.messages.create(params);
     } catch (anthropicErr) {
       // INSERT assistant com erro preenchido (preserva cadeia)
       const erroMsg = anthropicErr instanceof Error
@@ -388,7 +820,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           conteudo: '[erro durante chamada]',
           entidade_id,
           agente_id: agente.id,
-          modelo_usado: agente.modelo,
+          persona_id: persona?.id ?? null,
+          modelo_usado: modeloEscolhido,
           erro: erroMsg,
           mensagem_pai_id: userMsgId,
         });
@@ -419,7 +852,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         conteudo,
         entidade_id,
         agente_id: agente.id,
-        persona_id: null,
+        persona_id: persona?.id ?? null,
         modelo_usado,
         tokens_entrada,
         tokens_saida,
@@ -455,6 +888,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       custo_brl,
       latencia_ms,
       request_id,
+      // Decisão do Roteador (3.D.2) — gravada como papel='system' no banco.
+      // Não afeta `modelo_usado` ainda (chamada principal usa agente.modelo
+      // até 3.D.3 entrar). Útil pra debug + UI futura.
+      persona_escolhida: router.decisao.persona_slug,
+      nivel_complexidade: router.decisao.nivel_complexidade,
+      razao_router: router.decisao.razao,
+      latencia_router_ms: router.latenciaRouterMs,
     });
   } catch (err) {
     logError('chat-claude.fail', { request_id }, err);
