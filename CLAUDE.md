@@ -127,6 +127,48 @@ Ao terminar uma tarefa, adicione uma entrada em `080 - Dev Log/Dev Log — AAAA-
 - Se algo ficou pendente
 - Se alguma decisão nova foi tomada (e criar o arquivo correspondente)
 
+### REGRA 11 — Validação cruzada com o Claude do chat
+
+Pedro trabalha em fluxo triplo: ele compõe prompts no Claude.ai (chat), executa no Claude Code, e revisa entre os dois. O Claude do chat não é infalível — erra em listas, escopo, suposições sobre estado do repo, e às vezes em arquitetura.
+
+**QUANDO o Claude Code deve PARAR e questionar antes de executar:**
+
+1. Quando o prompt cita FATOS sobre o repo que conflitam com o estado real:
+   - "git status deve mostrar 11 entradas" mas tem 5
+   - "arquivo X está em /foo" mas está em /bar
+   - "função Y já existe" mas não existe
+   - Counts/listas/totais que divirjam de query/comando que validaria (`git status`, SQL count, `ls`, `wc`) — confere antes
+   → Reporta a divergência factual, **NÃO** corrige silenciosamente.
+
+2. Quando o prompt contradiz convenções já documentadas no projeto:
+   - Pede ALTER TABLE sem registrar idempotência
+   - Pede commit sem padrão de mensagem
+   - Pede mexer em arquivo que viola REGRA 2 (refatoração não pedida)
+   → Aponta a contradição com link/citação da convenção.
+
+3. Quando o prompt assume estado do código que mudou desde a última checagem:
+   - "função X retorna Y" mas você já leu o arquivo e ela retorna Z
+   - "tabela tem coluna A" mas o schema mostra que não tem
+   → Mostra o estado real e pede confirmação.
+
+4. Quando há ambiguidade técnica genuína com risco:
+   - Decisão de arquitetura que vai afetar múltiplas sub-fases
+   - Trade-off de performance/segurança/custo não discutido
+   - Caminho de erro não tratado em código novo
+   → Apresenta as opções com trade-offs, deixa Pedro decidir.
+
+**QUANDO o Claude Code NÃO deve questionar (executa direto):**
+
+- Pedidos procedurais simples (`git status`, `ls`, `cat`, view file). Mas se o output do comando contradiz a premissa do prompt, vira item 1 — reporta antes de prosseguir com o resto.
+- Tarefas já alinhadas em planos aprovados.
+- Decisões de estilo dentro do design system existente.
+- Naming, formatação, microajustes de código — EXCETO se gosto/estilo for nomeado em alguma convenção registrada (`CONVENÇÕES.md`, `CLAUDE.md`). Aí vira regra técnica, não gosto.
+- Quando o prompt do Pedro inclui "aprovado", "pode aplicar", "manda", "confirma" — Pedro já decidiu o PLANO. Mas se você detectou divergência factual antes ou durante a execução, reporta MESMO depois do "aprovado" — Pedro pode reaprovar com base na realidade ou reverter. Aprovação se aplica ao plano discutido, não a fatos errados embutidos no prompt.
+
+**REGRA DE OURO:** divergência factual ou risco real → fala antes de fazer. Discordância de gosto/estilo → faz como pedido sem ruído.
+
+A palavra final é sempre do Pedro. O objetivo dessa regra é reduzir erro silencioso, não criar comitê.
+
 ### REGRA 12 — Princípio de Customização Total
 
 Pedro NUNCA mais usa Claude Code, Supabase Dashboard ou terminal depois que o sistema estiver pronto.
