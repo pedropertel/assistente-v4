@@ -138,22 +138,29 @@ function renderHistorico(mensagens) {
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${msg.papel}`;
 
-    // Chip da persona (3.D.4) — só assistant com persona_id preenchido.
-    // Mensagens pré-3.D (persona_id NULL) renderizam sem chip naturalmente.
+    // Chip da persona ativa (3.D.4 + 3.D.4.1) — toda assistant ganha chip.
+    // Persona escolhida pelo Roteador → chip colorido próprio (Marcos/Bruno/etc).
+    // Sem persona (Roteador retornou null OU mensagens pré-3.D) → fallback
+    // chip cinza "Assistente" 🤖. Pedro sempre identifica quem respondeu.
     // Roteador é interno=true e fica em rows papel='system' já filtradas
     // pelo SELECT — chip nunca renderiza Roteador.
-    if (msg.papel === 'assistant' && msg.personas) {
+    if (msg.papel === 'assistant') {
+      const chipData = msg.personas ?? {
+        icone: '🤖',
+        nome: 'Assistente',
+        cor_hex: '6B7280',
+      };
       const chip = document.createElement('span');
       chip.className = 'chat-bubble-persona-chip';
-      chip.style.backgroundColor = '#' + msg.personas.cor_hex;
+      chip.style.backgroundColor = '#' + chipData.cor_hex;
 
       const icon = document.createElement('span');
       icon.className = 'chip-icon';
-      icon.textContent = msg.personas.icone;
+      icon.textContent = chipData.icone;
 
       const name = document.createElement('span');
       name.className = 'chip-name';
-      name.textContent = msg.personas.nome;
+      name.textContent = chipData.nome;
 
       chip.appendChild(icon);
       chip.appendChild(name);
