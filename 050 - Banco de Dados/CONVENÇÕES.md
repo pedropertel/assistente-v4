@@ -775,6 +775,55 @@ async function getX(): Promise<TipoDeX> {
 - **`custo_brl` no banco:** coluna `numeric(10,4)`. Postgres arredonda automaticamente o valor JS (que vem com ponto-flutuante IEEE 754, tipo `0.001029999999...`) pra 4 casas decimais ao gravar. **Não precisa `Number(x).toFixed(4)` no INSERT** — o cast pelo tipo da coluna resolve.
 - **Custo de teste real medido (3.B):** ~R$ 0.001 por mensagem simples ("oi" → resposta curta). Cap de `max_tokens=1024` limita a ~R$ 0.005 por chamada (improvável atingir).
 
+### Substituição de placeholders em prompt_base
+
+> Convenção firmada na Tarefa 3.C.
+
+Edge Functions que enviam `system` prompt à Anthropic substituem
+placeholders `{chave}` em runtime via helper inline (`substituirPlaceholders`
+no `chat-claude/index.ts`). Padrão pra qualquer Edge futura que precise
+contextualizar prompt antes da chamada.
+
+**Regex:** `/\{([a-zA-Z_]+)\}/g` — captura `{chave}` em snake_case
+alfabético (alinhado com convenção de nomenclatura do banco —
+`Tabela — agentes.md` linhas 117-128 lista os placeholders previstos).
+
+**Comportamento:**
+
+| Caso | Resultado |
+|---|---|
+| Chave conhecida em `values` (ex: `{usuario}`) | Substituída pelo valor |
+| Chave desconhecida (typo no prompt, ex: `{usuario_typo}`) | Substituída por string vazia + log warning |
+| Sem placeholders no prompt | Retorna prompt sem mudança (no-op) |
+
+**Observabilidade — `chat-claude.placeholder_orfao`:**
+
+Helper faz duplo passe — primeiro substitui, depois detecta chaves
+que ficaram órfãs (não estavam em `values`). Loga warning estruturado
+com lista deduplicada das chaves órfãs. Output enviado à Anthropic
+sempre vem limpo (sem placeholders literais).
+
+```ts
+// _shared/logger.ts — formato do log
+logWarn('chat-claude.placeholder_orfao', {
+  request_id,
+  chaves_orfas: ['usuario_typo', 'data_horra'],
+});
+```
+
+Pedro vê no Dashboard → Logs Explorer com filtro por `event_message`
+contendo `placeholder_orfao` quando o `prompt_base` tem typo.
+
+**Naming dos placeholders:** snake_case alinhado com colunas do banco
+(ex: `{entidade_atual}`, não `{entidadeAtual}`). Convenção propaga
+pra UI futura de edição de prompt (Fase 4) — autocomplete pode usar
+a regex pra sugerir chaves válidas.
+
+**Helpers inline vs `_shared/`:** primeira ocorrência (3.C) ficou
+inline em `chat-claude/index.ts` (~10 linhas, 1 caller). Quando 3.D
+ou outra Edge precisar, extrai pra `_shared/placeholders.ts`.
+Convenção do projeto: extrai quando vira pattern, YAGNI por default.
+
 ---
 
 ## Relacionado
