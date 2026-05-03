@@ -715,6 +715,66 @@ Erro interno (5xx — exception não tratada):
 
 A pasta `supabase/.temp/` (cache local da CLI: auth, link state, build artifacts) **NÃO vai pro repo**. Mesma regra pra `supabase/.branches/` (preview branches do CLI). Ver `.gitignore` na raiz.
 
+### Anthropic SDK
+
+> Convenção firmada na Tarefa 3.B.
+
+- **Pin de versão exata:** `import Anthropic from 'npm:@anthropic-ai/sdk@0.92.0'`. Não usar `@latest`, `^`, `~` — qualquer atualização precisa ser tarefa explícita (pinpoint changelog, validar breaking changes).
+- **Re-export no `_shared/anthropic.ts`:** o helper exporta o tipo default (`export { Anthropic }`) pra que outros arquivos façam `instanceof Anthropic.RateLimitError` sem reimportar do `npm:`. Type-narrowing limpo, mais robusto que checar `err.constructor.name`.
+- **Cliente lazy-cached por isolate:** mesmo padrão do `supabase-admin.ts`. Variável `let cachedClient: Anthropic | null = null` no escopo do módulo. Primeira request por isolate cria; próximas reusam.
+- **`MODEL_PRICING` fail-safe:**
+  - Apenas modelos validados estão no dict. Sonnet/Opus entram conforme forem necessários (3.D em diante), com pricing confirmado no momento.
+  - `calcCustoUSD(modelo, in, out)` retorna **custo zero + log warning** (`anthropic.modelo_nao_mapeado`) se modelo não está no dict. Defesa: nunca cobra valor errado, sempre auditável.
+  - TODO 3.G.2: migrar pra `configuracoes.ai_defaults.precos_modelos`.
+- **Mapeamento de erros Anthropic → HTTP:**
+
+  | Tipo de erro | HTTP | `error` no body | Mensagem ao user |
+  |---|---|---|---|
+  | `Anthropic.RateLimitError` | 429 | `rate_limit` | "Muitas requisições. Tenta de novo em alguns segundos." |
+  | `Anthropic.APIError` (5xx) | 503 | `anthropic_unavailable` | "API da Anthropic temporariamente indisponível." |
+  | `Anthropic.AuthenticationError` | 500 | `auth_failure` | "Erro de configuração interna." (NÃO expõe key inválida) |
+  | `Anthropic.BadRequestError` | 400 | `invalid_input` | "Input rejeitado pela API. Tenta reformular ou ver detalhes no log." |
+  | Genérico | 500 | `internal` | "Erro inesperado." |
+
+  **`request_id` no body em todos os caminhos** (sucesso e erros) — facilita cruzar com log estruturado no Dashboard. Stack trace **NUNCA** vai pro response — vai pro `logError()`.
+
+### Padrão de cache em isolate Deno
+
+> Firmado na Tarefa 3.B com 3 ocorrências (`supabase-admin.ts` cliente, `anthropic.ts` cliente, `chat-claude/index.ts` lookup do agente).
+
+Edge Function Deno é stateless **entre requests**, mas o módulo é carregado **1× por isolate**. Variáveis no escopo do módulo persistem por toda a vida do isolate (~minutos a horas, depende de tráfego e cold-start do Supabase).
+
+Casos válidos pra cachear no escopo do módulo:
+- **Cliente de SDK** (Supabase, Anthropic, Meta Graph) — criar é caro (validações, parse de config), reusar é trivial.
+- **Lookup de configuração estável** (`agentes.id` por slug, `personas` por slug) — query <5ms mas multiplica por dezenas de chamadas/dia desnecessariamente.
+
+Template:
+
+```ts
+let cachedX: TipoDeX | null = null;
+
+async function getX(): Promise<TipoDeX> {
+  if (cachedX) return cachedX;
+  // lookup/setup caro aqui
+  cachedX = await fetchOrBuild();
+  return cachedX;
+}
+```
+
+**Quando NÃO cachear:**
+- Dados que mudam por request (ex.: histórico de mensagens — sempre mudou desde a última chamada).
+- Configurações que Pedro pode editar via UI futura — cache fica stale até o isolate morrer. Pra `agentes`/`personas`, isso é aceitável porque (a) cold-start vai re-buscar, (b) edição é rara, (c) restart manual da Edge é trivial via redeploy.
+
+### Anthropic — pricing e cotação
+
+> Firmado na Tarefa 3.B. Pricing validado em 2026-05-02.
+
+- **Haiku 4.5 (`claude-haiku-4-5-20251001`):** $1.00 / 1M tokens input, $5.00 / 1M tokens output.
+- **Sonnet 4.6, Opus 4.7:** **NÃO mapeados** ainda — entram na 3.D quando router precisar deles. Pricing validado naquele momento (Anthropic atualiza preços; sempre confirmar antes de adicionar).
+- **`COTACAO_USD_BRL = 5.0`** fixa hardcoded em `chat-claude/index.ts`. **TODO 3.G.1**: substituir por `awesomeapi.com.br/json/USD-BRL` com cache 1h.
+- **`custo_brl` no banco:** coluna `numeric(10,4)`. Postgres arredonda automaticamente o valor JS (que vem com ponto-flutuante IEEE 754, tipo `0.001029999999...`) pra 4 casas decimais ao gravar. **Não precisa `Number(x).toFixed(4)` no INSERT** — o cast pelo tipo da coluna resolve.
+- **Custo de teste real medido (3.B):** ~R$ 0.001 por mensagem simples ("oi" → resposta curta). Cap de `max_tokens=1024` limita a ~R$ 0.005 por chamada (improvável atingir).
+
 ---
 
 ## Relacionado
