@@ -636,6 +636,8 @@ Primeira tarefa de código da Fase 3. Estrutura, deploy, secrets e CORS funciona
 
 **Próximo:** Tarefa 3.B — Echo Anthropic (Haiku puro, sem router). Primeira chamada de IA real.
 
+**Plano da 3.B aprovado em 2026-05-02** após segundo triplo /plan (Pedro + Code + outro Claude). Estrutura: 3.B.1 (Edge `chat-claude` v0.1 + helper Anthropic, ~1.5h) → 3.B.2 (INSERT user/assistant, ~30min) → 3.B.3 (UI mínima substitui Ping IA, ~1h) → 3.B.4 (docs + fechamento, ~30min). **Total: ~3.5h.** Decisões: SDK `npm:@anthropic-ai/sdk` pinado, `max_tokens=1024`, MODEL_PRICING só Haiku 4.5 (Sonnet/Opus na 3.D.1), `calcCustoUSD` fail-safe (zero + warning), sem transação atomica nos INSERTs, prompt fixo "responde curto", rate limiting fica em 3.G.3. Detalhamento ativo no topo de `.claude/plans/temporal-tinkering-castle.md`.
+
 ---
 
 ## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
