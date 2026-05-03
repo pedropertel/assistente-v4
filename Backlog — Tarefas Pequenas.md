@@ -604,6 +604,40 @@ Commit isolado de reconciliação documental. Sem código. Backlog passa a refle
 
 ---
 
+### ✅ Tarefa 3.A — Fundação Edge Functions (2026-05-02)
+
+Primeira tarefa de código da Fase 3. Estrutura, deploy, secrets e CORS funcionando — validado end-to-end no Safari iPhone. **Sem chamada Anthropic ainda** — só infra, custo zero por request.
+
+- **3.A.1 — Estrutura `supabase/functions/_shared/`** ✅
+  - `cors.ts` — allowlist explícita (prod + previews via regex), `getCorsHeaders()` + `handleCorsPreflightRequest()`, `Vary: Origin`
+  - `supabase-admin.ts` — `getSupabaseAdmin()` lazy-cached com service_role (import JSR)
+  - `logger.ts` — JSON estruturado, `generateRequestId()` UUID v4, helpers `logInfo/Warn/Error/Debug`, `logDebug` silencioso por default
+- **3.A.2 — Edge `health-check` + deploy** ✅
+  - Função `health-check/index.ts`: smoke test de infra, valida env vars sem expor valores
+  - Supabase CLI 2.95.4 instalada via Homebrew, login + link no projeto `msbwplsknncnxwsalumd`
+  - Deploy ACTIVE versão 1, tree-shaking automático (não enviou `supabase-admin.ts` porque não é usado)
+  - Smoke tests via curl: POST autenticado 200 + env_ok=true ✅; preflight CORS origem permitida 204 + Allow-Origin exato ✅; preflight CORS origem maliciosa sem Allow-Origin ✅
+  - **Descoberta crítica:** `sb_publishable_*` retorna `UNAUTHORIZED_INVALID_JWT_FORMAT` no Edge Gateway. Front migrou pra anon JWT legacy
+  - 5 Edge Functions de projetos antigos detectadas no projeto Supabase (`chat-claude` v28, `meta-sync`, `meta-balance`, `create-admin-user`, `portal`) — `chat-claude` será sobrescrita na 3.B.1
+- **3.A.3 — Helper `invokeFunction()` + UI temporária `pingIA`** ✅
+  - `js/core/supabase.js` — anon JWT legacy + função `invokeFunction(name, payload)` retornando `{ data, error }`, log defensivo sem payload, sem `signal` (YAGNI)
+  - `js/app.js` — `window.invokeFunction` + `window.pingIA` no Window Bridge
+  - `js/modules/chat.js` — `pingIA()` com `escapeHtml` defensivo, render do payload, toast por `env_ok`
+  - `index.html` — `<section id="page-chat">` reescrita: subtitle, botão "🏓 Ping IA", `<div id="ping-status" aria-live="polite">`
+  - CSS inline (11 regras novas) — `.ping-subtitle`, `.ping-status`, `.ping-result`, `.ping-success/.ping-error`, `.ping-env-table` — 100% via CSS variables existentes
+- **3.A.4 — Documentação + ritual de fechamento** ✅
+  - `CLAUDE.md` — Credenciais reescrito (gotcha JWT + rotação Anthropic); Window Bridge atualizado; "Status atual" reorganizado (Fase 2 → Fase 3 em andamento 2/9)
+  - `050 - Banco de Dados/CONVENÇÕES.md` — nova seção "Edge Functions" (naming, estrutura, imports JSR, CORS, logger, retorno padrão, auth/secrets, deploy, .gitignore)
+  - Esta entrada do Backlog
+  - Entrada extensa no Dev Log
+- **Validação end-to-end no Safari iPhone Pro Max:** botão renderiza, click → ~600ms → toast verde "Edge OK + secrets OK" + card com 3 secrets ✅, timestamp pt-BR, request_id truncado, border-left verde ✅
+
+**Hash do commit de código (3.A.1+2+3):** `8fcbc02` (dev)
+
+**Próximo:** Tarefa 3.B — Echo Anthropic (Haiku puro, sem router). Primeira chamada de IA real.
+
+---
+
 ## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
 
 > **Antes da reconciliação de 2026-05-02 esta era a Fase 3.** Continua o mesmo conteúdo: telas dos módulos visuais consumindo o banco da Fase 2 + a IA backend da Fase 3.
