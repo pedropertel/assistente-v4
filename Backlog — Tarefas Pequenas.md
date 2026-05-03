@@ -640,6 +640,40 @@ Primeira tarefa de código da Fase 3. Estrutura, deploy, secrets e CORS funciona
 
 ---
 
+### ✅ Tarefa 3.B — Echo Anthropic + persistência + UI real (2026-05-02)
+
+**Primeira chamada Anthropic real do projeto.** Pipeline completo `front → Edge Gateway → chat-claude → Anthropic SDK → Haiku 4.5 → INSERT user/assistant em chat_mensagens → response → bolhas na UI` validado end-to-end no Safari iPhone Pro Max. Custo real medido: ~R$ 0.001/chamada simples.
+
+- **3.B.1 — Edge `chat-claude` v0.1** ✅
+  - `_shared/anthropic.ts` (82 linhas): import pinado `npm:@anthropic-ai/sdk@0.92.0`, `getAnthropicClient()` lazy-cached com timeout 60s, `MODEL_PRICING` só Haiku 4.5, `calcCustoUSD()` com fail-safe (custo zero + warning se modelo não mapeado), re-export de `Anthropic` pra type-narrowing.
+  - `chat-claude/index.ts` v1 (212 linhas): CORS preflight, validação payload (`texto` required, `entidade_id?` UUID opcional), call Haiku 4.5 com prompt fixo "responde curto", `max_tokens=1024`, `temperature=0.7`. Mapeamento de erro Anthropic → HTTP (429/503/500/400) via `instanceof`. `request_id` UUID v4 em todos os responses (sucesso e erro) pra rastreio.
+  - Smoke test 3 cenários ✅: POST válido (200 + texto + métricas), texto vazio (400), JSON malformado (400). Latência 1070ms na 1ª chamada (cold-start).
+- **3.B.2 — INSERT user/assistant + persistência** ✅
+  - Helper `getAgenteAssistenteId()` cacheado em variável de módulo do isolate (mesmo padrão de cliente Anthropic).
+  - INSERT user **antes** da chamada Anthropic → captura `userMsg.id` → INSERT assistant **depois** com `mensagem_pai_id = userMsg.id`. Sem transação (decisão #8).
+  - Try/catch interno na chamada Anthropic: em erro, INSERT assistant com `erro` preenchido + `conteudo='[erro durante chamada]'` (preserva cadeia), depois re-throw pra catch externo mapear HTTP.
+  - INSERT assistant após sucesso só faz log se falhar (Anthropic já respondeu, Pedro merece a resposta — persistência incompleta vira observabilidade).
+  - Smoke test ✅: 200 + SELECT mostra 2 rows linkadas, métricas todas preenchidas (tokens 62/66, custo `0.000392`, latencia 1013ms), `agente_id` correto, `persona_id`/`entidade_id` NULL, ponto-flutuante JS `0.001029...` arredondou pra `0.0020` no banco (`numeric(10,4)`).
+- **3.B.3 — UI real de chat** ✅
+  - `<section id="page-chat">` reescrita: removido botão Ping IA + `<h1>Chat</h1>` (header já mostra). Estrutura nova: `.chat-historico` (scroll) + `.chat-input-wrapper` (textarea + botão Enviar).
+  - 12 regras CSS `.ping-*` removidas, 14 regras `.chat-*` / `.page-chat` adicionadas (100% via CSS variables existentes; `--accent` em vez de `--primary` que não existe; `white` literal em vez de `--primary-fg`).
+  - `js/modules/chat.js` reescrito (183 linhas): `enviarMensagem()` com bolha otimista (`.optimistic` → sólida ou `.failed`), `carregarHistorico()` query Supabase direto (mesmo client do front, JSDoc explícito sobre `entidadeId=null` na 3.B), `handleChatKeydown()` Enter envia / Shift+Enter quebra linha, helpers internos `appendBubbleOptimistic`/`renderHistorico`/`scrollToBottom`/`showEmptyState`/`hideEmptyState`. **`textContent` em vez de `innerHTML`** (defesa XSS automática, dispensa `escapeHtml`).
+  - `js/app.js`: import multi-line de `enviarMensagem`/`handleChatKeydown`/`carregarHistorico`, chamada `carregarHistorico()` em `initApp` logo após `goPage('chat')` (Opção A — sem mexer no router), Window Bridge atualizado: `pingIA` OUT, `enviarMensagem` + `handleChatKeydown` IN.
+  - Validação manual no Safari iPhone ✅: 3 mensagens enviadas, 3 respostas aparecem com texto + custo + latência. Reload preserva histórico. Bolha otimista visível por ~1s antes de virar sólida.
+  - **Custo total das 3 trocas reais:** R$ 0.0039. Latências: 1013/1003/784ms (warmup do isolate visível).
+- **3.B.4 — Documentação + ritual de fechamento** ✅
+  - `CLAUDE.md` "Status atual" 2/9 → 3/9, Window Bridge atualizado.
+  - `050 - Banco de Dados/CONVENÇÕES.md` ganhou 3 subseções dentro de "Edge Functions": "Anthropic SDK" (pin de versão, re-export, fail-safe pricing, mapping de erro), "Padrão de cache em isolate Deno" (template + quando usar/não usar), "Anthropic — pricing e cotação" (Haiku 4.5 $1/$5 por 1M tokens, COTACAO_USD_BRL=5.0 com TODO 3.G.1, arredondamento numeric(10,4) automático).
+  - Esta entrada do Backlog.
+  - Entrada extensa no Dev Log.
+- **Bug encontrado:** nenhum. Pipeline funcionou na primeira tentativa de cada sub-tarefa.
+
+**Hash do commit de código (3.B.1+2+3):** `d0c21f9` (dev). 5 arquivos: 3 modified (`index.html`, `js/app.js`, `js/modules/chat.js`) + 2 novos (`supabase/functions/_shared/anthropic.ts`, `supabase/functions/chat-claude/index.ts`). 671 inserts, 151 deletes.
+
+**Próximo:** Tarefa 3.C — `prompt_base` real + placeholders + histórico de 20 mensagens. Edge passa a ler `agentes` em vez de hardcoded.
+
+---
+
 ## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
 
 > **Antes da reconciliação de 2026-05-02 esta era a Fase 3.** Continua o mesmo conteúdo: telas dos módulos visuais consumindo o banco da Fase 2 + a IA backend da Fase 3.
