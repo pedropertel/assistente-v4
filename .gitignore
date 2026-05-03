@@ -3,3 +3,7 @@ node_modules/
 .env.local
 .DS_Store
 .vercel
+
+# Supabase CLI — cache local da CLI (auth, link state, build artifacts), não vai pro repo
+supabase/.temp/
+supabase/.branches/
