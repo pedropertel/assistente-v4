@@ -710,6 +710,8 @@ Edge `chat-claude` passa a ler agente do banco e a IA ganha memória de curto pr
 
 **Próximo:** Tarefa 3.D — Router pattern real (Roteador classifica → escolhe modelo → Anthropic com persona; chips de persona na UI). Bruno e Marcela conversando como bônus.
 
+**Plano da 3.D aprovado em 2026-05-03** após /plan no Code (cruzado com outro Claude). Estrutura: **3.D.0** (adicionar Sonnet/Opus em MODEL_PRICING — pricing validado via WebFetch, ~15min) → **3.D.1** (helpers `escolherModelo`/`getRoteador`/`getPersonasReais` + `MAPA_COMPLEXIDADE_MODELO`, ~1h) → **3.D.2** (`chamarRoteador` + parse JSON + fail-soft + INSERT `papel='system'`, ~1.5h) → **3.D.3** (lookup persona + concat prompt + chamada Anthropic com modelo do Roteador, ~1h) → **3.D.4** (UI chip de persona, ~1h) → **3.D.5** (docs + fechamento, ~30min). **Total: ~5h.** Decisões críticas: **B3** mapeamento `simples→Haiku 4.5, medio→Sonnet 4.6, complexo→Opus 4.7` hardcoded até 3.G.2; **B4** pricing Sonnet $3/$15 + Opus $5/$25 (validado via doc oficial Anthropic — Opus 4.7 mais barato que histórico $15/$75); **B6** parse JSON fail-soft com default `persona=null/simples`; **B14** lista dinâmica de personas no user message do Roteador (resolve gap da Marina automaticamente); **B15** PULA UPDATE no prompt do Roteador (B14 é caminho único — UPDATE criaria dependência manual). 4 achados factuais REGRA 11 documentados (Roteador sem Marina, MODEL_PRICING incompleto, schema validado, contexto Roteador 9350 chars). Detalhamento ativo em `~/.claude/plans/temporal-tinkering-castle.md`.
+
 ---
 
 ## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
