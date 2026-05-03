@@ -91,7 +91,14 @@ export async function carregarHistorico(entidadeId = null) {
   const { data, error } = await q;
 
   if (error) {
-    console.error('[chat] erro ao carregar histórico', error);
+    console.error('[chat] erro ao carregar histórico — DETALHE:', {
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      statusCode: error?.statusCode,
+      full: error,
+    });
     showToast('Erro ao carregar histórico', 'error');
     return;
   }
