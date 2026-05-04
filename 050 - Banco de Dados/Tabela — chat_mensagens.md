@@ -33,12 +33,16 @@ CREATE TABLE public.chat_mensagens (
   mensagem_pai_id  uuid REFERENCES public.chat_mensagens(id) ON DELETE SET NULL,
   erro             text,
   favorita         boolean NOT NULL DEFAULT false,
+  tool_calls       jsonb,                                       -- 3.F.0.5: array de tool_use blocks (Anthropic)
+  tool_results     jsonb,                                       -- 3.F.0.5: array de tool_result blocks
   created_at       timestamptz NOT NULL DEFAULT now(),
   updated_at       timestamptz NOT NULL DEFAULT now()
 );
 ```
 
-### Colunas (18 no total)
+> **3.F.0.5 (2026-05-03):** `tool_calls` e `tool_results` foram adicionadas via ALTER idempotente (primeira ALTER da Fase 3). Schema acima já reflete o estado atual. Migration: `ADD COLUMN IF NOT EXISTS ... jsonb` em ambas. Comentários SQL via `COMMENT ON COLUMN`.
+
+### Colunas (20 no total)
 
 | Coluna | Tipo | Notas |
 |---|---|---|
@@ -57,6 +61,8 @@ CREATE TABLE public.chat_mensagens (
 | `mensagem_pai_id` | `uuid` | Self-reference. SET NULL. Permite cadeias user→assistant→user. |
 | `erro` | `text` | Mensagem de erro se chamada falhou. |
 | `favorita` | `boolean` | Pedro pode marcar pra reler. Indexado parcialmente. |
+| `tool_calls` | `jsonb` | **3.F.0.5.** Array de blocos `tool_use` da resposta assistant (formato Anthropic). NULL quando turn não usou tools. |
+| `tool_results` | `jsonb` | **3.F.0.5.** Array de blocos `tool_result` executados no turn. **`tool_calls IS NOT NULL AND tool_results IS NULL` = aguardando confirmação humana** (ex: pausar campanha Meta). |
 | `created_at` | `timestamptz` | Indexado DESC pra "últimas mensagens". |
 | `updated_at` | `timestamptz` | Trigger. Raramente muda — só edição. |
 
@@ -127,6 +133,91 @@ Cada chamada à IA grava 5 métricas:
 - "API tá lenta?" → `AVG(latencia_ms) BY date_trunc('hour', created_at)`
 
 Métricas não são consumidas hoje — preparação pra dashboard de observabilidade quando virar prioridade.
+
+---
+
+## Function calling — `tool_calls` + `tool_results` (3.F+)
+
+Adicionadas na 3.F.0.5 como **primeira ALTER TABLE da Fase 3**. Habilitam observabilidade total do function calling Anthropic (Marcos consultando saldo Meta, pausando campanhas etc).
+
+### Por que 2 colunas separadas (não consolidadas)
+
+- `tool_calls` = O QUE A IA PEDIU (array de blocos `tool_use` do `response.content[]`).
+- `tool_results` = O QUE O EDGE EXECUTOU (array de `tool_result` da continuação do turn).
+
+Estado **`tool_calls IS NOT NULL AND tool_results IS NULL`** sinaliza turn **aguardando confirmação humana** (UI renderiza botões inline na bolha — ex: "Confirmar pausa" / "Cancelar"). Quando Pedro clica, Edge UPDATE preenche `tool_results`.
+
+### Exemplo: Marcos consulta saldo CEDTEC
+
+```
+papel       conteudo                                    tool_calls                                       tool_results
+─────────── ─────────────────────────────────────────── ───────────────────────────────────────────────── ────────────────────────────────────────────────
+user        "qual saldo CEDTEC?"                        NULL                                              NULL
+system      {"persona_slug":"marcos",...}                NULL                                              NULL
+assistant   "Saldo CEDTEC: R$ 1.245,67 disponível."     [{"type":"tool_use","id":"toolu_01ab",            [{"type":"tool_result","tool_use_id":"toolu_01ab",
+                                                          "name":"consultar_saldo_meta",                    "content":"{\"saldo_centavos\":124567,
+                                                          "input":{"entidade_slug":"cedtec"}}]              \"currency\":\"BRL\",\"sync_at\":\"...\"}"}]
+```
+
+### Exemplo: Marcos sugere pausar (estado pendente)
+
+```
+papel       conteudo                                                      tool_calls                                  tool_results
+─────────── ───────────────────────────────────────────────────────────── ─────────────────────────────────────────── ─────────────
+assistant   "Vou pausar a campanha 'Promoção Verão'? Tava queimando        [{"type":"tool_use","id":"toolu_02xy",       NULL ⏳
+             R$ 80/dia em CTR baixo. [Confirmar] [Cancelar]"                "name":"pausar_campanha_meta",
+                                                                            "input":{"campanha_id":"123","razao":"..."}}]
+
+→ Pedro clica Confirmar
+→ Edge: UPDATE chat_mensagens SET tool_results = [{type:'tool_result',tool_use_id:'toolu_02xy',content:'{"status":"PAUSED",...}'}] WHERE id = ?
+→ Bolha re-renderiza: "✅ Pausada."
+```
+
+### Queries de auditoria úteis
+
+```sql
+-- Tudo que Marcos chamou em ferramentas
+SELECT created_at, conteudo, tool_calls, tool_results
+FROM chat_mensagens
+WHERE persona_id = (SELECT id FROM personas WHERE slug='marcos')
+  AND tool_calls IS NOT NULL
+ORDER BY created_at DESC
+LIMIT 50;
+
+-- Confirmações pendentes (Pedro abandonou clicando)
+SELECT id, created_at, conteudo, tool_calls
+FROM chat_mensagens
+WHERE tool_calls IS NOT NULL
+  AND tool_results IS NULL
+ORDER BY created_at ASC;
+
+-- Tool mais chamada no mês
+SELECT
+  jsonb_array_elements(tool_calls) ->> 'name' AS tool_name,
+  COUNT(*) AS chamadas
+FROM chat_mensagens
+WHERE tool_calls IS NOT NULL
+  AND created_at >= date_trunc('month', now())
+GROUP BY tool_name
+ORDER BY chamadas DESC;
+
+-- Custo extra de turns com tool (vs sem)
+SELECT
+  CASE WHEN tool_calls IS NOT NULL THEN 'com_tool' ELSE 'sem_tool' END AS tipo,
+  AVG(custo_brl) AS custo_medio_brl,
+  AVG(latencia_ms) AS latencia_media_ms,
+  COUNT(*) AS total
+FROM chat_mensagens
+WHERE papel = 'assistant'
+  AND created_at >= date_trunc('month', now())
+GROUP BY tipo;
+```
+
+### Cuidado: cadeia messages com tool_use pendente
+
+`buscarHistoricoMensagens` (helper Edge) retorna rows com `tool_calls IS NOT NULL AND tool_results IS NULL` quando Pedro tem confirmação pending. Se essa row for enviada como `tool_use` pra Anthropic SEM `tool_result` pareado na próxima mensagem, Anthropic rejeita com 400 (mesmo padrão da 3.D.3.1, semântica diferente).
+
+**Mitigação (helper `flatTextoToolPendente` no chat-claude/index.ts):** ao montar `messages[]` pra Anthropic, converter tool_use pendente em texto plano ("Marcos sugeriu pausar X — aguardando confirmação"). UI continua vendo a row real (com botões). Padrão pra próximas Edges com confirmação humana.
 
 ---
 

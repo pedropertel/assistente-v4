@@ -597,6 +597,14 @@ Mesmo padrão drop+add — `CREATE TRIGGER IF NOT EXISTS` não existe.
 
 Todo SQL do projeto deve ser re-executável sem erro. Pedro roda no Supabase Dashboard sem rollback automático — script frágil = risco real.
 
+### Histórico de ALTERs por fase
+
+ALTER TABLE muda schema em produção. Cada uma fica registrada no Dev Log da fase + entrada formal aqui pra quem auditar.
+
+| Fase | Tabela | Mudança | Justificativa |
+|---|---|---|---|
+| **3.F.0.5** (2026-05-03) | `chat_mensagens` | `ADD COLUMN IF NOT EXISTS tool_calls jsonb` + `tool_results jsonb` + `COMMENT ON COLUMN ...` | Function calling Anthropic sem persistência de tool_use/tool_result perde rastreabilidade. **Primeira ALTER da Fase 3** — antes só seeds e ALTER vinham da Fase 2. Padrão pra próximas: idempotente + comentário SQL + atualizar `Tabela — X.md` na mesma sub-tarefa. |
+
 ---
 
 ## Edge Functions (Supabase)
@@ -823,6 +831,30 @@ a regex pra sugerir chaves válidas.
 inline em `chat-claude/index.ts` (~10 linhas, 1 caller). Quando 3.D
 ou outra Edge precisar, extrai pra `_shared/placeholders.ts`.
 Convenção do projeto: extrai quando vira pattern, YAGNI por default.
+
+### Function calling em Edges (tool_use loop + persistência)
+
+> **Convenção firmada na 3.F (function calling Anthropic).** Padrão pra qualquer Edge que use `tools` parameter da Anthropic — Marcos consultando Meta hoje, Alemão criando lançamento (3.H), Marina capturando ideia (3.I), Marcela listando agenda (3.J).
+
+**Catálogo de tools por persona:** hardcoded em `supabase/functions/_shared/tools/<persona>.ts` (ex: `marcos.ts`). Cada arquivo exporta array de objetos `{name, description, input_schema}` no formato Anthropic. Registry em `_shared/tools/index.ts` com função `getToolsForPersona(slug): ToolDef[] | null`. Decisão **C1 da 3.F** — REGRA 12 vale pra DADOS, não LÓGICA. Tools são lógica (validam args, chamam Edge externa, processam retornos). Type-safe em build. Migra pra banco quando virar dor (Fase 5+).
+
+**Detecção de `tool_use` na resposta Anthropic:** loop sobre `response.content[]` checando `block.type === 'tool_use'` antes de `'text'`. `response.stop_reason === 'tool_use'` confirma fim com tool. Quando há tool_use:
+
+1. Extrair tool_use block (id + name + input).
+2. Executar tool (chama Edge externa ou função inline).
+3. Build tool_result block (`{type: 'tool_result', tool_use_id, content: <jsonificado>}`).
+4. Refazer `messages.create` com `[...messages, assistant_msg_with_tool_use, user_msg_with_tool_result, ...]`.
+5. **Max 3 iterações por turn** (defesa contra loop infinito; logar warning `chat-claude.tool_loop_estourou` se estourar).
+
+**Persistência em `chat_mensagens.tool_calls` + `tool_results` (3.F.0.5):** colunas separadas jsonb. Mesma row assistant (turn é unitário, não cria row por tool). `tool_calls` = array completo de tool_use blocks da resposta. `tool_results` = array completo de tool_result blocks executados. **Estado pendente** (`tool_calls IS NOT NULL AND tool_results IS NULL`) sinaliza turn aguardando confirmação humana — UI renderiza botões inline na bolha.
+
+**Confirmação humana pra writes destrutivos:** padrão **inline na bolha** (decisão C3 da 3.F). UI renderiza condicionalmente "Confirmar"/"Cancelar" quando `tool_calls IS NOT NULL AND tool_results IS NULL`. Botão dispara POST com `{confirmacao_de: <messageId>, decisao: 'confirmar'|'cancelar'}`. Edge: `SELECT FROM chat_mensagens WHERE id=$1 AND tool_calls IS NOT NULL AND tool_results IS NULL`, executa tool (ou marca como cancelada), UPDATE com `tool_results`. Sem nova coluna `aguardando_confirmacao` — usa `tool_results IS NULL` como sinal.
+
+**Cuidado: cadeia messages com tool_use pendente (REGRA 11 pré-emptiva da 3.F):** `buscarHistoricoMensagens` retorna rows pendentes. Se enviada como tool_use pra Anthropic SEM tool_result pareado, Anthropic rejeita com 400 (mesmo padrão da 3.D.3.1, semântica diferente). **Solução:** helper `flatTextoToolPendente(msg)` no `chat-claude/index.ts` converte tool_use pendente em texto plano ("Marcos sugeriu pausar X — aguardando confirmação") ANTES de mandar pra Anthropic. UI continua vendo a row real (com botões); Anthropic vê narrativa textual. Aplica no mapeamento `messages[]` da chamada principal — não no `buscarHistoricoMensagens` (helper preserva dados crus pra UI).
+
+**Cap de custo:** turn com tool_use é ~50% mais caro (2 chamadas Anthropic — 1ª com tool_use, 2ª com tool_result + resposta final). Marcos consultando saldo: ~R$ 0.028/troca vs R$ 0.034 sem tool. Aceitável pra valor entregue.
+
+**Auditoria:** queries em `Tabela — chat_mensagens.md` (subseção "Function calling") cobrem casos comuns (tudo que Marcos chamou, confirmações pendentes abandonadas, tool mais frequente, custo extra de turns com tool).
 
 ---
 
