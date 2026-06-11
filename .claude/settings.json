@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Sessao aberta no repo do Assistente (assistente-v4). Antes de qualquer outra coisa, execute a skill assistente (Skill tool) e rode o ritual de retomada completo: carregar estado vivo, validar STATUS.md vs git e apresentar o resumo mobile de onde Pedro parou.\"}}'",
+            "statusMessage": "Carregando contexto do Assistente..."
+          }
+        ]
+      }
+    ]
+  }
+}
