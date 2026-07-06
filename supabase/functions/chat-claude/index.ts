@@ -54,6 +54,9 @@
  *     chat_mensagens.tool_calls / tool_results (colunas da 3.F.0.5).
  *   - Erro de executor NÃO derruba o request — vira tool_result com
  *     is_error, modelo responde explicando.
+ *   - 3.I.2: tool `salvar_ideia` (INSERT em `ideias`).
+ *   - 3.I.2.1: tools TRANSVERSAIS — salvar_ideia disponível pra toda
+ *     persona (e fallback sem persona). Persona define tom, não poder.
  *
  * Fora de escopo desta Edge:
  *   - Roteador / personas (3.D)
@@ -430,7 +433,9 @@ interface ToolContext {
   entidade_id: string | null;
   userMsgId: string;
   agenteId: string;
-  persona: PersonaRow;
+  // null quando o turn roda sem persona (fallback Assistente) — tools
+  // transversais funcionam mesmo assim.
+  persona: PersonaRow | null;
   requestId: string;
 }
 
@@ -544,7 +549,7 @@ const TOOL_SALVAR_IDEIA: ToolDef = {
         status: 'capturada',
         mensagem_origem_id: ctx.userMsgId,
         agente_id: ctx.agenteId,
-        persona_id: ctx.persona.id,
+        persona_id: ctx.persona?.id ?? null,
       })
       .select('id, titulo')
       .single();
@@ -571,16 +576,24 @@ const TOOL_SALVAR_IDEIA: ToolDef = {
 };
 
 /**
- * Registro de tools por persona (slug → tools). Personas fora do mapa
- * não pagam tokens de tool definitions no payload.
+ * FILOSOFIA (decisão Pedro, 2026-07-06): tools são capacidades do
+ * SISTEMA, não da persona. A persona define o TOM, não o PODER.
+ * Tool presa a uma persona cria buraco de UX — persona sem a tool
+ * "finge" que executou (validado nos testes da 3.I.3: Marcos e Alemão
+ * respondiam "Anotado ✓" sem gravar nada).
+ *
+ * - TOOLS_TRANSVERSAIS: disponíveis em TODO turn, inclusive fallback
+ *   sem persona (custo: ~200 tokens de definition por chamada).
+ * - TOOLS_POR_PERSONA: exceção pra tools que só fazem sentido num
+ *   domínio E têm custo/risco pra justificar o gating (ex: tools Meta
+ *   do Marcos na 3.F — envolvem credenciais e writes em campanha).
  *
  * Hardcoded até a 3.G migrar pra `configuracoes` (mesmo padrão do
- * MAPA_COMPLEXIDADE_MODELO). 3.F registra as tools do Marcos (Meta)
- * quando o bloqueio externo resolver.
+ * MAPA_COMPLEXIDADE_MODELO).
  */
-const TOOLS_POR_PERSONA: Record<string, ToolDef[]> = {
-  marina: [TOOL_SALVAR_IDEIA],
-};
+const TOOLS_TRANSVERSAIS: ToolDef[] = [TOOL_SALVAR_IDEIA];
+
+const TOOLS_POR_PERSONA: Record<string, ToolDef[]> = {};
 
 /**
  * Teto de voltas do loop de tools numa mesma mensagem. Guarda contra
@@ -973,9 +986,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // tool_result → nova chamada, até resposta final ou MAX_VOLTAS_TOOLS.
     const t0 = Date.now();
 
-    const toolsDaPersona = persona
-      ? (TOOLS_POR_PERSONA[persona.slug] ?? [])
-      : [];
+    // Transversais sempre + exclusivas da persona (quando houver).
+    const toolsDaPersona = [
+      ...TOOLS_TRANSVERSAIS,
+      ...(persona ? (TOOLS_POR_PERSONA[persona.slug] ?? []) : []),
+    ];
 
     // Observabilidade acumulada do loop (vai pro INSERT assistant).
     const toolCallsAcumulados: Array<Record<string, unknown>> = [];
@@ -1061,7 +1076,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                   entidade_id,
                   userMsgId,
                   agenteId: agente.id,
-                  persona: persona!,
+                  persona,
                   requestId: request_id,
                 },
               );
