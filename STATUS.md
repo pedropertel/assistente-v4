@@ -6,17 +6,27 @@
 > Toda sessão nova LÊ ESTE ARQUIVO PRIMEIRO. Ignora status
 > mencionado em prompts iniciais — confere aqui.
 
-**Última atualização:** 2026-05-03
+**Última atualização:** 2026-07-06
 
 ═══════════════════════════════════════════════════════════════
 
 ## Onde paramos
 
 **Fase ativa:** 3 — IA real (Edge Functions + Anthropic + chat)
-**Sub-fase ativa:** nenhuma — **3.D ✅ FECHADA E EM PRODUÇÃO**
-**Próxima sub-fase:** 3.F — Marcos + Meta Ads (PRIORIDADE #1
-do VISAO.md, ~9.5h). Streaming SSE (3.E) entra como terceira
-na ordem, depois de Marcos.
+**Sub-fase ativa:** **3.F ⏸️ PAUSADA por bloqueio externo**
+(2026-07-06). O Meta Business do CEDTEC está em nome da esposa
+do Pedro; Pedro criou a página, mas a autenticação como dono
+da empresa falhou. Retomada da 3.F exige side quest via conta
+dela (token + ad_account). Sem previsão — 3.F volta quando o
+acesso existir.
+**3.F.0.5 ✅ fechada** (commit `9730fc2`, 2026-05-03) — docs
+de `chat_mensagens` + CONVENÇÕES atualizadas pra tool_calls/
+tool_results. ⚠️ Confirmação do ALTER no banco pendente:
+projeto Supabase foi pausado por inatividade (free tier) e a
+verificação das colunas só é possível após restore.
+**Próxima sub-tarefa:** a definir — Pedro escolhe a frente
+sem dependência do Meta (candidatas: 3.E streaming, 3.I Marina,
+3.H Alemão voz, 3.G polimento).
 
 **Últimas sub-tarefas fechadas (3.D.5 fecha a sub-fase inteira):**
 
@@ -50,7 +60,7 @@ futuros.
 ✅ 3.B — Echo Anthropic (Haiku puro + INSERTs + UI mínima)
 ✅ 3.C — `prompt_base` + placeholders + histórico (chat-claude v36)
 ✅ 3.D — Router + 5 personas + UI chips (chat-claude v42 + UI)
-⏳ 3.F — Marcos + Meta Ads (prioridade #1 — caminho curto, próxima)
+⏸️ 3.F — Marcos + Meta Ads (pausada — bloqueio externo Meta Business; 3.F.0.5 ✅ feita)
 ⏳ 3.E — Streaming SSE (terceira na ordem, depois de Marcos)
 ⏳ 3.G — Polimento (cotação real, rate limit, logger estruturado)
 ⏳ 3.H — Alemão + voz (Web Speech API)
@@ -70,17 +80,40 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (sincronizada com main após 3.D.5)
-- **Working tree:** limpo
-- **Última versão Edge `chat-claude`:** v42 ACTIVE
-- **Último commit em main:** será preenchido após merge no-ff
-  da 3.D (PASSO 8 do ritual)
-- **Último commit em dev pré-3.D.5:** `6a322cc` (scroll fix)
+- **Branch ativa:** dev (sincronizada com origin/dev)
+- **Working tree:** limpo (após commit de reconciliação 2026-07-06)
+- **Última versão Edge `chat-claude`:** v42 ACTIVE (pré-pausa;
+  reconferir após restore do projeto Supabase)
+- **Supabase:** projeto `msbwplsknncnxwsalumd` INACTIVE em
+  2026-07-06 — restore pendente de OK do Pedro
+- **Último commit em dev:** `1bd8be5` (hook SessionStart)
 
 ═══════════════════════════════════════════════════════════════
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-06 — Retomada após ~2 meses parado. Reconciliação
+  REGRA 11: STATUS estava atrás do git (3.F.0.5 commitada em
+  `9730fc2` mas STATUS dizia "aguardando OK"; mudança de
+  2026-05-03 no STATUS nunca foi commitada; Dev Log sem entrada
+  da 3.F.0.5). 3.F pausada por bloqueio externo (Meta Business
+  em nome da esposa — auth como dono falhou). Achado: projeto
+  Supabase INACTIVE (pausado por inatividade do free tier),
+  produção fora do ar até restore.
+- 2026-05-03 — 3.F.0.5 ✅ (fechamento retroativo em 2026-07-06).
+  Docs `Tabela — chat_mensagens.md` +93 linhas + CONVENÇÕES.md
+  +32 linhas pra `tool_calls`/`tool_results jsonb`. Commit
+  `9730fc2`. Dev Log não foi atualizado na época; entrada
+  retroativa criada em 2026-07.
+- 2026-05-03 — 3.F plano oficializado. 16 decisões técnicas
+  (C1-C16, incluindo C16 REGRA 11 pré-emptiva sobre cadeia
+  messages com tool_use pendente), 11 riscos com mitigação,
+  9 sub-tarefas reordenadas (3.F.0.5 antes de 3.F.0 pra
+  paralelismo com side quest Pedro). 10 achados REGRA 11
+  pré-implementação validados via SQL direto no banco
+  (Vault habilitado, 5 tabelas Meta prontas, seed placeholder
+  já existente em meta_credenciais/conexoes/vault.secrets,
+  Marcos persona ['cedtec'], chat_mensagens sem tool_calls).
 - 2026-05-03 — 3.D.5 ✅ Sub-fase 3.D fechada. Marco real
   atingido: sistema com voz própria, 3 modelos dinâmicos,
   5 personas + fallback Assistente, UI com chips, scroll
