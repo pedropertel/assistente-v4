@@ -58,10 +58,30 @@
  *   - 3.I.2.1: tools TRANSVERSAIS — salvar_ideia disponível pra toda
  *     persona (e fallback sem persona). Persona define tom, não poder.
  *
+ * Streaming SSE (3.E.1):
+ *   - `stream: true` no body → resposta `text/event-stream` com eventos:
+ *       router — persona/ícone/cor/modelo assim que o Roteador decide
+ *                (front mostra chip + "digitando" ~2s antes do 1º token)
+ *       delta  — { texto } token-a-token da resposta
+ *       tool   — { name, status: executando|ok|erro } durante tools
+ *       done   — payload final IDÊNTICO ao JSON do modo sem stream
+ *       error  — corpo de erro (mesmo shape do JSON de erro)
+ *   - SEM a flag → JSON idêntico à v45 (opt-in; rollback = flag off no
+ *     front; curls de teste continuam funcionando).
+ *   - Erros de input/setup respondem JSON normal mesmo com stream: true
+ *     (acontecem antes do stream abrir). Depois do stream aberto, erro
+ *     vira evento `error` — INSERTs de erro no banco continuam iguais.
+ *   - Desconexão do cliente NO MEIO do stream não aborta o pipeline:
+ *     INSERTs finais rodam até o fim (só paramos de emitir eventos).
+ *   - Bônus aprovado: histórico busca em PARALELO com o Roteador
+ *     (~300-500ms a menos por mensagem, nos dois modos).
+ *   - Nota: texto de voltas intermediárias de tool também streama; o
+ *     `conteudo` persistido é só o texto da resposta final (divergência
+ *     cosmética aceita — reload do histórico reconcilia).
+ *
  * Fora de escopo desta Edge:
  *   - Roteador / personas (3.D)
  *   - Tools do Meta / confirmação humana inline (3.F)
- *   - Streaming SSE (3.E)
  *   - Resolução de nome real da entidade no placeholder (3.D)
  *   - Cotação USD→BRL real (3.G.1 — hoje fixa em 5.0)
  *   - historico_max_mensagens em configuracoes (3.G.2 — hoje hardcoded em 20)
@@ -456,6 +476,11 @@ interface ToolDef {
 }
 
 /**
+ * Emissor de eventos SSE (3.E.1). null = modo JSON (sem stream).
+ */
+type EmitSSE = (evento: string, dados: unknown) => void;
+
+/**
  * Tool `salvar_ideia` (3.I.2) — Marina captura ideias do Pedro na tabela
  * `ideias`.
  *
@@ -833,60 +858,146 @@ async function chamarRoteador(
   };
 }
 
+/**
+ * Mapeia erro pro corpo/status HTTP (3.E.1 — fatorado do catch antigo
+ * pra ser reusado nos dois modos: JSON responde com o status; SSE envia
+ * o body como evento `error`, já que o HTTP 200 do stream já foi).
+ */
+function corpoErro(
+  err: unknown,
+  request_id: string,
+): { status: number; body: Record<string, unknown> } {
+  if (err instanceof Anthropic.RateLimitError) {
+    return {
+      status: 429,
+      body: {
+        ok: false,
+        error: 'rate_limit',
+        message: 'Muitas requisições. Tenta de novo em alguns segundos.',
+        request_id,
+      },
+    };
+  }
+
+  if (err instanceof Anthropic.AuthenticationError) {
+    // CRÍTICO: key inválida. Não expõe ao front.
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: 'auth_failure',
+        message: 'Erro de configuração interna.',
+        request_id,
+      },
+    };
+  }
+
+  if (err instanceof Anthropic.BadRequestError) {
+    // Pode ser: JSON inválido pra API, modelo inválido, content
+    // policy violation, max_tokens fora do range. Detalhes vão
+    // pro logger estruturado via logError() no caller.
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        error: 'invalid_input',
+        message: 'Input rejeitado pela API. Tenta reformular ou ver detalhes no log.',
+        request_id,
+      },
+    };
+  }
+
+  if (err instanceof Anthropic.APIError) {
+    // 5xx Anthropic ou outros erros HTTP do SDK
+    const status = typeof err.status === 'number' ? err.status : 500;
+    if (status >= 500 && status < 600) {
+      return {
+        status: 503,
+        body: {
+          ok: false,
+          error: 'anthropic_unavailable',
+          message: 'API da Anthropic temporariamente indisponível.',
+          request_id,
+        },
+      };
+    }
+  }
+
+  return {
+    status: 500,
+    body: {
+      ok: false,
+      error: 'internal',
+      message: 'Erro inesperado.',
+      request_id,
+    },
+  };
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   const preflight = handleCorsPreflightRequest(req);
   if (preflight) return preflight;
 
   const request_id = generateRequestId();
 
+  // ───────────────────────── parse + validate ─────────────────────────
+  // Erros de input respondem JSON normal SEMPRE (mesmo com stream: true) —
+  // acontecem antes do stream abrir; o front checa Content-Type do response.
+  let body: { texto?: unknown; entidade_id?: unknown; stream?: unknown };
   try {
-    // ───────────────────────── parse + validate ─────────────────────────
-    let body: { texto?: unknown; entidade_id?: unknown };
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse(req, 400, {
-        ok: false,
-        error: 'invalid_input',
-        message: 'Body precisa ser JSON válido.',
-        request_id,
-      });
-    }
-
-    const texto = typeof body?.texto === 'string' ? body.texto.trim() : '';
-    if (!texto) {
-      return jsonResponse(req, 400, {
-        ok: false,
-        error: 'invalid_input',
-        message: 'texto é obrigatório e não pode ser vazio.',
-        request_id,
-      });
-    }
-
-    let entidade_id: string | null = null;
-    if (body?.entidade_id !== undefined && body?.entidade_id !== null) {
-      if (typeof body.entidade_id !== 'string' || !UUID_RE.test(body.entidade_id)) {
-        return jsonResponse(req, 400, {
-          ok: false,
-          error: 'invalid_input',
-          message: 'entidade_id precisa ser UUID válido.',
-          request_id,
-        });
-      }
-      entidade_id = body.entidade_id;
-    }
-
-    logInfo('chat-claude.start', {
+    body = await req.json();
+  } catch {
+    return jsonResponse(req, 400, {
+      ok: false,
+      error: 'invalid_input',
+      message: 'Body precisa ser JSON válido.',
       request_id,
-      has_entidade: entidade_id !== null,
     });
-    // NOTA: NÃO loga texto — pode conter dados sensíveis.
+  }
 
-    // ──────────── Setup Supabase + lookup agente ────────────
-    const supabase = getSupabaseAdmin();
-    const agente = await getAgenteAssistente(supabase);
+  const texto = typeof body?.texto === 'string' ? body.texto.trim() : '';
+  if (!texto) {
+    return jsonResponse(req, 400, {
+      ok: false,
+      error: 'invalid_input',
+      message: 'texto é obrigatório e não pode ser vazio.',
+      request_id,
+    });
+  }
 
-    // ──────────── INSERT user ANTES da Anthropic ────────────
+  let entidade_id: string | null = null;
+  if (body?.entidade_id !== undefined && body?.entidade_id !== null) {
+    if (typeof body.entidade_id !== 'string' || !UUID_RE.test(body.entidade_id)) {
+      return jsonResponse(req, 400, {
+        ok: false,
+        error: 'invalid_input',
+        message: 'entidade_id precisa ser UUID válido.',
+        request_id,
+      });
+    }
+    entidade_id = body.entidade_id;
+  }
+
+  // 3.E.1: flag opt-in. Ausente/false = JSON idêntico à v45.
+  const streamMode = body?.stream === true;
+
+  logInfo('chat-claude.start', {
+    request_id,
+    has_entidade: entidade_id !== null,
+    stream: streamMode,
+  });
+  // NOTA: NÃO loga texto — pode conter dados sensíveis.
+
+  // ──────────── Setup + INSERT user (pré-stream nos 2 modos) ────────────
+  // Falha aqui é JSON de erro mesmo com stream: true — o stream ainda
+  // não abriu, então o front recebe status HTTP de verdade.
+  let supabase: SupabaseClient;
+  let agente: AgenteRow;
+  let userMsgId: string;
+  try {
+    supabase = getSupabaseAdmin();
+    agente = await getAgenteAssistente(supabase);
+
     const { data: userMsg, error: errUser } = await supabase
       .from('chat_mensagens')
       .insert({
@@ -907,15 +1018,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
         request_id,
       });
     }
+    userMsgId = userMsg.id as string;
+  } catch (err) {
+    logError('chat-claude.fail', { request_id }, err);
+    const mapped = corpoErro(err, request_id);
+    return jsonResponse(req, mapped.status, mapped.body);
+  }
 
-    const userMsgId = userMsg.id as string;
-
-    // ──────────── Roteador classifica (3.D.2) ────────────
-    // 1ª chamada Anthropic — decide persona + nível de complexidade.
-    // NOTA 3.D.2: decisão é GRAVADA (papel='system') mas NÃO APLICADA na
-    // chamada principal abaixo (continua usando agente.modelo + prompt sem
-    // persona, igual à 3.C). Aplicação efetiva na 3.D.3.
+  // ──────────── Pipeline compartilhado (JSON e SSE) ────────────
+  // `emit` null = modo JSON (comportamento v45). Com emit, dispara
+  // eventos router/delta/tool ao longo do caminho; o retorno vira o
+  // evento `done` (mesmo shape do JSON).
+  const pipeline = async (
+    emit: EmitSSE | null,
+  ): Promise<Record<string, unknown>> => {
     const client = getAnthropicClient();
+
+    // ──────────── Roteador + histórico EM PARALELO (3.E.1 bônus) ────────────
+    // Antes o histórico esperava o Roteador terminar (~1.2-2.2s) pra só
+    // então rodar. As duas dependem apenas do userMsgId — paralelizar
+    // corta ~300-500ms de TODA mensagem, com e sem stream.
+    const historicoPromise = buscarHistoricoMensagens(
+      supabase,
+      entidade_id,
+      userMsgId,
+      request_id,
+    );
     const router = await chamarRoteador(
       client,
       supabase,
@@ -927,9 +1055,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
 
     // ──────────── Aplica decisão do Roteador (3.D.3) ────────────
-    // Lookup persona escolhida no Map cacheado (já populado por
-    // chamarRoteador na 3.D.2). Se Roteador alucinou slug que não existe,
-    // fail-soft pra persona=null + log warning. Custo zero — Map em memória.
+    // Lookup persona escolhida no Map cacheado. Se Roteador alucinou slug
+    // que não existe, fail-soft pra persona=null + log warning.
     const personasMap = await getPersonasReais(supabase, request_id);
     let persona: PersonaRow | null = null;
     if (router.decisao.persona_slug) {
@@ -969,21 +1096,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Persona null → fallback pra agente.modelo (Haiku, comportamento 3.C).
     const modeloEscolhido = escolherModelo(persona, agente.modelo);
 
-    // ──────────── Busca histórico pra dar contexto à IA ────────────
-    // Query roda DEPOIS do INSERT user (exceto_id evita duplicar a msg
-    // atual no array). Falha graciosa: array vazio → IA responde sem
-    // memória dessa vez (degradação aceitável em vez de 500).
-    const historico = await buscarHistoricoMensagens(
-      supabase,
-      entidade_id,
-      userMsgId,
-      request_id,
-    );
+    // Evento `router` (3.E.1): o front mostra chip da persona + indicador
+    // "digitando" AGORA — ~2s antes do primeiro token da resposta.
+    emit?.('router', {
+      persona_slug: persona?.slug ?? null,
+      nome: persona?.nome ?? 'Assistente',
+      icone: persona?.icone ?? '🤖',
+      cor_hex: persona?.cor_hex ?? '6B7280',
+      nivel_complexidade: router.decisao.nivel_complexidade,
+      modelo: modeloEscolhido,
+    });
+
+    const historico = await historicoPromise;
 
     // ──────────── Chamada Anthropic + loop de tools (try interno) ────────────
-    // Sem tools na persona: comporta idêntico à v42 (1 chamada, sem
-    // parâmetro `tools`). Com tools: loop tool_use → executar →
-    // tool_result → nova chamada, até resposta final ou MAX_VOLTAS_TOOLS.
+    // Sem tools na persona: 1 chamada. Com tools: loop tool_use →
+    // executar → tool_result → nova chamada, até resposta final ou
+    // MAX_VOLTAS_TOOLS. Em stream, cada volta streama texto via `delta`.
     const t0 = Date.now();
 
     // Transversais sempre + exclusivas da persona (quando houver).
@@ -1022,7 +1151,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const params = suportaTemperature(modeloEscolhido)
           ? { ...baseParams, temperature: Number(agente.temperatura) }
           : baseParams;
-        response = await client.messages.create(params);
+
+        if (emit) {
+          // Modo SSE: helper MessageStream do SDK — 'text' dispara por
+          // delta; finalMessage() devolve a Message completa (mesmo shape
+          // do create()), então o resto do loop não muda.
+          const streamAnthropic = client.messages.stream(params);
+          streamAnthropic.on('text', (delta: string) => {
+            emit('delta', { texto: delta });
+          });
+          response = await streamAnthropic.finalMessage();
+        } else {
+          response = await client.messages.create(params);
+        }
 
         tokensEntradaTotal += response.usage.input_tokens;
         tokensSaidaTotal += response.usage.output_tokens;
@@ -1060,6 +1201,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             input: bloco.input,
           });
 
+          // Evento `tool` (3.E.1): Pedro vê "salvando ideia..." no front.
+          emit?.('tool', { name: bloco.name, status: 'executando' });
+
           const def = toolsDaPersona.find((t) => t.spec.name === bloco.name);
           let resultado: Record<string, unknown>;
           let isError = false;
@@ -1094,6 +1238,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
               });
             }
           }
+
+          emit?.('tool', {
+            name: bloco.name,
+            status: isError ? 'erro' : 'ok',
+          });
 
           toolResultsAcumulados.push({
             tool_use_id: bloco.id,
@@ -1150,7 +1299,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         logError('chat-claude.insert_assistant_err_fail', { request_id, userMsgId }, errAssistantErr);
       }
 
-      // re-throw pra cair no catch externo que mapeia HTTP
+      // re-throw pro caller mapear (JSON: status HTTP; SSE: evento error)
       throw anthropicErr;
     }
 
@@ -1207,9 +1356,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       custo_usd,
       latencia_ms,
       user_msg_id: userMsgId,
+      stream: emit !== null,
     });
 
-    return jsonResponse(req, 200, {
+    return {
       ok: true,
       conteudo,
       modelo_usado,
@@ -1219,67 +1369,74 @@ Deno.serve(async (req: Request): Promise<Response> => {
       custo_brl,
       latencia_ms,
       request_id,
-      // Decisão do Roteador (3.D.2) — gravada como papel='system' no banco.
-      // Não afeta `modelo_usado` ainda (chamada principal usa agente.modelo
-      // até 3.D.3 entrar). Útil pra debug + UI futura.
       persona_escolhida: router.decisao.persona_slug,
       nivel_complexidade: router.decisao.nivel_complexidade,
       razao_router: router.decisao.razao,
       latencia_router_ms: router.latenciaRouterMs,
-    });
-  } catch (err) {
-    logError('chat-claude.fail', { request_id }, err);
+    };
+  };
 
-    // ──────────────────────── mapeia erro Anthropic ─────────────────────
-    if (err instanceof Anthropic.RateLimitError) {
-      return jsonResponse(req, 429, {
-        ok: false,
-        error: 'rate_limit',
-        message: 'Muitas requisições. Tenta de novo em alguns segundos.',
-        request_id,
-      });
+  // ──────────── Modo JSON (default — idêntico à v45) ────────────
+  if (!streamMode) {
+    try {
+      const payload = await pipeline(null);
+      return jsonResponse(req, 200, payload);
+    } catch (err) {
+      logError('chat-claude.fail', { request_id }, err);
+      const mapped = corpoErro(err, request_id);
+      return jsonResponse(req, mapped.status, mapped.body);
     }
-
-    if (err instanceof Anthropic.AuthenticationError) {
-      // CRÍTICO: key inválida. Não expõe ao front.
-      return jsonResponse(req, 500, {
-        ok: false,
-        error: 'auth_failure',
-        message: 'Erro de configuração interna.',
-        request_id,
-      });
-    }
-
-    if (err instanceof Anthropic.BadRequestError) {
-      // Pode ser: JSON inválido pra API, modelo inválido, content
-      // policy violation, max_tokens fora do range. Detalhes vão
-      // pro logger estruturado via logError() acima.
-      return jsonResponse(req, 400, {
-        ok: false,
-        error: 'invalid_input',
-        message: 'Input rejeitado pela API. Tenta reformular ou ver detalhes no log.',
-        request_id,
-      });
-    }
-
-    if (err instanceof Anthropic.APIError) {
-      // 5xx Anthropic ou outros erros HTTP do SDK
-      const status = typeof err.status === 'number' ? err.status : 500;
-      if (status >= 500 && status < 600) {
-        return jsonResponse(req, 503, {
-          ok: false,
-          error: 'anthropic_unavailable',
-          message: 'API da Anthropic temporariamente indisponível.',
-          request_id,
-        });
-      }
-    }
-
-    return jsonResponse(req, 500, {
-      ok: false,
-      error: 'internal',
-      message: 'Erro inesperado.',
-      request_id,
-    });
   }
+
+  // ──────────── Modo SSE (3.E.1) ────────────
+  // Response sai imediatamente; o pipeline roda dentro do stream.
+  // Desconexão do cliente NÃO aborta o pipeline (INSERTs precisam
+  // terminar) — só silencia os eventos.
+  const te = new TextEncoder();
+  let clienteDesconectou = false;
+
+  const sse = new ReadableStream({
+    start(controller) {
+      const emit: EmitSSE = (evento, dados) => {
+        if (clienteDesconectou) return;
+        try {
+          controller.enqueue(
+            te.encode(`event: ${evento}\ndata: ${JSON.stringify(dados)}\n\n`),
+          );
+        } catch {
+          clienteDesconectou = true;
+        }
+      };
+
+      (async () => {
+        try {
+          const payload = await pipeline(emit);
+          emit('done', payload);
+        } catch (err) {
+          logError('chat-claude.fail', { request_id }, err);
+          emit('error', corpoErro(err, request_id).body);
+        } finally {
+          if (!clienteDesconectou) {
+            try {
+              controller.close();
+            } catch {
+              // stream já fechado pelo runtime
+            }
+          }
+        }
+      })();
+    },
+    cancel() {
+      clienteDesconectou = true;
+    },
+  });
+
+  return new Response(sse, {
+    status: 200,
+    headers: {
+      ...getCorsHeaders(req),
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    },
+  });
 });
