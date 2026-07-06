@@ -61,12 +61,22 @@ export const MODEL_PRICING = {
   'claude-opus-4-7':           { input: 5.00, output: 25.00 },
 } as const;
 
+// Shape de uma entrada de pricing (USD por 1M tokens).
+export interface PrecoModelo {
+  input: number;
+  output: number;
+}
+
 export function calcCustoUSD(
   modelo: string,
   tokensIn: number,
   tokensOut: number,
+  // 3.G.2: pricing vindo de configuracoes.ai_defaults.precos_modelos.
+  // Ausente/sem o modelo → cai no MODEL_PRICING hardcoded (fail-safe).
+  pricing?: Record<string, PrecoModelo>,
 ): number {
-  const p = MODEL_PRICING[modelo as keyof typeof MODEL_PRICING];
+  const p = pricing?.[modelo] ??
+    MODEL_PRICING[modelo as keyof typeof MODEL_PRICING];
   if (!p) {
     // Fail-safe: modelo não mapeado → custo zero + warning visível
     // no logger (não escala silenciosamente). Defesa contra bug que
