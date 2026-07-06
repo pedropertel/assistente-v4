@@ -19,14 +19,14 @@ do Pedro; Pedro criou a página, mas a autenticação como dono
 da empresa falhou. Retomada da 3.F exige side quest via conta
 dela (token + ad_account). Sem previsão — 3.F volta quando o
 acesso existir.
-**3.F.0.5 ✅ fechada** (commit `9730fc2`, 2026-05-03) — docs
-de `chat_mensagens` + CONVENÇÕES atualizadas pra tool_calls/
-tool_results. ⚠️ Confirmação do ALTER no banco pendente:
-projeto Supabase foi pausado por inatividade (free tier) e a
-verificação das colunas só é possível após restore.
-**Próxima sub-tarefa:** a definir — Pedro escolhe a frente
-sem dependência do Meta (candidatas: 3.E streaming, 3.I Marina,
-3.H Alemão voz, 3.G polimento).
+**3.F.0.5 ✅ fechada** (commit `9730fc2`, 2026-05-03) — ALTER
+aplicado no banco (confirmado via SQL pós-restore em
+2026-07-06: `tool_calls` + `tool_results` existem em
+`chat_mensagens`) + docs de `chat_mensagens` e CONVENÇÕES.
+**Próxima sub-fase:** **3.I — Marina (captura de ideias com
+tools, ~2h)** — escolhida pelo Pedro em 2026-07-06. Constrói
+o loop genérico de function calling com tool interna; quando
+o Meta destravar, a 3.F pluga as tools dela nessa infra.
 
 **Últimas sub-tarefas fechadas (3.D.5 fecha a sub-fase inteira):**
 
@@ -84,8 +84,10 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 - **Working tree:** limpo (após commit de reconciliação 2026-07-06)
 - **Última versão Edge `chat-claude`:** v42 ACTIVE (pré-pausa;
   reconferir após restore do projeto Supabase)
-- **Supabase:** projeto `msbwplsknncnxwsalumd` INACTIVE em
-  2026-07-06 — restore pendente de OK do Pedro
+- **Supabase:** projeto restaurado em 2026-07-06 (estava
+  INACTIVE por inatividade do free tier). Dados íntegros:
+  19 tabelas public, 1 usuário, 1 secret Vault, 29 mensagens,
+  6 personas. ⚠️ Free tier pausa de novo após ~7 dias sem uso.
 - **Último commit em dev:** `1bd8be5` (hook SessionStart)
 
 ═══════════════════════════════════════════════════════════════
