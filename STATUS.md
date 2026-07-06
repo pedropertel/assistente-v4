@@ -30,11 +30,12 @@ prompt do Roteador (Marina como opção + regra de captura de
 ideia com prioridade sobre entidade). Validada fim-a-fim via
 curl: 2 ideias salvas no banco com tags, rastreio e
 observabilidade em tool_calls/tool_results.
-**Pendente:** teste do Pedro no celular + "aprovado" explícito
-pra merge dev→main (`/aprovar`). Edge v45 ACTIVE já serve
-produção e dev (Edge é compartilhada).
-**Próxima sub-fase depois do aprovado:** 3.E (streaming SSE)
-ou 3.H (Alemão + voz) — Pedro decide.
+**3.I EM PRODUÇÃO** — Pedro testou (ideia "simulador de poker"
+salva via chat, chip Marina) e aprovou via `/aprovar` em
+2026-07-06. Merge `bd7bf49` dev→main com 8 commits (3.F.0.5
+retroativa + docs da retomada + hook + 3.I completa).
+**Próxima sub-fase:** 3.E (streaming SSE) ou 3.H (Alemão +
+voz) — Pedro decide na próxima sessão.
 
 **Últimas sub-tarefas fechadas (3.D.5 fecha a sub-fase inteira):**
 
