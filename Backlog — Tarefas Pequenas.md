@@ -565,11 +565,11 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 | **3.B** | Echo Anthropic (Haiku puro, sem router) — primeira chamada real | **3h** |
 | **3.C** | `prompt_base` real + placeholders + histórico de 20 mensagens | **2.5h** |
 | **3.D** ✅ | Router pattern real (Roteador → JSON → modelo dinâmico, chips de persona) | **5h** (real: ~8h em 8 sub-tarefas) |
-| **3.F** | **🎯 Marcos viajando pro Meta (PRIORIDADE #1)** — Vault + tools + confirmação humana pra writes | **9.5h** |
-| **3.E** | Streaming SSE token-a-token (depois de Marcos) | 3.5h |
-| **3.G** | Polimento: cotação real, mapeamento via configuracoes, rate limit, logger | 3.5h |
+| **3.F** ⏸️ | **🎯 Marcos viajando pro Meta (PRIORIDADE #1)** — Vault + tools + confirmação humana pra writes. **Pausada 2026-07-06: bloqueio externo** (Meta Business em nome da esposa; retomar via conta dela). 3.F.0.5 ✅ feita | **9.5h** |
+| **3.E** | Streaming SSE token-a-token | 3.5h |
+| **3.G** | Polimento: cotação real, mapeamento via configuracoes (inclui registro de tools), rate limit, logger | 3.5h |
 | **3.H** | Alemão (voz Web Speech → `sitio_lancamentos`) | 5h |
-| **3.I** | Marina (captura de ideias com tools) | 2h |
+| **3.I** ✅ | Marina (captura de ideias com tools) — **feita 2026-07-06, adiantada por causa da pausa da 3.F** | 2h |
 | **3.J** | Marcela briefing matinal (cron) — opcional, adiável pra Fase 5 | 3h |
 
 **🎯 Caminho curto até Marcos em produção (PRIORIDADE #1 do VISAO.md):** 3.0 → 3.A → 3.B → 3.C → 3.D → 3.F = **23.5h** em 6 sub-fases. **5/6 fechadas. Falta só 3.F (~9.5h).**
@@ -588,6 +588,7 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 - **Streaming:** SSE depois de Marcos. Marcos sem streaming já é vitória.
 - **Mapeamento `nivel_complexidade → modelo`:** hardcoded no Edge primeiro, migra pra `configuracoes.ai_defaults.mapeamento_complexidade` na 3.G.2.
 - **Roteador continua structured output JSON** (não tool use — não é "chamar ferramenta", é "classificar").
+- **Tools são capacidades do SISTEMA, não da persona (decisão Pedro, 2026-07-06, na 3.I):** persona define o TOM, não o PODER. Tool presa a persona faz a persona sem ela "fingir" execução ("Anotado ✓" sem gravar — validado em teste). `TOOLS_TRANSVERSAIS` valem em todo turn; `TOOLS_POR_PERSONA` é exceção pra tools com credencial/risco (Meta na 3.F). Registro migra pra `configuracoes` na 3.G.
 
 ---
 
@@ -759,6 +760,35 @@ Bruno é caso premium (uso pontual). Marcela é cotidiano. Custo médio esperado
 **Hash do commit de código (3.D.0+0.5+1+2+3+3.1+3.2 consolidados):** `feat(3.D)` (será preenchido após PASSO 7). Plus commits isolados já em dev: `4fdf860` (3.D.4), `ea0b442` (3.D.4.1), `add73ce` (3.D.4.2 v1), `b259491` (debug logs scroll), `9ad5d15` (cleanup logs), `a2f41c4` (debug log carregarHistorico — mantido), `6a322cc` (3.D.4.2 final cascata). Total commits dev pra 3.D: ~10 (vs 1 esperado). Justificativa: muitas correções REGRA 11 ganharam commit isolado pra rastreabilidade.
 
 **Próximo:** Tarefa 3.F — Marcos viajando pro Meta (PRIORIDADE #1 do VISAO.md, ~9.5h). Streaming SSE (3.E, ~3.5h) entra como terceira na ordem, depois de Marcos + polimento.
+
+---
+
+### ✅ Tarefa 3.I — Marina + tools (2026-07-06)
+
+**Adiantada** (ordem original era depois de 3.F/3.E) porque a 3.F
+pausou por bloqueio externo do Meta e a 3.I constrói exatamente a
+infra de function calling que a 3.F vai reusar.
+
+- **3.I.0** — Validação REGRA 11: schema `ideias` (17 colunas, CHECKs
+  status/origem), Marina ativa no banco, `tool_calls`/`tool_results`
+  presentes, leitura completa da chat-claude v42 ✅
+- **3.I.1** — Loop genérico de tools na Edge (`ea713f0`, deploy v43):
+  `ToolDef`/`ToolContext`, `tool_use`→executa→`tool_result`→nova
+  chamada (máx 3 voltas), métricas acumuladas, observabilidade nas
+  colunas da 3.F.0.5 inclusive em erro ✅
+- **3.I.2** — Tool `salvar_ideia` (`6c3b9ec`, deploy v44): modelo passa
+  titulo/conteudo/tags/proxima_acao; Edge força origem='chat',
+  status='capturada', rastreio `mensagem_origem_id` ✅
+- **Fix Roteador** (UPDATE em `personas` com OK do Pedro): Marina no
+  enum de saída, regra 0 de captura de ideia (prioridade sobre
+  entidade), null literal JSON ✅
+- **3.I.2.1** — Tools transversais (`ec7bae5`, deploy v45), aplicando
+  a decisão "persona define tom, não poder" ✅
+- **3.I.3** — Validação fim-a-fim via curl: 2 ideias reais salvas com
+  tags e rastreio; detecção de duplicata via histórico de graça ✅
+  Teste mobile do Pedro + "aprovado" pendentes.
+- Limitações conhecidas registradas no Dev Log 2026-07 (mensagem
+  mista, personas sem tool ainda fingem, cache de isolate ~5min).
 
 ---
 

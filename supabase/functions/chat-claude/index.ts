@@ -46,9 +46,21 @@
  *     (sem assistant). Aceitável: Pedro vê sua mensagem, manda de novo.
  *     Cadeia preservada via mensagem_pai_id.
  *
+ * Function calling (3.I.1):
+ *   - Loop genérico de tools: quando a persona escolhida tem tools
+ *     registradas em TOOLS_POR_PERSONA, o payload ganha `tools` e a
+ *     Edge executa blocos tool_use devolvendo tool_result, até
+ *     MAX_VOLTAS_TOOLS. Blocos executados vão pra observabilidade em
+ *     chat_mensagens.tool_calls / tool_results (colunas da 3.F.0.5).
+ *   - Erro de executor NÃO derruba o request — vira tool_result com
+ *     is_error, modelo responde explicando.
+ *   - 3.I.2: tool `salvar_ideia` (INSERT em `ideias`).
+ *   - 3.I.2.1: tools TRANSVERSAIS — salvar_ideia disponível pra toda
+ *     persona (e fallback sem persona). Persona define tom, não poder.
+ *
  * Fora de escopo desta Edge:
  *   - Roteador / personas (3.D)
- *   - Tools / function calling (3.F)
+ *   - Tools do Meta / confirmação humana inline (3.F)
  *   - Streaming SSE (3.E)
  *   - Resolução de nome real da entidade no placeholder (3.D)
  *   - Cotação USD→BRL real (3.G.1 — hoje fixa em 5.0)
@@ -408,6 +420,187 @@ function escolherModelo(
   if (persona.modelo_override) return persona.modelo_override;
   return MAPA_COMPLEXIDADE_MODELO[persona.nivel_complexidade];
 }
+
+// ══════════════════ Function calling — infra genérica (3.I.1) ══════════════════
+
+/**
+ * Contexto que a Edge injeta em todo executor de tool. O modelo NUNCA
+ * controla esses valores — entidade_id vem do request, ids vêm do fluxo.
+ * Defesa contra o modelo "inventar" entidade ou mensagem de origem.
+ */
+interface ToolContext {
+  supabase: SupabaseClient;
+  entidade_id: string | null;
+  userMsgId: string;
+  agenteId: string;
+  // null quando o turn roda sem persona (fallback Assistente) — tools
+  // transversais funcionam mesmo assim.
+  persona: PersonaRow | null;
+  requestId: string;
+}
+
+/**
+ * Uma tool registrável: spec no formato Anthropic `tools` + executor.
+ * O retorno do executor é serializado como JSON no bloco tool_result.
+ */
+interface ToolDef {
+  spec: {
+    name: string;
+    description: string;
+    input_schema: Record<string, unknown>;
+  };
+  executar: (
+    input: Record<string, unknown>,
+    ctx: ToolContext,
+  ) => Promise<Record<string, unknown>>;
+}
+
+/**
+ * Tool `salvar_ideia` (3.I.2) — Marina captura ideias do Pedro na tabela
+ * `ideias`.
+ *
+ * O modelo controla APENAS o conteúdo da ideia (titulo, conteudo, tags,
+ * proxima_acao_sugerida). Campos de rastreio e classificação vêm do
+ * contexto da Edge: origem='chat', status='capturada' (workflow começa
+ * aqui), entidade_id do request, mensagem_origem_id/agente_id/persona_id
+ * do fluxo. Valores conforme CHECKs validados na 3.I.0
+ * (`ideias_origem_check`, `ideias_status_check`).
+ *
+ * Write de baixo risco (soft-delete via status='arquivada') — sem
+ * confirmação humana. Confirmação inline entra na 3.F pra writes
+ * destrutivos (pausar campanha Meta).
+ */
+const TOOL_SALVAR_IDEIA: ToolDef = {
+  spec: {
+    name: 'salvar_ideia',
+    description:
+      'Salva uma ideia do Pedro na biblioteca de ideias do sistema. ' +
+      'Use quando o Pedro compartilhar uma ideia, insight ou "pensamento ' +
+      'pra não esquecer" — mesmo que ele não peça explicitamente pra salvar, ' +
+      'se o conteúdo é claramente uma ideia a capturar. Não use pra tarefas ' +
+      'ou eventos (isso é outro fluxo).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        titulo: {
+          type: 'string',
+          description: 'Título curto da ideia (máx ~80 chars), em pt-BR.',
+        },
+        conteudo: {
+          type: 'string',
+          description:
+            'A ideia em si, reescrita de forma clara mas fiel ao que o ' +
+            'Pedro disse. Não adicionar opinião própria aqui.',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Tags curtas em minúsculas pra busca futura (ex: ["cedtec", ' +
+            '"marketing"]). Opcional.',
+        },
+        proxima_acao_sugerida: {
+          type: 'string',
+          description:
+            'Sugestão de próximo passo concreto, se houver um óbvio. ' +
+            'Opcional — ideia precisa maturar antes de virar tarefa.',
+        },
+      },
+      required: ['titulo', 'conteudo'],
+    },
+  },
+  executar: async (input, ctx) => {
+    const titulo = typeof input.titulo === 'string' ? input.titulo.trim() : '';
+    const conteudo = typeof input.conteudo === 'string'
+      ? input.conteudo.trim()
+      : '';
+    if (!titulo || !conteudo) {
+      return {
+        erro: 'titulo e conteudo são obrigatórios e não podem ser vazios.',
+      };
+    }
+
+    // Sanitiza tags: só strings não-vazias, minúsculas, sem duplicata.
+    const tags = Array.isArray(input.tags)
+      ? [
+        ...new Set(
+          input.tags
+            .filter((t): t is string => typeof t === 'string')
+            .map((t) => t.trim().toLowerCase())
+            .filter((t) => t.length > 0),
+        ),
+      ]
+      : [];
+
+    const proximaAcao = typeof input.proxima_acao_sugerida === 'string' &&
+        input.proxima_acao_sugerida.trim().length > 0
+      ? input.proxima_acao_sugerida.trim()
+      : null;
+
+    const { data, error } = await ctx.supabase
+      .from('ideias')
+      .insert({
+        titulo,
+        conteudo,
+        tags,
+        proxima_acao_sugerida: proximaAcao,
+        entidade_id: ctx.entidade_id,
+        origem: 'chat',
+        status: 'capturada',
+        mensagem_origem_id: ctx.userMsgId,
+        agente_id: ctx.agenteId,
+        persona_id: ctx.persona?.id ?? null,
+      })
+      .select('id, titulo')
+      .single();
+
+    if (error || !data) {
+      // Mensagem vai pro modelo via tool_result (is_error) — ele explica
+      // ao Pedro que não conseguiu salvar. Detalhe técnico só no log.
+      logWarn('chat-claude.salvar_ideia_fail', {
+        request_id: ctx.requestId,
+        pg_code: error?.code ?? null,
+      });
+      return { erro: 'Falha ao salvar a ideia no banco. Tenta de novo.' };
+    }
+
+    return {
+      sucesso: true,
+      ideia_id: data.id,
+      titulo: data.titulo,
+      mensagem_pro_modelo:
+        'Ideia salva. Confirme ao Pedro em 1 frase e, se proxima_acao_sugerida ' +
+        'foi preenchida, mencione a sugestão sem pressionar.',
+    };
+  },
+};
+
+/**
+ * FILOSOFIA (decisão Pedro, 2026-07-06): tools são capacidades do
+ * SISTEMA, não da persona. A persona define o TOM, não o PODER.
+ * Tool presa a uma persona cria buraco de UX — persona sem a tool
+ * "finge" que executou (validado nos testes da 3.I.3: Marcos e Alemão
+ * respondiam "Anotado ✓" sem gravar nada).
+ *
+ * - TOOLS_TRANSVERSAIS: disponíveis em TODO turn, inclusive fallback
+ *   sem persona (custo: ~200 tokens de definition por chamada).
+ * - TOOLS_POR_PERSONA: exceção pra tools que só fazem sentido num
+ *   domínio E têm custo/risco pra justificar o gating (ex: tools Meta
+ *   do Marcos na 3.F — envolvem credenciais e writes em campanha).
+ *
+ * Hardcoded até a 3.G migrar pra `configuracoes` (mesmo padrão do
+ * MAPA_COMPLEXIDADE_MODELO).
+ */
+const TOOLS_TRANSVERSAIS: ToolDef[] = [TOOL_SALVAR_IDEIA];
+
+const TOOLS_POR_PERSONA: Record<string, ToolDef[]> = {};
+
+/**
+ * Teto de voltas do loop de tools numa mesma mensagem. Guarda contra
+ * modelo que encadeia tool_use sem parar (custo e latência crescem
+ * a cada volta). 3 cobre o caso real (1 tool + resposta) com folga.
+ */
+const MAX_VOLTAS_TOOLS = 3;
 
 /**
  * Decisão do Roteador — JSON estrito esperado da chamada Anthropic Haiku.
@@ -787,32 +980,158 @@ Deno.serve(async (req: Request): Promise<Response> => {
       request_id,
     );
 
-    // ──────────── Chamada Anthropic (try interno) ────────────
+    // ──────────── Chamada Anthropic + loop de tools (try interno) ────────────
+    // Sem tools na persona: comporta idêntico à v42 (1 chamada, sem
+    // parâmetro `tools`). Com tools: loop tool_use → executar →
+    // tool_result → nova chamada, até resposta final ou MAX_VOLTAS_TOOLS.
     const t0 = Date.now();
+
+    // Transversais sempre + exclusivas da persona (quando houver).
+    const toolsDaPersona = [
+      ...TOOLS_TRANSVERSAIS,
+      ...(persona ? (TOOLS_POR_PERSONA[persona.slug] ?? []) : []),
+    ];
+
+    // Observabilidade acumulada do loop (vai pro INSERT assistant).
+    const toolCallsAcumulados: Array<Record<string, unknown>> = [];
+    const toolResultsAcumulados: Array<Record<string, unknown>> = [];
+    let tokensEntradaTotal = 0;
+    let tokensSaidaTotal = 0;
+    let custoUsdTotal = 0;
 
     let response;
     try {
-      // Opus 4.7 (e modelos com Adaptive Thinking) não aceitam `temperature`.
-      // Helper `suportaTemperature` filtra — ver `_shared/anthropic.ts`.
-      const baseParams = {
-        model: modeloEscolhido,
-        max_tokens: agente.max_tokens,
-        system: promptProcessadoComPersona,
-        messages: [
-          ...historico,
-          { role: 'user', content: texto },
-        ],
-      };
-      const params = suportaTemperature(modeloEscolhido)
-        ? { ...baseParams, temperature: Number(agente.temperatura) }
-        : baseParams;
-      response = await client.messages.create(params);
+      // deno-lint-ignore no-explicit-any -- blocos mistos (texto/tool) do SDK
+      const messages: any[] = [
+        ...historico,
+        { role: 'user', content: texto },
+      ];
+
+      for (let volta = 0; ; volta++) {
+        // Opus 4.7 (e modelos com Adaptive Thinking) não aceitam `temperature`.
+        // Helper `suportaTemperature` filtra — ver `_shared/anthropic.ts`.
+        const baseParams = {
+          model: modeloEscolhido,
+          max_tokens: agente.max_tokens,
+          system: promptProcessadoComPersona,
+          messages,
+          ...(toolsDaPersona.length > 0
+            ? { tools: toolsDaPersona.map((t) => t.spec) }
+            : {}),
+        };
+        const params = suportaTemperature(modeloEscolhido)
+          ? { ...baseParams, temperature: Number(agente.temperatura) }
+          : baseParams;
+        response = await client.messages.create(params);
+
+        tokensEntradaTotal += response.usage.input_tokens;
+        tokensSaidaTotal += response.usage.output_tokens;
+        custoUsdTotal += calcCustoUSD(
+          response.model,
+          response.usage.input_tokens,
+          response.usage.output_tokens,
+        );
+
+        if (response.stop_reason !== 'tool_use') break;
+
+        if (volta >= MAX_VOLTAS_TOOLS - 1) {
+          // Modelo ainda quer tools depois do teto — para sem executar.
+          // Resposta final vira o que houver de texto (fallback no extract).
+          logWarn('chat-claude.tool_loop_teto', {
+            request_id,
+            voltas: volta + 1,
+            persona_slug: persona?.slug ?? null,
+          });
+          break;
+        }
+
+        // Executa cada bloco tool_use da resposta. Erro de executor vira
+        // tool_result com is_error — modelo explica em vez de 500.
+        const blocosToolUse = response.content.filter(
+          (b) => b.type === 'tool_use',
+        );
+        if (blocosToolUse.length === 0) break; // defesa: user vazio = 400 na API
+        // deno-lint-ignore no-explicit-any
+        const blocosResult: any[] = [];
+        for (const bloco of blocosToolUse) {
+          toolCallsAcumulados.push({
+            id: bloco.id,
+            name: bloco.name,
+            input: bloco.input,
+          });
+
+          const def = toolsDaPersona.find((t) => t.spec.name === bloco.name);
+          let resultado: Record<string, unknown>;
+          let isError = false;
+          if (!def) {
+            // Modelo alucinou nome de tool fora do payload (improvável).
+            resultado = { erro: `Tool desconhecida: ${bloco.name}` };
+            isError = true;
+          } else {
+            try {
+              resultado = await def.executar(
+                bloco.input as Record<string, unknown>,
+                {
+                  supabase,
+                  entidade_id,
+                  userMsgId,
+                  agenteId: agente.id,
+                  persona,
+                  requestId: request_id,
+                },
+              );
+            } catch (toolErr) {
+              resultado = {
+                erro: toolErr instanceof Error
+                  ? toolErr.message.slice(0, 300)
+                  : 'Erro desconhecido na tool',
+              };
+              isError = true;
+              logWarn('chat-claude.tool_exec_fail', {
+                request_id,
+                tool: bloco.name,
+                erro: resultado.erro,
+              });
+            }
+          }
+
+          toolResultsAcumulados.push({
+            tool_use_id: bloco.id,
+            name: bloco.name,
+            resultado,
+            is_error: isError,
+          });
+          blocosResult.push({
+            type: 'tool_result',
+            tool_use_id: bloco.id,
+            content: JSON.stringify(resultado),
+            ...(isError ? { is_error: true } : {}),
+          });
+        }
+
+        // Continua a conversa: assistant com os blocos originais +
+        // user com os tool_results (formato exigido pela API).
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: blocosResult });
+      }
+
+      if (toolCallsAcumulados.length > 0) {
+        logInfo('chat-claude.tool_loop_done', {
+          request_id,
+          persona_slug: persona?.slug ?? null,
+          tool_calls: toolCallsAcumulados.length,
+          com_erro: toolResultsAcumulados.filter((r) => r.is_error).length,
+        });
+      }
     } catch (anthropicErr) {
       // INSERT assistant com erro preenchido (preserva cadeia)
       const erroMsg = anthropicErr instanceof Error
         ? anthropicErr.message.slice(0, 500)
         : 'Erro desconhecido na chamada Anthropic';
 
+      // tool_calls/tool_results preservados mesmo no erro: se a Anthropic
+      // caiu DEPOIS de uma tool ter executado (ex: ideia já salva), o
+      // rastro do write não pode sumir (3.I.1).
       const { error: errAssistantErr } = await supabase
         .from('chat_mensagens')
         .insert({
@@ -824,6 +1143,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           modelo_usado: modeloEscolhido,
           erro: erroMsg,
           mensagem_pai_id: userMsgId,
+          tool_calls: toolCallsAcumulados.length > 0 ? toolCallsAcumulados : null,
+          tool_results: toolResultsAcumulados.length > 0 ? toolResultsAcumulados : null,
         });
       if (errAssistantErr) {
         logError('chat-claude.insert_assistant_err_fail', { request_id, userMsgId }, errAssistantErr);
@@ -836,15 +1157,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const latencia_ms = Date.now() - t0;
 
     // ──────────────────────────── extract ───────────────────────────────
-    const firstBlock = response.content[0];
-    const conteudo = firstBlock?.type === 'text' ? firstBlock.text : '';
-    const tokens_entrada = response.usage.input_tokens;
-    const tokens_saida = response.usage.output_tokens;
+    // Com tools, o texto final pode não ser o primeiro bloco — busca o
+    // primeiro bloco text. Métricas usam os TOTAIS acumulados do loop
+    // (sem tools = 1 volta, idêntico à v42).
+    const blocoTexto = response.content.find((b) => b.type === 'text');
+    const conteudo = blocoTexto?.type === 'text'
+      ? blocoTexto.text
+      : (toolCallsAcumulados.length > 0
+        ? '[tools executadas, sem resposta final do modelo]'
+        : '');
+    const tokens_entrada = tokensEntradaTotal;
+    const tokens_saida = tokensSaidaTotal;
     const modelo_usado = response.model;
-    const custo_usd = calcCustoUSD(modelo_usado, tokens_entrada, tokens_saida);
+    const custo_usd = custoUsdTotal;
     const custo_brl = custo_usd * COTACAO_USD_BRL;
 
     // ──────────── INSERT assistant (sucesso) ────────────
+    // tool_calls/tool_results (3.F.0.5): NULL quando turn não usou tools.
     const { error: errAssistant } = await supabase
       .from('chat_mensagens')
       .insert({
@@ -860,6 +1189,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         custo_brl,
         latencia_ms,
         mensagem_pai_id: userMsgId,
+        tool_calls: toolCallsAcumulados.length > 0 ? toolCallsAcumulados : null,
+        tool_results: toolResultsAcumulados.length > 0 ? toolResultsAcumulados : null,
       });
 
     if (errAssistant) {
