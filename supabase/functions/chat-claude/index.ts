@@ -83,8 +83,11 @@
  *   - Roteador / personas (3.D)
  *   - Tools do Meta / confirmação humana inline (3.F)
  *   - Resolução de nome real da entidade no placeholder (3.D)
- *   - Cotação USD→BRL real (3.G.1 — hoje fixa em 5.0)
  *   - historico_max_mensagens em configuracoes (3.G.2 — hoje hardcoded em 20)
+ *
+ * Cotação USD→BRL (3.G.1): real via `_shared/cotacao.ts` (awesomeapi,
+ * cache 1h por isolate, fallback cache velho → 5.0). Aquecida em
+ * paralelo no início do pipeline.
  */
 
 import {
@@ -104,11 +107,8 @@ import {
   suportaTemperature,
 } from '../_shared/anthropic.ts';
 import { getSupabaseAdmin } from '../_shared/supabase-admin.ts';
+import { getCotacaoUSDBRL } from '../_shared/cotacao.ts';
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
-
-// Cotação fixa pra cálculo de custo BRL.
-// TODO 3.G.1: substituir por cotação real via awesomeapi.com.br/json/USD-BRL.
-const COTACAO_USD_BRL = 5.0;
 
 // Janela de contexto enviada à Anthropic (últimas N mensagens da entidade).
 // TODO 3.G.2: ler de configuracoes.ai_defaults.historico_max_mensagens
@@ -796,7 +796,7 @@ async function chamarRoteador(
     tokens_entrada = response.usage.input_tokens;
     tokens_saida = response.usage.output_tokens;
     custo_usd = calcCustoUSD(modeloRoteador, tokens_entrada, tokens_saida);
-    custo_brl = custo_usd * COTACAO_USD_BRL;
+    custo_brl = custo_usd * (await getCotacaoUSDBRL(requestId));
   } catch (err) {
     erroRouter = err instanceof Error
       ? err.message.slice(0, 500)
@@ -1033,6 +1033,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     emit: EmitSSE | null,
   ): Promise<Record<string, unknown>> => {
     const client = getAnthropicClient();
+
+    // Aquece a cotação em paralelo (3.G.1) — quando o cálculo de custo
+    // chegar, o valor já está em cache (nunca bloqueia: cache velho ou
+    // fallback 5.0 se a API não responder em 2s).
+    getCotacaoUSDBRL(request_id);
 
     // ──────────── Roteador + histórico EM PARALELO (3.E.1 bônus) ────────────
     // Antes o histórico esperava o Roteador terminar (~1.2-2.2s) pra só
@@ -1319,7 +1324,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const tokens_saida = tokensSaidaTotal;
     const modelo_usado = response.model;
     const custo_usd = custoUsdTotal;
-    const custo_brl = custo_usd * COTACAO_USD_BRL;
+    const custo_brl = custo_usd * (await getCotacaoUSDBRL(request_id));
 
     // ──────────── INSERT assistant (sucesso) ────────────
     // tool_calls/tool_results (3.F.0.5): NULL quando turn não usou tools.
