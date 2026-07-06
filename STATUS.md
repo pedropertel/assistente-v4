@@ -23,10 +23,18 @@ acesso existir.
 aplicado no banco (confirmado via SQL pós-restore em
 2026-07-06: `tool_calls` + `tool_results` existem em
 `chat_mensagens`) + docs de `chat_mensagens` e CONVENÇÕES.
-**Próxima sub-fase:** **3.I — Marina (captura de ideias com
-tools, ~2h)** — escolhida pelo Pedro em 2026-07-06. Constrói
-o loop genérico de function calling com tool interna; quando
-o Meta destravar, a 3.F pluga as tools dela nessa infra.
+**3.I ✅ IMPLEMENTADA** (2026-07-06, mesma sessão da retomada):
+loop genérico de tools (3.I.1, v43) + tool `salvar_ideia`
+(3.I.2, v44) + tools transversais (3.I.2.1, v45) + fix do
+prompt do Roteador (Marina como opção + regra de captura de
+ideia com prioridade sobre entidade). Validada fim-a-fim via
+curl: 2 ideias salvas no banco com tags, rastreio e
+observabilidade em tool_calls/tool_results.
+**Pendente:** teste do Pedro no celular + "aprovado" explícito
+pra merge dev→main (`/aprovar`). Edge v45 ACTIVE já serve
+produção e dev (Edge é compartilhada).
+**Próxima sub-fase depois do aprovado:** 3.E (streaming SSE)
+ou 3.H (Alemão + voz) — Pedro decide.
 
 **Últimas sub-tarefas fechadas (3.D.5 fecha a sub-fase inteira):**
 
@@ -61,14 +69,14 @@ futuros.
 ✅ 3.C — `prompt_base` + placeholders + histórico (chat-claude v36)
 ✅ 3.D — Router + 5 personas + UI chips (chat-claude v42 + UI)
 ⏸️ 3.F — Marcos + Meta Ads (pausada — bloqueio externo Meta Business; 3.F.0.5 ✅ feita)
-⏳ 3.E — Streaming SSE (terceira na ordem, depois de Marcos)
-⏳ 3.G — Polimento (cotação real, rate limit, logger estruturado)
+✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — aguarda aprovado)
+⏳ 3.E — Streaming SSE
+⏳ 3.G — Polimento (cotação real, rate limit, logger, tools em configuracoes)
 ⏳ 3.H — Alemão + voz (Web Speech API)
-⏳ 3.I — Marina + captura de ideias
 ⏳ 3.J — Marcela briefing matinal (cron, opcional)
 
-**Total:** 5/9 sub-fases fechadas. Caminho curto até Marcos
-em produção: **1 sub-fase restante (3.F, ~9.5h)**.
+**Total:** 6/9 sub-fases fechadas. 3.F pausada não conta —
+retoma quando o acesso ao Meta Business existir.
 
 **Nota:** 3.D executou 8 sub-tarefas vs 6 planejadas — 3.D.0.5,
 3.D.3.1, 3.D.3.2, 3.D.4.1, 3.D.4.2 entraram durante execução
@@ -81,19 +89,31 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 ## Estado do repo
 
 - **Branch ativa:** dev (sincronizada com origin/dev)
-- **Working tree:** limpo (após commit de reconciliação 2026-07-06)
-- **Última versão Edge `chat-claude`:** v42 ACTIVE (pré-pausa;
-  reconferir após restore do projeto Supabase)
+- **Working tree:** limpo (após fechamento da 3.I, 2026-07-06)
+- **Última versão Edge `chat-claude`:** v45 ACTIVE (3.I completa)
 - **Supabase:** projeto restaurado em 2026-07-06 (estava
   INACTIVE por inatividade do free tier). Dados íntegros:
   19 tabelas public, 1 usuário, 1 secret Vault, 29 mensagens,
   6 personas. ⚠️ Free tier pausa de novo após ~7 dias sem uso.
-- **Último commit em dev:** `1bd8be5` (hook SessionStart)
+- **Último commit em dev:** `ec7bae5` (3.I.2.1) + docs de
+  fechamento na sequência
 
 ═══════════════════════════════════════════════════════════════
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-06 — 3.I ✅ Marina + tools, executada inteira na
+  sessão de retomada. 3.I.1 loop genérico de function calling
+  (`ea713f0`, v43) → 3.I.2 tool `salvar_ideia` (`6c3b9ec`,
+  v44) → fix prompt Roteador via UPDATE com OK do Pedro
+  (Marina no enum + regra captura-de-ideia prioridade máxima
+  + null literal) → 3.I.2.1 tools transversais (`ec7bae5`,
+  v45). Decisão de filosofia (Pedro): **tools são capacidades
+  do sistema, não da persona — persona define tom, não poder.**
+  Achado grave corrigido: personas sem tool "fingiam" executar
+  ("Anotado ✓" sem gravar). Limitação conhecida: mensagem
+  mista (pergunta + ideia) roteia pra captura e a pergunta
+  fica sem resposta. Pendente: teste mobile + aprovado.
 - 2026-07-06 — Retomada após ~2 meses parado. Reconciliação
   REGRA 11: STATUS estava atrás do git (3.F.0.5 commitada em
   `9730fc2` mas STATUS dizia "aguardando OK"; mudança de
