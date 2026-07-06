@@ -30,11 +30,17 @@ prompt do Roteador (Marina como opção + regra de captura de
 ideia com prioridade sobre entidade). Validada fim-a-fim via
 curl: 2 ideias salvas no banco com tags, rastreio e
 observabilidade em tool_calls/tool_results.
-**Pendente:** teste do Pedro no celular + "aprovado" explícito
-pra merge dev→main (`/aprovar`). Edge v45 ACTIVE já serve
-produção e dev (Edge é compartilhada).
-**Próxima sub-fase depois do aprovado:** 3.E (streaming SSE)
-ou 3.H (Alemão + voz) — Pedro decide.
+**3.E ✅ IMPLEMENTADA E TESTADA** (2026-07-06, mesma sessão):
+streaming SSE opt-in. Edge v46 (`47f6f11`) com eventos
+router/delta/tool/done/error + pipeline compartilhado JSON/SSE
++ histórico em paralelo com o Roteador (bônus aprovado,
+~300-500ms a menos por mensagem). Front (`abcd6fc`) com
+`invokeFunctionStream` (fetch+SSE) e bolha com chip antecipado
++ "digitando…" + "⚙️ executando ação…". Pedro testou no preview:
+"funcionou, ficou rápido e mostra parcial".
+**Pendente:** "aprovado" explícito pra merge dev→main.
+**3.I em produção** desde 2026-07-06 (merge `bd7bf49`).
+**Próxima sub-fase:** 3.H (Alemão + voz) ou 3.G (polimento).
 
 **Últimas sub-tarefas fechadas (3.D.5 fecha a sub-fase inteira):**
 
@@ -69,13 +75,13 @@ futuros.
 ✅ 3.C — `prompt_base` + placeholders + histórico (chat-claude v36)
 ✅ 3.D — Router + 5 personas + UI chips (chat-claude v42 + UI)
 ⏸️ 3.F — Marcos + Meta Ads (pausada — bloqueio externo Meta Business; 3.F.0.5 ✅ feita)
-✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — aguarda aprovado)
-⏳ 3.E — Streaming SSE
+✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — em produção)
+✅ 3.E — Streaming SSE (v46 + front, testado — aguarda aprovado)
 ⏳ 3.G — Polimento (cotação real, rate limit, logger, tools em configuracoes)
 ⏳ 3.H — Alemão + voz (Web Speech API)
 ⏳ 3.J — Marcela briefing matinal (cron, opcional)
 
-**Total:** 6/9 sub-fases fechadas. 3.F pausada não conta —
+**Total:** 7/9 sub-fases fechadas. 3.F pausada não conta —
 retoma quando o acesso ao Meta Business existir.
 
 **Nota:** 3.D executou 8 sub-tarefas vs 6 planejadas — 3.D.0.5,
@@ -102,6 +108,17 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-06 — 3.E ✅ Streaming SSE. 3.E.0 análise (achado:
+  Roteador come ~2s não-streamáveis → evento `router` antecipa
+  o chip; front precisa de fetch+ReadableStream porque
+  EventSource não faz POST). 3.E.1 Edge v46 (`47f6f11`):
+  pipeline compartilhado JSON/SSE, flag `stream` opt-in
+  (sem flag = idêntico à v45), eventos router/delta/tool/done/
+  error, `corpoErro` fatorado, histórico em paralelo com
+  Roteador (bônus aprovado pelo Pedro). 3.E.2 front (`abcd6fc`):
+  `invokeFunctionStream` em core/supabase.js + bolha streaming
+  com chip antecipado no chat.js. 3.E.3 testado por Pedro no
+  preview: "funcionou, ficou rápido e mostra parcial".
 - 2026-07-06 — 3.I ✅ Marina + tools, executada inteira na
   sessão de retomada. 3.I.1 loop genérico de function calling
   (`ea713f0`, v43) → 3.I.2 tool `salvar_ideia` (`6c3b9ec`,

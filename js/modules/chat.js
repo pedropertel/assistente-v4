@@ -1,9 +1,9 @@
-import { invokeFunction, supabase } from '../core/supabase.js';
+import { invokeFunctionStream, supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
 
 /**
- * enviarMensagem — envia mensagem do user pra Edge chat-claude e
- * atualiza UI.
+ * enviarMensagem — envia mensagem do user pra Edge chat-claude em
+ * modo SSE (3.E.2) e atualiza UI token a token.
  *
  * Fluxo:
  *   1. Pega texto do textarea, valida não-vazio
@@ -13,10 +13,16 @@ import { show as showToast } from '../core/toast.js';
  *   3. Renderiza bolha user "otimista" (aparece imediato com
  *      classe .optimistic)
  *   4. Limpa textarea
- *   5. Chama Edge chat-claude
- *   6. Em sucesso: recarrega histórico (substitui bolha
- *      otimista pela persistida + adiciona bolha assistant)
- *   7. Em erro: marca bolha otimista como .failed + toast
+ *   5. Chama Edge chat-claude com stream: true e reage aos eventos:
+ *      - router → cria bolha assistant com chip da persona +
+ *        "digitando…" (~2s antes do 1º token)
+ *      - delta  → appenda texto na bolha (efeito digitação)
+ *      - tool   → status "executando ação…" enquanto tool roda
+ *      - error  → evento de erro emitido DEPOIS do stream abrir
+ *   6. Em sucesso: recarrega histórico (substitui bolhas de stream
+ *      pelas persistidas, com métricas de custo/latência do banco)
+ *   7. Em erro (pré-stream ou evento error): marca bolhas como
+ *      .failed + toast
  *   8. Reabilita controles, foca textarea
  */
 export async function enviarMensagem() {
@@ -38,18 +44,54 @@ export async function enviarMensagem() {
   const optimisticEl = appendBubbleOptimistic(texto);
   ta.value = '';
 
-  try {
-    const { error } = await invokeFunction('chat-claude', { texto });
+  // Bolha da resposta em streaming — criada no evento `router`
+  // (ou no primeiro `delta`, se o router não chegar por algum motivo).
+  let stream = null;
+  let erroEvento = null;
 
-    if (error) {
-      showToast(`Erro: ${error.message}`, 'error');
+  const garantirBolha = (chipData) => {
+    if (!stream) stream = appendBubbleStreaming(chipData);
+    return stream;
+  };
+
+  try {
+    const { error } = await invokeFunctionStream(
+      'chat-claude',
+      { texto, stream: true },
+      {
+        router: (d) => {
+          garantirBolha(d);
+        },
+        delta: (d) => {
+          const s = garantirBolha(null);
+          if (s.status.textContent) s.status.textContent = '';
+          s.texto.textContent += d.texto;
+          scrollToBottom();
+        },
+        tool: (d) => {
+          const s = garantirBolha(null);
+          s.status.textContent = d.status === 'executando'
+            ? '⚙️ executando ação…'
+            : (d.status === 'erro' ? '⚠️ ação falhou' : '');
+        },
+        error: (d) => {
+          erroEvento = d;
+        },
+      },
+    );
+
+    if (error || erroEvento) {
+      const msg = (erroEvento && erroEvento.message) ||
+        (error && error.message) || 'Erro desconhecido';
+      showToast(`Erro: ${msg}`, 'error');
       optimisticEl.classList.remove('optimistic');
       optimisticEl.classList.add('failed');
+      if (stream) stream.bubble.classList.add('error');
       return;
     }
 
-    // Sucesso: recarrega histórico (substitui otimista +
-    // mostra resposta assistant)
+    // Sucesso: recarrega histórico — substitui otimista + bolha de
+    // stream pelas rows persistidas (métricas reais + chip do banco).
     await carregarHistorico();
   } catch (err) {
     console.error('[chat] exception inesperada', err);
@@ -128,6 +170,59 @@ function appendBubbleOptimistic(texto) {
   histEl.appendChild(bubble);
   scrollToBottom(true);
   return bubble;
+}
+
+/**
+ * appendBubbleStreaming — bolha assistant do modo SSE (3.E.2).
+ *
+ * Criada no evento `router` (com chip da persona que o Roteador
+ * escolheu) ou no primeiro `delta` (chip fallback "Assistente" 🤖).
+ * Estrutura: chip + <span> de texto (deltas appendam aqui) +
+ * <small> de status ("digitando…", "⚙️ executando ação…").
+ *
+ * É temporária: no `done`, `carregarHistorico()` substitui pela
+ * row persistida (com métricas de custo/latência do banco).
+ */
+function appendBubbleStreaming(chipData) {
+  const histEl = document.getElementById('chat-historico');
+  hideEmptyState();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble assistant streaming';
+
+  const dados = chipData ?? {
+    icone: '🤖',
+    nome: 'Assistente',
+    cor_hex: '6B7280',
+  };
+  const chip = document.createElement('span');
+  chip.className = 'chat-bubble-persona-chip';
+  chip.style.backgroundColor = '#' + dados.cor_hex;
+
+  const icon = document.createElement('span');
+  icon.className = 'chip-icon';
+  icon.textContent = dados.icone;
+
+  const name = document.createElement('span');
+  name.className = 'chip-name';
+  name.textContent = dados.nome;
+
+  chip.appendChild(icon);
+  chip.appendChild(name);
+  bubble.appendChild(chip);
+  bubble.appendChild(document.createElement('br'));
+
+  const texto = document.createElement('span');
+  bubble.appendChild(texto);
+
+  const status = document.createElement('small');
+  status.className = 'chat-bubble-meta';
+  status.textContent = 'digitando…';
+  bubble.appendChild(status);
+
+  histEl.appendChild(bubble);
+  scrollToBottom(true);
+  return { bubble, texto, status };
 }
 
 function renderHistorico(mensagens) {

@@ -63,3 +63,94 @@ export async function invokeFunction(name, payload) {
 
   return { data, error: null };
 }
+
+/**
+ * invokeFunctionStream — chama uma Edge Function em modo SSE (3.E.2).
+ *
+ * Por que fetch direto (e não supabase.functions.invoke):
+ *   - EventSource não faz POST; functions.invoke não expõe o body
+ *     como stream. fetch + ReadableStream é o único caminho pra SSE
+ *     com POST no browser (Safari iOS 14.5+ suporta).
+ *   - Mantém o mesmo padrão de auth do invoke: Bearer do session
+ *     token do user logado (fallback anon key) + apikey.
+ *
+ * Parâmetros:
+ *   - name: slug da função (ex: 'chat-claude').
+ *   - payload: JSON body do POST (o caller inclui stream: true).
+ *   - handlers: { [nomeDoEvento]: (dados) => void } — chamado por
+ *     evento SSE recebido (router, delta, tool, done, error).
+ *
+ * Contrato de retorno (mesmo espírito do invokeFunction):
+ *   - Stream consumido até o fim: { error: null }. Eventos (inclusive
+ *     `error` emitido pela Edge DEPOIS do stream abrir) chegam SÓ
+ *     pelos handlers — o caller decide como reagir.
+ *   - Falha ANTES do stream abrir (HTTP != 2xx, corpo JSON de erro,
+ *     rede fora): { error: { message, status? } }, nenhum handler roda.
+ */
+export async function invokeFunctionStream(name, payload, handlers = {}) {
+  let resp;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token ?? SUPABASE_KEY;
+
+    resp = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload === undefined ? {} : payload),
+    });
+  } catch (err) {
+    console.error(`[invokeFunctionStream] ${name} falhou na rede:`, err);
+    return { error: { message: 'Sem conexão com o servidor.' } };
+  }
+
+  const contentType = resp.headers.get('Content-Type') || '';
+  if (!resp.ok || !contentType.includes('text/event-stream')) {
+    // Erro pré-stream — a Edge responde JSON normal nesses casos.
+    let error = { message: `Erro HTTP ${resp.status}`, status: resp.status };
+    try {
+      const j = await resp.json();
+      if (j && j.message) error = { message: j.message, status: resp.status, code: j.error };
+    } catch { /* corpo não-JSON — mantém erro genérico */ }
+    console.error(`[invokeFunctionStream] ${name} falhou:`, error);
+    return { error };
+  }
+
+  // Parser SSE mínimo: eventos separados por \n\n, linhas event:/data:.
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let idx;
+    while ((idx = buffer.indexOf('\n\n')) !== -1) {
+      const bloco = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+
+      let evento = 'message';
+      let dataStr = '';
+      for (const linha of bloco.split('\n')) {
+        if (linha.startsWith('event: ')) evento = linha.slice(7).trim();
+        else if (linha.startsWith('data: ')) dataStr += linha.slice(6);
+      }
+      if (!dataStr) continue;
+
+      try {
+        const dados = JSON.parse(dataStr);
+        if (typeof handlers[evento] === 'function') handlers[evento](dados);
+      } catch (err) {
+        // Handler quebrou ou JSON veio sujo — loga e segue o stream.
+        console.error(`[invokeFunctionStream] evento ${evento} falhou:`, err);
+      }
+    }
+  }
+
+  return { error: null };
+}

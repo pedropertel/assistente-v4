@@ -566,7 +566,7 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 | **3.C** | `prompt_base` real + placeholders + histórico de 20 mensagens | **2.5h** |
 | **3.D** ✅ | Router pattern real (Roteador → JSON → modelo dinâmico, chips de persona) | **5h** (real: ~8h em 8 sub-tarefas) |
 | **3.F** ⏸️ | **🎯 Marcos viajando pro Meta (PRIORIDADE #1)** — Vault + tools + confirmação humana pra writes. **Pausada 2026-07-06: bloqueio externo** (Meta Business em nome da esposa; retomar via conta dela). 3.F.0.5 ✅ feita | **9.5h** |
-| **3.E** | Streaming SSE token-a-token | 3.5h |
+| **3.E** ✅ | Streaming SSE token-a-token — **feita 2026-07-06** (Edge v46 opt-in + front; eventos router/delta/tool antecipam chip em ~1.5s; histórico paralelo ao Roteador) | 3.5h |
 | **3.G** | Polimento: cotação real, mapeamento via configuracoes (inclui registro de tools), rate limit, logger | 3.5h |
 | **3.H** | Alemão (voz Web Speech → `sitio_lancamentos`) | 5h |
 | **3.I** ✅ | Marina (captura de ideias com tools) — **feita 2026-07-06, adiantada por causa da pausa da 3.F** | 2h |
