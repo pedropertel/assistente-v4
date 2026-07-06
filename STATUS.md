@@ -38,7 +38,8 @@ router/delta/tool/done/error + pipeline compartilhado JSON/SSE
 `invokeFunctionStream` (fetch+SSE) e bolha com chip antecipado
 + "digitando…" + "⚙️ executando ação…". Pedro testou no preview:
 "funcionou, ficou rápido e mostra parcial".
-**Pendente:** "aprovado" explícito pra merge dev→main.
+**EM PRODUÇÃO** — aprovada pelo Pedro e promovida em
+2026-07-06 (merge `b2bb72b` dev→main).
 **3.I em produção** desde 2026-07-06 (merge `bd7bf49`).
 **Próxima sub-fase:** 3.H (Alemão + voz) ou 3.G (polimento).
 
