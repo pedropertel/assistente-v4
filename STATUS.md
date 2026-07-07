@@ -25,7 +25,7 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **A4 legado limpo:** tabela `teste` + 5 functions legadas removidas.
 - ⏸️ **Decisões do Pedro:** signup mantido aberto (só 1 usuário — risco
   registrado); cap Anthropic e upgrade Supabase segurados por ora.
-- 🟡 **Sync pendente:** front fixes (C7/D2/ping) na `dev` → próximo /aprovar.
+- ✅ **Sincronizado:** Fase 3.5 promovida (merge `a921291`, 2026-07-07). main = dev.
 - 🔴 **3.5.D:** correções restantes (C6/C8, prompt caching, extrair tools,
   deno check + fumaça). Detalhe no Backlog.
 
