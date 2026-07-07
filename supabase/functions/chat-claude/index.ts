@@ -1777,20 +1777,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const latencia_ms = Date.now() - t0;
 
     // ──────────────────────────── extract ───────────────────────────────
-    // Com tools, o texto final pode não ser o primeiro bloco — busca o
-    // primeiro bloco text. Métricas usam os TOTAIS acumulados do loop
-    // (sem tools = 1 volta, idêntico à v42).
-    const blocoTexto = response.content.find((b) => b.type === 'text');
-    const textoFinal = blocoTexto?.type === 'text' ? blocoTexto.text : '';
+    // D4 (revisão 2026-07-07): concatena TODOS os blocos text (não só o 1º).
+    // Uma resposta pode vir com texto + tool_use + texto — pegar só o
+    // primeiro perdia conteúdo. Métricas usam os TOTAIS acumulados do loop.
+    const textoFinal = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { type: 'text'; text: string }).text)
+      .join('\n\n');
+    // D4: avisa quando a resposta foi truncada por max_tokens (antes era
+    // tratado como fim normal — Pedro não sabia que faltou texto).
+    const truncada = response.stop_reason === 'max_tokens';
     // C5: NUNCA persistir conteudo vazio sem erro (envenena histórico).
     // Placeholder garante que a row sempre tem texto não-vazio.
-    const conteudo = textoFinal.trim().length > 0
+    const conteudoBase = textoFinal.trim().length > 0
       ? textoFinal
       : (ultimoTextoComConteudo.trim().length > 0
         ? ultimoTextoComConteudo
         : (toolCallsAcumulados.length > 0
           ? '[tools executadas, sem resposta final do modelo]'
           : '[resposta vazia do modelo]'));
+    // D4: sufixo discreto quando truncou (só se havia texto de verdade).
+    const conteudo = (truncada && textoFinal.trim().length > 0)
+      ? conteudoBase + '\n\n_(resposta truncada — pede pra continuar)_'
+      : conteudoBase;
     const tokens_entrada = tokensEntradaTotal;
     const tokens_saida = tokensSaidaTotal;
     const modelo_usado = response.model;
