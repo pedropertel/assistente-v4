@@ -22,8 +22,10 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **3.5.A.1 + 3.5.C deploy:** CLI já autenticado; fixes da Edge deployados
   via CLI e validados (fumaça passou, guardrail verificado). Deploy manual
   aposentado.
-- 🔴 **Ainda precisa do Pedro:** fechar signup (A2); cap de custo Anthropic
-  (A3); OK pra dropar legado (A4); decidir upgrade Supabase (A5).
+- ✅ **A4 legado limpo:** tabela `teste` + 5 functions legadas removidas.
+- ⏸️ **Decisões do Pedro:** signup mantido aberto (só 1 usuário — risco
+  registrado); cap Anthropic e upgrade Supabase segurados por ora.
+- 🟡 **Sync pendente:** front fixes (C7/D2/ping) na `dev` → próximo /aprovar.
 - 🔴 **3.5.D:** correções restantes (C6/C8, prompt caching, extrair tools,
   deno check + fumaça). Detalhe no Backlog.
 
