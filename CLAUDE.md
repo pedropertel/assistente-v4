@@ -342,6 +342,9 @@ window.invokeFunction = invokeFunction;
 // CHAT (3.B — chat real com persistência)
 window.enviarMensagem = enviarMensagem;
 window.handleChatKeydown = handleChatKeydown;
+
+// CHAT (3.H.2 — ditado por voz)
+window.toggleDitado = toggleDitado;
 ```
 
 ---
