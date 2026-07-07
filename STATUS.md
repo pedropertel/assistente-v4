@@ -78,7 +78,7 @@ futuros.
 ⏸️ 3.F — Marcos + Meta Ads (pausada — bloqueio externo Meta Business; 3.F.0.5 ✅ feita)
 ✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — em produção)
 ✅ 3.E — Streaming SSE (v46 + front, testado — aguarda aprovado)
-✅ 3.G — Polimento (cotação real + configs no banco + rate limit, v49 — aguarda aprovado)
+✅ 3.G — Polimento (cotação real + configs no banco + rate limit, v49 — em produção)
 ⏳ 3.H — Alemão + voz (Web Speech API)
 ⏳ 3.J — Marcela briefing matinal (cron, opcional)
 
