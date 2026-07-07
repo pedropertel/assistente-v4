@@ -19,9 +19,11 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **3.5.A/B autônomo:** backup dos dados, migrations+baseline versionados,
   snapshot dos prompts, fixes da Edge C1/C2/C3/C4/C5/C7 + guardrail D1
   (commitados na `dev`, deploy pendente).
-- 🔴 **Precisa do Pedro:** `supabase login` (3.5.A.1) → aí Claude faz o deploy
-  limpo dos fixes; fechar signup (A2); cap de custo Anthropic (A3); dropar
-  legado (A4, OK do Pedro); decidir upgrade Supabase (A5).
+- ✅ **3.5.A.1 + 3.5.C deploy:** CLI já autenticado; fixes da Edge deployados
+  via CLI e validados (fumaça passou, guardrail verificado). Deploy manual
+  aposentado.
+- 🔴 **Ainda precisa do Pedro:** fechar signup (A2); cap de custo Anthropic
+  (A3); OK pra dropar legado (A4); decidir upgrade Supabase (A5).
 - 🔴 **3.5.D:** correções restantes (C6/C8, prompt caching, extrair tools,
   deno check + fumaça). Detalhe no Backlog.
 
