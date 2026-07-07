@@ -47,11 +47,12 @@
  *     Cadeia preservada via mensagem_pai_id.
  *
  * Function calling (3.I.1):
- *   - Loop genérico de tools: quando a persona escolhida tem tools
- *     registradas em TOOLS_POR_PERSONA, o payload ganha `tools` e a
- *     Edge executa blocos tool_use devolvendo tool_result, até
- *     MAX_VOLTAS_TOOLS. Blocos executados vão pra observabilidade em
- *     chat_mensagens.tool_calls / tool_results (colunas da 3.F.0.5).
+ *   - Loop genérico de tools: o payload ganha `tools` conforme o que
+ *     está ativo em configuracoes.ai_tools.* (resolvido contra o
+ *     CATALOGO_TOOLS da Edge), e a Edge executa blocos tool_use
+ *     devolvendo tool_result, até MAX_VOLTAS_TOOLS. Blocos executados
+ *     vão pra observabilidade em chat_mensagens.tool_calls /
+ *     tool_results (colunas da 3.F.0.5).
  *   - Erro de executor NÃO derruba o request — vira tool_result com
  *     is_error, modelo responde explicando.
  *   - 3.I.2: tool `salvar_ideia` (INSERT em `ideias`).
@@ -83,8 +84,20 @@
  *   - Roteador / personas (3.D)
  *   - Tools do Meta / confirmação humana inline (3.F)
  *   - Resolução de nome real da entidade no placeholder (3.D)
- *   - Cotação USD→BRL real (3.G.1 — hoje fixa em 5.0)
- *   - historico_max_mensagens em configuracoes (3.G.2 — hoje hardcoded em 20)
+ *
+ * Cotação USD→BRL (3.G.1): real via `_shared/cotacao.ts` (cadeia
+ * er-api → currency-api CDN; awesomeapi devolve 429 pro IP do
+ * Supabase). Cache 1h por isolate, fallback cache velho → 5.0.
+ *
+ * Configs no banco (3.G.2): mapeamento complexidade→modelo, pricing,
+ * modelos sem temperature, janela de histórico e tools ativas vêm de
+ * `configuracoes` (REGRA 12 — editável por tela na Fase 4, sem
+ * redeploy). Fallbacks hardcoded pra cada chave; NUNCA 500 por config.
+ * Cache por isolate via `_shared/config.ts`.
+ *
+ * Rate limit (3.G.3): máx `ai_limites.msgs_por_minuto` mensagens
+ * user/minuto → 429 ANTES de gastar Anthropic (proteção de custo).
+ * Fail-open se a contagem falhar.
  */
 
 import {
@@ -101,30 +114,34 @@ import {
   Anthropic,
   calcCustoUSD,
   getAnthropicClient,
-  suportaTemperature,
+  MODEL_PRICING,
+  type PrecoModelo,
 } from '../_shared/anthropic.ts';
 import { getSupabaseAdmin } from '../_shared/supabase-admin.ts';
+import { getCotacaoUSDBRL } from '../_shared/cotacao.ts';
+import { getConfigs, lerConfig } from '../_shared/config.ts';
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
-// Cotação fixa pra cálculo de custo BRL.
-// TODO 3.G.1: substituir por cotação real via awesomeapi.com.br/json/USD-BRL.
-const COTACAO_USD_BRL = 5.0;
+// ══════ Valores de comportamento: banco primeiro, hardcode como fallback ══════
+// 3.G.2: a fonte da verdade é `configuracoes` (REGRA 12 — Pedro edita
+// por tela na Fase 4, sem redeploy). As constantes abaixo são FALLBACK
+// fail-safe: chave deletada/ausente → Edge segue de pé + warning no log.
 
-// Janela de contexto enviada à Anthropic (últimas N mensagens da entidade).
-// TODO 3.G.2: ler de configuracoes.ai_defaults.historico_max_mensagens
-// (decisão #7 do plan file aprovada — fica em 20 fixas até a 3.G.2 migrar).
+// Fallback de configuracoes.ai_defaults.historico_max_mensagens.
 const MAX_HISTORICO = 20;
 
+// Fallback de configuracoes.ai_defaults.modelos_sem_temperature
+// (Adaptive Thinking rejeita temperature — validado 3.D.3.2).
+const MODELOS_SEM_TEMPERATURE_FALLBACK = ['claude-opus-4-7'];
+
 /**
- * Mapeamento `nivel_complexidade` → modelo Anthropic.
- * Hardcoded até 3.G.2 migrar pra `configuracoes.ai_defaults.mapeamento_complexidade`.
+ * Fallback de configuracoes.ai_defaults.mapeamento_complexidade.
  *
  * - simples:  tarefas curtas, factuais (Marcela, Alemão, fallback sem persona)
  * - medio:    raciocínio moderado (Marcos, Marina)
  * - complexo: análise estratégica e redação importante (Bruno)
  *
  * Conforme `Tabela — personas.md` linhas 112-118.
- * Pricing dos 3 modelos em `_shared/anthropic.ts` MODEL_PRICING (validado 2026-05-03).
  */
 const MAPA_COMPLEXIDADE_MODELO = {
   simples:  'claude-haiku-4-5-20251001',
@@ -302,6 +319,7 @@ async function buscarHistoricoMensagens(
   entidade_id: string | null,
   exceto_id: string,
   requestId: string,
+  maxHistorico: number = MAX_HISTORICO,
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
   let q = supabase
     .from('chat_mensagens')
@@ -310,7 +328,7 @@ async function buscarHistoricoMensagens(
     .is('erro', null)
     .neq('id', exceto_id)
     .order('created_at', { ascending: false })
-    .limit(MAX_HISTORICO);
+    .limit(maxHistorico);
 
   q = entidade_id === null
     ? q.is('entidade_id', null)
@@ -435,10 +453,14 @@ async function getPersonasReais(
 function escolherModelo(
   persona: PersonaRow | null,
   modeloAgente: string,
+  // 3.G.2: mapa vindo de configuracoes; nível ausente no mapa do banco
+  // cai no fallback hardcoded (defesa contra edição incompleta).
+  mapa: Record<string, string> = MAPA_COMPLEXIDADE_MODELO,
 ): string {
   if (!persona) return modeloAgente;
   if (persona.modelo_override) return persona.modelo_override;
-  return MAPA_COMPLEXIDADE_MODELO[persona.nivel_complexidade];
+  return mapa[persona.nivel_complexidade] ??
+    MAPA_COMPLEXIDADE_MODELO[persona.nivel_complexidade];
 }
 
 // ══════════════════ Function calling — infra genérica (3.I.1) ══════════════════
@@ -607,18 +629,23 @@ const TOOL_SALVAR_IDEIA: ToolDef = {
  * "finge" que executou (validado nos testes da 3.I.3: Marcos e Alemão
  * respondiam "Anotado ✓" sem gravar nada).
  *
- * - TOOLS_TRANSVERSAIS: disponíveis em TODO turn, inclusive fallback
- *   sem persona (custo: ~200 tokens de definition por chamada).
- * - TOOLS_POR_PERSONA: exceção pra tools que só fazem sentido num
- *   domínio E têm custo/risco pra justificar o gating (ex: tools Meta
- *   do Marcos na 3.F — envolvem credenciais e writes em campanha).
+ * 3.G.2: QUAIS tools estão ativas (e onde) vem de `configuracoes`:
+ * - `ai_tools.transversais`: nomes disponíveis em TODO turn, inclusive
+ *   fallback sem persona (custo: ~200 tokens de definition/chamada).
+ * - `ai_tools.por_persona`: exceção pra tools com credencial/risco
+ *   (ex: tools Meta do Marcos na 3.F) — slug → lista de nomes.
  *
- * Hardcoded até a 3.G migrar pra `configuracoes` (mesmo padrão do
- * MAPA_COMPLEXIDADE_MODELO).
+ * O CATÁLOGO abaixo é o que a Edge sabe EXECUTAR (código não vai pro
+ * banco). Config referencia por nome; nome desconhecido na config →
+ * warning + ignora (fail-safe).
  */
-const TOOLS_TRANSVERSAIS: ToolDef[] = [TOOL_SALVAR_IDEIA];
+const CATALOGO_TOOLS: Record<string, ToolDef> = {
+  salvar_ideia: TOOL_SALVAR_IDEIA,
+};
 
-const TOOLS_POR_PERSONA: Record<string, ToolDef[]> = {};
+// Fallbacks de ai_tools.* (comportamento da 3.I.2.1).
+const TOOLS_TRANSVERSAIS_FALLBACK = ['salvar_ideia'];
+const TOOLS_POR_PERSONA_FALLBACK: Record<string, string[]> = {};
 
 /**
  * Teto de voltas do loop de tools numa mesma mensagem. Guarda contra
@@ -731,6 +758,7 @@ async function chamarRoteador(
   requestId: string,
   userMsgId: string,
   agenteId: string,
+  precosModelos: Record<string, PrecoModelo>,
 ): Promise<{
   decisao: RoteadorDecisao;
   systemMsgId: string | null;
@@ -795,8 +823,8 @@ async function chamarRoteador(
     decisao = parsearJsonRoteador(raw, requestId);
     tokens_entrada = response.usage.input_tokens;
     tokens_saida = response.usage.output_tokens;
-    custo_usd = calcCustoUSD(modeloRoteador, tokens_entrada, tokens_saida);
-    custo_brl = custo_usd * COTACAO_USD_BRL;
+    custo_usd = calcCustoUSD(modeloRoteador, tokens_entrada, tokens_saida, precosModelos);
+    custo_brl = custo_usd * (await getCotacaoUSDBRL(requestId));
   } catch (err) {
     erroRouter = err instanceof Error
       ? err.message.slice(0, 500)
@@ -1025,6 +1053,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse(req, mapped.status, mapped.body);
   }
 
+  // ──────────── Configs do banco + rate limit (3.G.2/3.G.3) ────────────
+  // Configs: 1 SELECT por isolate (cache). Rate limit: conta mensagens
+  // user do último minuto ANTES de gastar Anthropic — proteção de custo
+  // contra loop/bug de front. Roda pré-stream: 429 é JSON nos 2 modos.
+  // Falha na contagem NÃO bloqueia (fail-open: melhor responder do que
+  // travar o Pedro por bug na query).
+  const configs = await getConfigs(supabase, request_id);
+
+  const limitePorMinuto = lerConfig<number>(
+    configs,
+    'ai_limites.msgs_por_minuto',
+    10,
+    request_id,
+  );
+  const { count: msgsUltimoMinuto, error: errRate } = await supabase
+    .from('chat_mensagens')
+    .select('id', { count: 'exact', head: true })
+    .eq('papel', 'user')
+    .gte('created_at', new Date(Date.now() - 60_000).toISOString());
+
+  if (errRate) {
+    logWarn('chat-claude.rate_limit_check_fail', { request_id });
+  } else if ((msgsUltimoMinuto ?? 0) > limitePorMinuto) {
+    // A mensagem atual já foi contada (INSERT user acima) — ela fica
+    // persistida mas sem resposta; o front mostra o toast de 429.
+    logWarn('chat-claude.rate_limit_hit', {
+      request_id,
+      msgs_ultimo_minuto: msgsUltimoMinuto,
+      limite: limitePorMinuto,
+    });
+    return jsonResponse(req, 429, {
+      ok: false,
+      error: 'rate_limit',
+      message:
+        `Limite de ${limitePorMinuto} mensagens por minuto atingido. ` +
+        'Espera alguns segundos.',
+      request_id,
+    });
+  }
+
   // ──────────── Pipeline compartilhado (JSON e SSE) ────────────
   // `emit` null = modo JSON (comportamento v45). Com emit, dispara
   // eventos router/delta/tool ao longo do caminho; o retorno vira o
@@ -1033,6 +1101,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
     emit: EmitSSE | null,
   ): Promise<Record<string, unknown>> => {
     const client = getAnthropicClient();
+
+    // Valores de comportamento vindos de configuracoes (3.G.2), com
+    // fallback hardcoded se a chave sumir. `configs` carregada acima
+    // (mesmo objeto usado no rate limit).
+    const precosModelos = lerConfig<Record<string, PrecoModelo>>(
+      configs,
+      'ai_defaults.precos_modelos',
+      MODEL_PRICING as unknown as Record<string, PrecoModelo>,
+      request_id,
+    );
+    const mapaComplexidade = lerConfig<Record<string, string>>(
+      configs,
+      'ai_defaults.mapeamento_complexidade',
+      MAPA_COMPLEXIDADE_MODELO as unknown as Record<string, string>,
+      request_id,
+    );
+    const modelosSemTemperature = lerConfig<string[]>(
+      configs,
+      'ai_defaults.modelos_sem_temperature',
+      MODELOS_SEM_TEMPERATURE_FALLBACK,
+      request_id,
+    );
+    const maxHistorico = lerConfig<number>(
+      configs,
+      'ai_defaults.historico_max_mensagens',
+      MAX_HISTORICO,
+      request_id,
+    );
+
+    // Aquece a cotação em paralelo (3.G.1) — quando o cálculo de custo
+    // chegar, o valor já está em cache (nunca bloqueia: cache velho ou
+    // fallback se as fontes não responderem em 2s cada).
+    getCotacaoUSDBRL(request_id);
 
     // ──────────── Roteador + histórico EM PARALELO (3.E.1 bônus) ────────────
     // Antes o histórico esperava o Roteador terminar (~1.2-2.2s) pra só
@@ -1043,6 +1144,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       entidade_id,
       userMsgId,
       request_id,
+      maxHistorico,
     );
     const router = await chamarRoteador(
       client,
@@ -1052,6 +1154,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       request_id,
       userMsgId,
       agente.id,
+      precosModelos,
     );
 
     // ──────────── Aplica decisão do Roteador (3.D.3) ────────────
@@ -1092,9 +1195,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       request_id,
     );
 
-    // Modelo: Roteador via persona.modelo_override ou MAPA[nivel_complexidade].
-    // Persona null → fallback pra agente.modelo (Haiku, comportamento 3.C).
-    const modeloEscolhido = escolherModelo(persona, agente.modelo);
+    // Modelo: Roteador via persona.modelo_override ou mapa[nivel_complexidade]
+    // (mapa de configuracoes, 3.G.2). Persona null → agente.modelo.
+    const modeloEscolhido = escolherModelo(persona, agente.modelo, mapaComplexidade);
 
     // Evento `router` (3.E.1): o front mostra chip da persona + indicador
     // "digitando" AGORA — ~2s antes do primeiro token da resposta.
@@ -1115,10 +1218,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // MAX_VOLTAS_TOOLS. Em stream, cada volta streama texto via `delta`.
     const t0 = Date.now();
 
+    // Tools ativas vêm de configuracoes (3.G.2): nomes → catálogo.
+    // Nome desconhecido na config → warning + ignora (fail-safe).
+    const resolverTools = (nomes: string[]): ToolDef[] => {
+      const defs: ToolDef[] = [];
+      for (const nome of nomes) {
+        const def = CATALOGO_TOOLS[nome];
+        if (def) defs.push(def);
+        else {
+          logWarn('chat-claude.tool_config_desconhecida', {
+            request_id,
+            nome,
+          });
+        }
+      }
+      return defs;
+    };
+    const nomesTransversais = lerConfig<string[]>(
+      configs,
+      'ai_tools.transversais',
+      TOOLS_TRANSVERSAIS_FALLBACK,
+      request_id,
+    );
+    const nomesPorPersona = lerConfig<Record<string, string[]>>(
+      configs,
+      'ai_tools.por_persona',
+      TOOLS_POR_PERSONA_FALLBACK,
+      request_id,
+    );
     // Transversais sempre + exclusivas da persona (quando houver).
     const toolsDaPersona = [
-      ...TOOLS_TRANSVERSAIS,
-      ...(persona ? (TOOLS_POR_PERSONA[persona.slug] ?? []) : []),
+      ...resolverTools(nomesTransversais),
+      ...(persona ? resolverTools(nomesPorPersona[persona.slug] ?? []) : []),
     ];
 
     // Observabilidade acumulada do loop (vai pro INSERT assistant).
@@ -1137,8 +1268,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ];
 
       for (let volta = 0; ; volta++) {
-        // Opus 4.7 (e modelos com Adaptive Thinking) não aceitam `temperature`.
-        // Helper `suportaTemperature` filtra — ver `_shared/anthropic.ts`.
+        // Modelos com Adaptive Thinking não aceitam `temperature` —
+        // lista vem de configuracoes.ai_defaults.modelos_sem_temperature
+        // (3.G.2; validado em runtime na 3.D.3.2 com Opus 4.7).
         const baseParams = {
           model: modeloEscolhido,
           max_tokens: agente.max_tokens,
@@ -1148,9 +1280,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             ? { tools: toolsDaPersona.map((t) => t.spec) }
             : {}),
         };
-        const params = suportaTemperature(modeloEscolhido)
-          ? { ...baseParams, temperature: Number(agente.temperatura) }
-          : baseParams;
+        const params = modelosSemTemperature.includes(modeloEscolhido)
+          ? baseParams
+          : { ...baseParams, temperature: Number(agente.temperatura) };
 
         if (emit) {
           // Modo SSE: helper MessageStream do SDK — 'text' dispara por
@@ -1171,6 +1303,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           response.model,
           response.usage.input_tokens,
           response.usage.output_tokens,
+          precosModelos,
         );
 
         if (response.stop_reason !== 'tool_use') break;
@@ -1319,7 +1452,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const tokens_saida = tokensSaidaTotal;
     const modelo_usado = response.model;
     const custo_usd = custoUsdTotal;
-    const custo_brl = custo_usd * COTACAO_USD_BRL;
+    const custo_brl = custo_usd * (await getCotacaoUSDBRL(request_id));
 
     // ──────────── INSERT assistant (sucesso) ────────────
     // tool_calls/tool_results (3.F.0.5): NULL quando turn não usou tools.

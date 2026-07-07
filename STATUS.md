@@ -38,7 +38,8 @@ router/delta/tool/done/error + pipeline compartilhado JSON/SSE
 `invokeFunctionStream` (fetch+SSE) e bolha com chip antecipado
 + "digitando…" + "⚙️ executando ação…". Pedro testou no preview:
 "funcionou, ficou rápido e mostra parcial".
-**Pendente:** "aprovado" explícito pra merge dev→main.
+**EM PRODUÇÃO** — aprovada pelo Pedro e promovida em
+2026-07-06 (merge `b2bb72b` dev→main).
 **3.I em produção** desde 2026-07-06 (merge `bd7bf49`).
 **Próxima sub-fase:** 3.H (Alemão + voz) ou 3.G (polimento).
 
@@ -77,11 +78,11 @@ futuros.
 ⏸️ 3.F — Marcos + Meta Ads (pausada — bloqueio externo Meta Business; 3.F.0.5 ✅ feita)
 ✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — em produção)
 ✅ 3.E — Streaming SSE (v46 + front, testado — aguarda aprovado)
-⏳ 3.G — Polimento (cotação real, rate limit, logger, tools em configuracoes)
+✅ 3.G — Polimento (cotação real + configs no banco + rate limit, v49 — aguarda aprovado)
 ⏳ 3.H — Alemão + voz (Web Speech API)
 ⏳ 3.J — Marcela briefing matinal (cron, opcional)
 
-**Total:** 7/9 sub-fases fechadas. 3.F pausada não conta —
+**Total:** 8/9 sub-fases fechadas. 3.F pausada não conta —
 retoma quando o acesso ao Meta Business existir.
 
 **Nota:** 3.D executou 8 sub-tarefas vs 6 planejadas — 3.D.0.5,

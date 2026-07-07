@@ -17,17 +17,14 @@
  *   - Throw com mensagem clara se key faltar.
  *
  * Pricing fail-safe:
- *   - Apenas Haiku 4.5 mapeado nesta versão.
- *   - Sonnet/Opus entram na 3.D quando router for ativado, com
- *     pricing validado naquele momento.
+ *   - 3.G.2: pricing primário vem de configuracoes.ai_defaults.precos_modelos
+ *     (parâmetro opcional de calcCustoUSD). MODEL_PRICING é o fallback.
  *   - calcCustoUSD retorna 0 + log warning se modelo não mapeado
  *     (defesa: nunca cobra valor errado).
  *
  * Timeout:
  *   - 60s no SDK. Anthropic tipicamente responde Haiku em 800ms-2s,
  *     mas defesa pra picos.
- *
- * TODO 3.G.2: migrar MODEL_PRICING pra configuracoes.ai_defaults.
  */
 
 import Anthropic from 'npm:@anthropic-ai/sdk@0.92.0';
@@ -54,19 +51,29 @@ export function getAnthropicClient(): Anthropic {
 // Preços USD por 1M tokens. Haiku validado 2026-05-02; Sonnet 4.6 e Opus 4.7
 // validados 2026-05-03 via doc oficial Anthropic
 // (platform.claude.com/docs/en/about-claude/models/overview).
-// TODO 3.G.2: migrar pra `configuracoes.ai_defaults.precos_modelos`.
+// 3.G.2: fallback — pricing primário vem de configuracoes.
 export const MODEL_PRICING = {
   'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
   'claude-sonnet-4-6':         { input: 3.00, output: 15.00 },
   'claude-opus-4-7':           { input: 5.00, output: 25.00 },
 } as const;
 
+// Shape de uma entrada de pricing (USD por 1M tokens).
+export interface PrecoModelo {
+  input: number;
+  output: number;
+}
+
 export function calcCustoUSD(
   modelo: string,
   tokensIn: number,
   tokensOut: number,
+  // 3.G.2: pricing vindo de configuracoes.ai_defaults.precos_modelos.
+  // Ausente/sem o modelo → cai no MODEL_PRICING hardcoded (fail-safe).
+  pricing?: Record<string, PrecoModelo>,
 ): number {
-  const p = MODEL_PRICING[modelo as keyof typeof MODEL_PRICING];
+  const p = pricing?.[modelo] ??
+    MODEL_PRICING[modelo as keyof typeof MODEL_PRICING];
   if (!p) {
     // Fail-safe: modelo não mapeado → custo zero + warning visível
     // no logger (não escala silenciosamente). Defesa contra bug que
@@ -93,12 +100,9 @@ export function calcCustoUSD(
  * Adaptive Thinking documentado em
  * platform.claude.com/docs/en/about-claude/models/overview.
  *
- * Padrão da Edge: chamar `suportaTemperature(modelo)` antes de adicionar
- * `temperature` ao payload. Lista vai crescer conforme novos modelos
- * com Adaptive Thinking entrarem (ex: Opus 4.8, Opus 5).
- *
- * TODO 3.G.2: migrar pra `configuracoes.ai_defaults.modelos_sem_temperature`
- * (junto com MODEL_PRICING e MAPA_COMPLEXIDADE_MODELO).
+ * 3.G.2: a lista primária vem de configuracoes.ai_defaults.
+ * modelos_sem_temperature (consumida direto na chat-claude).
+ * Este export é mantido como referência/fallback documental.
  */
 export const MODELOS_SEM_TEMPERATURE: ReadonlySet<string> = new Set([
   'claude-opus-4-7',
