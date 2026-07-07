@@ -98,6 +98,12 @@
  * Rate limit (3.G.3): máx `ai_limites.msgs_por_minuto` mensagens
  * user/minuto → 429 ANTES de gastar Anthropic (proteção de custo).
  * Fail-open se a contagem falhar.
+ *
+ * Voz + sítio (3.H.1): flag `origem_voz` no body → tools de write
+ * gravam origem='voz' + transcricao_original. Tool `lancar_custo_sitio`
+ * (INSERT em sitio_lancamentos) com spec dinâmico: enum de categorias
+ * vem do banco (cache isolate). Retorno instrui eco por extenso pro
+ * Pedro conferir o que a transcrição de voz virou.
  */
 
 import {
@@ -479,18 +485,34 @@ interface ToolContext {
   // transversais funcionam mesmo assim.
   persona: PersonaRow | null;
   requestId: string;
+  // 3.H.1: true quando a mensagem veio de ditado por voz no front
+  // (flag `origem_voz` no body). Tools de write usam pra preencher
+  // origem='voz' + transcricao_original (rastreio do que foi ditado).
+  origemVoz: boolean;
+  textoOriginal: string;
+}
+
+interface ToolSpec {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 }
 
 /**
  * Uma tool registrável: spec no formato Anthropic `tools` + executor.
  * O retorno do executor é serializado como JSON no bloco tool_result.
+ *
+ * 3.H.1: `prepararSpec` opcional gera o spec dinamicamente (ex: enum de
+ * categorias vindo do banco, cacheado por isolate). Quando presente,
+ * substitui `spec` no payload da Anthropic — `spec.name` continua sendo
+ * a identidade da tool no catálogo e no loop.
  */
 interface ToolDef {
-  spec: {
-    name: string;
-    description: string;
-    input_schema: Record<string, unknown>;
-  };
+  spec: ToolSpec;
+  prepararSpec?: (
+    supabase: SupabaseClient,
+    requestId: string,
+  ) => Promise<ToolSpec>;
   executar: (
     input: Record<string, unknown>,
     ctx: ToolContext,
@@ -592,7 +614,8 @@ const TOOL_SALVAR_IDEIA: ToolDef = {
         tags,
         proxima_acao_sugerida: proximaAcao,
         entidade_id: ctx.entidade_id,
-        origem: 'chat',
+        origem: ctx.origemVoz ? 'voz' : 'chat',
+        transcricao_original: ctx.origemVoz ? ctx.textoOriginal : null,
         status: 'capturada',
         mensagem_origem_id: ctx.userMsgId,
         agente_id: ctx.agenteId,
@@ -622,6 +645,264 @@ const TOOL_SALVAR_IDEIA: ToolDef = {
   },
 };
 
+// ──────────── Tool `lancar_custo_sitio` (3.H.1) ────────────
+
+// Caches de isolate pro sítio: entidade (id fixo) e categorias
+// (nome/tipo/id — alimentam o enum dinâmico do spec e a resolução
+// nome→id no executor). Cold-restart refresca; TODO 4.x invalidação.
+let cachedEntidadeSitioId: string | null = null;
+let cachedCategoriasSitio:
+  | Array<{ id: string; nome: string; tipo: string }>
+  | null = null;
+
+async function getEntidadeSitioId(
+  supabase: SupabaseClient,
+): Promise<string | null> {
+  if (cachedEntidadeSitioId) return cachedEntidadeSitioId;
+  const { data } = await supabase
+    .from('entidades')
+    .select('id')
+    .eq('slug', 'sitio')
+    .single();
+  cachedEntidadeSitioId = (data?.id as string) ?? null;
+  return cachedEntidadeSitioId;
+}
+
+async function getCategoriasSitio(
+  supabase: SupabaseClient,
+): Promise<Array<{ id: string; nome: string; tipo: string }>> {
+  if (cachedCategoriasSitio) return cachedCategoriasSitio;
+  const { data } = await supabase
+    .from('sitio_categorias')
+    .select('id, nome, tipo')
+    .neq('ativa', false)
+    .order('nome');
+  cachedCategoriasSitio = (data ?? []) as Array<
+    { id: string; nome: string; tipo: string }
+  >;
+  return cachedCategoriasSitio;
+}
+
+/** Data de hoje em Brasília no formato YYYY-MM-DD (coluna é date). */
+function hojeBrasilia(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date());
+}
+
+const FORMAS_PAGAMENTO = ['pix', 'dinheiro', 'transferencia', 'cartao', 'boleto'];
+
+/**
+ * Tool `lancar_custo_sitio` (3.H.1) — Alemão registra entradas/saídas
+ * do Sítio Monte da Vitória em `sitio_lancamentos`, tipicamente por voz.
+ *
+ * - Spec DINÂMICO (`prepararSpec`): enum de categorias vem do banco
+ *   (dedupli­cado por nome — existem 2 "Outros" em saída, achado 3.H.0;
+ *   resolução nome→id prefere a categoria do tipo do lançamento).
+ * - Valores chegam em REAIS do modelo e viram centavos aqui (CHECK > 0).
+ * - `data` opcional YYYY-MM-DD (modelo resolve "ontem" via {data_hora});
+ *   default hoje em Brasília.
+ * - `entidade_id` é resolvido por slug='sitio' (NOT NULL na tabela e o
+ *   chat geral manda entidade nula).
+ * - Retorno instrui o modelo a ECOAR o resumo por extenso (melhoria 1
+ *   aprovada — defesa contra transcrição de voz errada virar registro
+ *   silenciosamente errado). Correção = arquivar pela tela (Fase 4).
+ */
+const TOOL_LANCAR_CUSTO_SITIO: ToolDef = {
+  spec: {
+    name: 'lancar_custo_sitio',
+    description:
+      'Registra um lançamento financeiro (entrada ou saída) do Sítio ' +
+      'Monte da Vitória. Use quando o Pedro relatar um gasto, compra, ' +
+      'pagamento ou receita do sítio (ex: "paguei 350 de diarista", ' +
+      '"comprei 10 sacos de adubo a 85 cada", "vendi 20 sacas de café"). ' +
+      'Não use pra gastos das outras empresas.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  prepararSpec: async (supabase, _requestId) => {
+    const categorias = await getCategoriasSitio(supabase);
+    const nomes = [...new Set(categorias.map((c) => c.nome))];
+    return {
+      name: 'lancar_custo_sitio',
+      description: TOOL_LANCAR_CUSTO_SITIO.spec.description,
+      input_schema: {
+        type: 'object',
+        properties: {
+          tipo: {
+            type: 'string',
+            enum: ['entrada', 'saida'],
+            description: 'saida = gasto/pagamento; entrada = receita/venda.',
+          },
+          categoria: {
+            type: 'string',
+            enum: nomes,
+            description: 'Categoria do lançamento (lista oficial do sítio).',
+          },
+          descricao: {
+            type: 'string',
+            description: 'Descrição curta e fiel ao que o Pedro disse.',
+          },
+          valor_reais: {
+            type: 'number',
+            description: 'Valor TOTAL em reais (ex: 350 ou 89.90).',
+          },
+          forma_pagamento: {
+            type: 'string',
+            enum: FORMAS_PAGAMENTO,
+            description: 'Se o Pedro não disser, pergunte antes de lançar.',
+          },
+          data: {
+            type: 'string',
+            description:
+              'YYYY-MM-DD. Só preencha se o Pedro indicar outra data ' +
+              '("ontem", "sábado"); ausente = hoje.',
+          },
+          quantidade: {
+            type: 'number',
+            description: 'Opcional (ex: 10 sacos → 10).',
+          },
+          unidade: {
+            type: 'string',
+            description: 'Opcional (saco, kg, saca, litro, diária...).',
+          },
+          valor_unitario_reais: {
+            type: 'number',
+            description: 'Opcional: valor unitário em reais (ex: 85).',
+          },
+          fornecedor: {
+            type: 'string',
+            description: 'Opcional: de quem comprou / quem recebeu.',
+          },
+        },
+        required: ['tipo', 'categoria', 'descricao', 'valor_reais', 'forma_pagamento'],
+      },
+    };
+  },
+  executar: async (input, ctx) => {
+    const tipo = input.tipo === 'entrada' ? 'entrada' : 'saida';
+    const descricao = typeof input.descricao === 'string'
+      ? input.descricao.trim()
+      : '';
+    const valorReais = Number(input.valor_reais);
+    const formaPagamento = typeof input.forma_pagamento === 'string'
+      ? input.forma_pagamento
+      : '';
+
+    if (!descricao || !Number.isFinite(valorReais) || valorReais <= 0) {
+      return { erro: 'descricao e valor_reais (> 0) são obrigatórios.' };
+    }
+    if (!FORMAS_PAGAMENTO.includes(formaPagamento)) {
+      return {
+        erro: `forma_pagamento inválida. Aceitas: ${FORMAS_PAGAMENTO.join(', ')}.`,
+      };
+    }
+
+    const entidadeSitioId = await getEntidadeSitioId(ctx.supabase);
+    if (!entidadeSitioId) {
+      return { erro: "Entidade 'sitio' não encontrada no banco." };
+    }
+
+    // Resolve categoria por nome (case-insensitive), preferindo a do
+    // tipo do lançamento (há nomes duplicados entre/no mesmo tipo).
+    const categorias = await getCategoriasSitio(ctx.supabase);
+    const nomeBuscado = typeof input.categoria === 'string'
+      ? input.categoria.trim().toLowerCase()
+      : '';
+    const candidatas = categorias.filter(
+      (c) => c.nome.toLowerCase() === nomeBuscado,
+    );
+    const categoria = candidatas.find((c) => c.tipo === tipo) ?? candidatas[0];
+    if (!categoria) {
+      const validas = [...new Set(
+        categorias.filter((c) => c.tipo === tipo).map((c) => c.nome),
+      )].join(', ');
+      return {
+        erro: `Categoria '${input.categoria}' não existe. ` +
+          `Válidas pra ${tipo}: ${validas}.`,
+      };
+    }
+
+    // Data: validação leve; inválida/ausente = hoje em Brasília.
+    const data = typeof input.data === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(input.data)
+      ? input.data
+      : hojeBrasilia();
+
+    const quantidade = Number.isFinite(Number(input.quantidade)) &&
+        Number(input.quantidade) > 0
+      ? Number(input.quantidade)
+      : null;
+    const unidade = typeof input.unidade === 'string' &&
+        input.unidade.trim().length > 0
+      ? input.unidade.trim()
+      : null;
+    const valorUnitarioReais = Number(input.valor_unitario_reais);
+    const valorUnitarioCentavos = Number.isFinite(valorUnitarioReais) &&
+        valorUnitarioReais > 0
+      ? Math.round(valorUnitarioReais * 100)
+      : null;
+    const fornecedor = typeof input.fornecedor === 'string' &&
+        input.fornecedor.trim().length > 0
+      ? input.fornecedor.trim()
+      : null;
+
+    const { data: row, error } = await ctx.supabase
+      .from('sitio_lancamentos')
+      .insert({
+        entidade_id: entidadeSitioId,
+        categoria_id: categoria.id,
+        tipo,
+        data_lancamento: data,
+        descricao,
+        valor_centavos: Math.round(valorReais * 100),
+        quantidade,
+        unidade,
+        valor_unitario_centavos: valorUnitarioCentavos,
+        forma_pagamento: formaPagamento,
+        fornecedor,
+        origem: ctx.origemVoz ? 'voz' : 'chat',
+        transcricao_original: ctx.origemVoz ? ctx.textoOriginal : null,
+        mensagem_origem_id: ctx.userMsgId,
+        agente_id: ctx.agenteId,
+        persona_id: ctx.persona?.id ?? null,
+      })
+      .select('id')
+      .single();
+
+    if (error || !row) {
+      logWarn('chat-claude.lancar_custo_sitio_fail', {
+        request_id: ctx.requestId,
+        pg_code: error?.code ?? null,
+      });
+      return { erro: 'Falha ao gravar o lançamento. Tenta de novo.' };
+    }
+
+    const valorFmt = (valorReais).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    });
+    const resumo = [
+      tipo === 'saida' ? 'Saída' : 'Entrada',
+      valorFmt,
+      categoria.nome,
+      data,
+      formaPagamento,
+      quantidade && unidade ? `${quantidade} ${unidade}` : null,
+      fornecedor,
+    ].filter(Boolean).join(' · ');
+
+    return {
+      sucesso: true,
+      lancamento_id: row.id,
+      resumo,
+      mensagem_pro_modelo:
+        'Lançamento gravado. ECOE o resumo por extenso pro Pedro conferir ' +
+        '(valor, categoria, data, forma de pagamento) e diga que se algo ' +
+        'estiver errado é só avisar que arquiva. Não invente dados.',
+    };
+  },
+};
+
 /**
  * FILOSOFIA (decisão Pedro, 2026-07-06): tools são capacidades do
  * SISTEMA, não da persona. A persona define o TOM, não o PODER.
@@ -641,10 +922,11 @@ const TOOL_SALVAR_IDEIA: ToolDef = {
  */
 const CATALOGO_TOOLS: Record<string, ToolDef> = {
   salvar_ideia: TOOL_SALVAR_IDEIA,
+  lancar_custo_sitio: TOOL_LANCAR_CUSTO_SITIO,
 };
 
-// Fallbacks de ai_tools.* (comportamento da 3.I.2.1).
-const TOOLS_TRANSVERSAIS_FALLBACK = ['salvar_ideia'];
+// Fallbacks de ai_tools.* (3.I.2.1 + 3.H.1).
+const TOOLS_TRANSVERSAIS_FALLBACK = ['salvar_ideia', 'lancar_custo_sitio'];
 const TOOLS_POR_PERSONA_FALLBACK: Record<string, string[]> = {};
 
 /**
@@ -971,7 +1253,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ───────────────────────── parse + validate ─────────────────────────
   // Erros de input respondem JSON normal SEMPRE (mesmo com stream: true) —
   // acontecem antes do stream abrir; o front checa Content-Type do response.
-  let body: { texto?: unknown; entidade_id?: unknown; stream?: unknown };
+  let body: {
+    texto?: unknown;
+    entidade_id?: unknown;
+    stream?: unknown;
+    origem_voz?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -1009,10 +1296,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // 3.E.1: flag opt-in. Ausente/false = JSON idêntico à v45.
   const streamMode = body?.stream === true;
 
+  // 3.H.1: mensagem ditada por voz no front — tools de write gravam
+  // origem='voz' + transcricao_original pra rastreio.
+  const origemVoz = body?.origem_voz === true;
+
   logInfo('chat-claude.start', {
     request_id,
     has_entidade: entidade_id !== null,
     stream: streamMode,
+    voz: origemVoz,
   });
   // NOTA: NÃO loga texto — pode conter dados sensíveis.
 
@@ -1252,6 +1544,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ...(persona ? resolverTools(nomesPorPersona[persona.slug] ?? []) : []),
     ];
 
+    // 3.H.1: specs dinâmicos (ex: enum de categorias do sítio) são
+    // resolvidos aqui — cacheados por isolate dentro de cada tool, então
+    // depois do primeiro request custa zero.
+    const specsResolvidos = await Promise.all(
+      toolsDaPersona.map((t) =>
+        t.prepararSpec ? t.prepararSpec(supabase, request_id) : t.spec
+      ),
+    );
+
     // Observabilidade acumulada do loop (vai pro INSERT assistant).
     const toolCallsAcumulados: Array<Record<string, unknown>> = [];
     const toolResultsAcumulados: Array<Record<string, unknown>> = [];
@@ -1276,9 +1577,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           max_tokens: agente.max_tokens,
           system: promptProcessadoComPersona,
           messages,
-          ...(toolsDaPersona.length > 0
-            ? { tools: toolsDaPersona.map((t) => t.spec) }
-            : {}),
+          ...(specsResolvidos.length > 0 ? { tools: specsResolvidos } : {}),
         };
         const params = modelosSemTemperature.includes(modeloEscolhido)
           ? baseParams
@@ -1355,6 +1654,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
                   agenteId: agente.id,
                   persona,
                   requestId: request_id,
+                  origemVoz,
+                  textoOriginal: texto,
                 },
               );
             } catch (toolErr) {
