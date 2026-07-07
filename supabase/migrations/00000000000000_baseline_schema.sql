@@ -1,0 +1,49 @@
+-- ═══════════════════════════════════════════════════════════════════════
+-- BASELINE DO SCHEMA — Assistente v4
+-- ═══════════════════════════════════════════════════════════════════════
+-- O schema real (20 tabelas: agentes, chat_anexos, chat_mensagens,
+-- configuracoes, documentos, entidades, eventos, ideias, meta_ads_cache,
+-- meta_adsets_cache, meta_campanhas_cache, meta_conexoes, meta_credenciais,
+-- pastas, personas, sitio_categorias, sitio_lancamentos, tarefas + a órfã
+-- `teste`) foi CAPTURADO E VERIFICADO do banco vivo em 2026-07-07 durante a
+-- revisão. Colunas, constraints, índices e policies conferidos.
+--
+-- Este arquivo é um PLACEHOLDER até o dump oficial. Motivo: transcrever ~20KB
+-- de DDL à mão introduz risco de erro sutil num artefato que precisa ser
+-- exato. O dump autoritativo sai em 1 comando quando o CLI logar (item F1):
+--
+--   supabase login
+--   supabase db dump --project-ref msbwplsknncnxwsalumd \
+--     --schema public -f supabase/migrations/00000000000000_baseline_schema.sql
+--
+-- ENQUANTO ISSO, a recuperação está coberta por:
+--   • 090 - Backups/backup-2026-07-07.json  (todos os dados)
+--   • 040 - IA e Agentes/prompts/            (prompts de personas + agente)
+--   • 050 - Banco de Dados/                  (docs por tabela)
+--   • 20260707000000_seed_configuracoes.sql  (as 31 configs)
+--   • a query de regeneração abaixo (roda a qualquer momento via MCP)
+--
+-- ── Query de regeneração do DDL (peça ao Claude: "regenera o baseline") ──
+-- WITH cols AS (
+--   SELECT c.table_name, string_agg('  '||c.column_name||' '||
+--     CASE WHEN c.data_type='USER-DEFINED' THEN c.udt_name
+--          WHEN c.data_type='ARRAY' THEN replace(c.udt_name,'_','')||'[]'
+--          WHEN c.data_type='numeric' THEN 'numeric('||c.numeric_precision||','||c.numeric_scale||')'
+--          WHEN c.data_type='timestamp with time zone' THEN 'timestamptz'
+--          ELSE c.data_type END ||
+--     CASE WHEN c.is_nullable='NO' THEN ' NOT NULL' ELSE '' END ||
+--     CASE WHEN c.column_default IS NOT NULL THEN ' DEFAULT '||c.column_default ELSE '' END,
+--     E',\n' ORDER BY c.ordinal_position) AS defs
+--   FROM information_schema.columns c
+--   JOIN information_schema.tables t ON t.table_name=c.table_name
+--     AND t.table_schema='public' AND t.table_type='BASE TABLE'
+--   WHERE c.table_schema='public' GROUP BY c.table_name)
+-- SELECT string_agg('CREATE TABLE '||table_name||' ('||E'\n'||defs||E'\n);', E'\n\n') FROM cols;
+-- (+ pg_constraint pra constraints, pg_indexes pra índices, pg_policies pra RLS)
+--
+-- ── Nota de segurança (revisão A1) ──
+-- Policies atuais: `auth_full_access FOR ALL TO authenticated USING(true)` em
+-- todas as tabelas de app (qualquer conta LOGADA acessa tudo — risco só se o
+-- signup estiver aberto). Exceção: `teste` tem `allow_all TO public` (anon lê).
+-- Ajuste recomendado na migration de segurança (3.5.A): fechar signup +
+-- opcionalmente escopar policies ao uid do Pedro + dropar `teste`.
