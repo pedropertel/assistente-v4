@@ -568,7 +568,7 @@ Se o escopo ficar maior que isso, **dividir em subtarefas antes de começar**.
 | **3.F** ⏸️ | **🎯 Marcos viajando pro Meta (PRIORIDADE #1)** — Vault + tools + confirmação humana pra writes. **Pausada 2026-07-06: bloqueio externo** (Meta Business em nome da esposa; retomar via conta dela). 3.F.0.5 ✅ feita | **9.5h** |
 | **3.E** ✅ | Streaming SSE token-a-token — **feita 2026-07-06** (Edge v46 opt-in + front; eventos router/delta/tool antecipam chip em ~1.5s; histórico paralelo ao Roteador) | 3.5h |
 | **3.G** ✅ | Polimento — **feita 2026-07-06** (3.G.1 cotação real er-api/CDN v48 · 3.G.2 comportamento da IA em configuracoes, 7 seeds · 3.G.3 rate limit 429 pré-Anthropic, v49) | 3.5h |
-| **3.H** | Alemão (voz Web Speech → `sitio_lancamentos`) | 5h |
+| **3.H** ✅ | Alemão (voz Web Speech → `sitio_lancamentos`) — **feita 2026-07-07** (tool lancar_custo_sitio com spec dinâmico + 🎤 ditado revisável + origem_voz/transcricao + regra rural no Roteador, v50-v51) | 5h |
 | **3.I** ✅ | Marina (captura de ideias com tools) — **feita 2026-07-06, adiantada por causa da pausa da 3.F** | 2h |
 | **3.J** | Marcela briefing matinal (cron) — opcional, adiável pra Fase 5 | 3h |
 

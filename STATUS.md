@@ -79,10 +79,10 @@ futuros.
 ✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — em produção)
 ✅ 3.E — Streaming SSE (v46 + front, testado — aguarda aprovado)
 ✅ 3.G — Polimento (cotação real + configs no banco + rate limit, v49 — em produção)
-⏳ 3.H — Alemão + voz (Web Speech API)
+✅ 3.H — Alemão + voz (tool sítio + 🎤 ditado, v51 — aguarda aprovado)
 ⏳ 3.J — Marcela briefing matinal (cron, opcional)
 
-**Total:** 8/9 sub-fases fechadas. 3.F pausada não conta —
+**Total:** 9/9 sub-fases implementáveis fechadas. 🏁 3.F pausada não conta —
 retoma quando o acesso ao Meta Business existir.
 
 **Nota:** 3.D executou 8 sub-tarefas vs 6 planejadas — 3.D.0.5,
