@@ -340,6 +340,13 @@ async function buscarHistoricoMensagens(
     ? q.is('entidade_id', null)
     : q.eq('entidade_id', entidade_id);
 
+  // C5 (revisão 2026-07-07): exclui rows de conteúdo vazio do histórico.
+  // Uma resposta assistant vazia (ex: max_tokens no lugar errado) gravada
+  // sem erro envenenava as próximas ~20 msgs (Anthropic rejeita assistant
+  // com content vazio → 400 em cadeia). Cinto de segurança pras rows já
+  // existentes; o INSERT abaixo também virou placeholder.
+  q = q.neq('conteudo', '');
+
   const { data, error } = await q;
   if (error) {
     logWarn('chat-claude.historico_fail', {
@@ -429,14 +436,21 @@ async function getPersonasReais(
     .eq('interno', false)
     .order('slug');
 
-  if (error) {
-    logWarn('chat-claude.personas_reais_fail', { request_id: requestId });
-    cachedPersonasReais = new Map();
-    return cachedPersonasReais;
+  // C1 (revisão 2026-07-07): NÃO cachear falha nem vazio. Se a query falhar
+  // ou voltar 0 rows (ex: janela de restore da pausa do free tier, quando
+  // o schema aparece vazio), cachear um Map vazio matava o roteamento de
+  // personas até o isolate reciclar. Retorna sem cachear → próximo request
+  // tenta de novo (mesmo padrão do config.ts).
+  if (error || !data || data.length === 0) {
+    logWarn('chat-claude.personas_reais_fail', {
+      request_id: requestId,
+      motivo: error ? 'erro' : 'vazio',
+    });
+    return new Map();
   }
 
   const map = new Map<string, PersonaRow>();
-  for (const p of (data || [])) {
+  for (const p of data) {
     map.set(p.slug, p as PersonaRow);
   }
   cachedPersonasReais = map;
@@ -664,22 +678,25 @@ async function getEntidadeSitioId(
     .select('id')
     .eq('slug', 'sitio')
     .single();
-  cachedEntidadeSitioId = (data?.id as string) ?? null;
-  return cachedEntidadeSitioId;
+  // C1: só cacheia se achou de verdade (não cacheia null de falha).
+  if (data?.id) cachedEntidadeSitioId = data.id as string;
+  return (data?.id as string) ?? null;
 }
 
 async function getCategoriasSitio(
   supabase: SupabaseClient,
 ): Promise<Array<{ id: string; nome: string; tipo: string }>> {
   if (cachedCategoriasSitio) return cachedCategoriasSitio;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('sitio_categorias')
     .select('id, nome, tipo')
     .neq('ativa', false)
     .order('nome');
-  cachedCategoriasSitio = (data ?? []) as Array<
-    { id: string; nome: string; tipo: string }
-  >;
+  // C1: NÃO cachear falha/vazio (senão a tool do sítio fica quebrada até o
+  // isolate reciclar — enum vazio no spec vira 400 ou "categoria não existe"
+  // em toda mensagem). Retorna sem cachear; próximo request tenta de novo.
+  if (error || !data || data.length === 0) return [];
+  cachedCategoriasSitio = data as Array<{ id: string; nome: string; tipo: string }>;
   return cachedCategoriasSitio;
 }
 
@@ -722,6 +739,19 @@ const TOOL_LANCAR_CUSTO_SITIO: ToolDef = {
   prepararSpec: async (supabase, _requestId) => {
     const categorias = await getCategoriasSitio(supabase);
     const nomes = [...new Set(categorias.map((c) => c.nome))];
+    // C1: se a lista vier vazia (falha transitória), NÃO manda `enum: []`
+    // (schema inválido → Anthropic rejeita a chamada inteira com 400).
+    // Omite o enum: vira string livre; o executor valida contra o banco.
+    const campoCategoria = nomes.length > 0
+      ? {
+        type: 'string',
+        enum: nomes,
+        description: 'Categoria do lançamento (lista oficial do sítio).',
+      }
+      : {
+        type: 'string',
+        description: 'Categoria do lançamento (validada no banco ao gravar).',
+      };
     return {
       name: 'lancar_custo_sitio',
       description: TOOL_LANCAR_CUSTO_SITIO.spec.description,
@@ -733,11 +763,7 @@ const TOOL_LANCAR_CUSTO_SITIO: ToolDef = {
             enum: ['entrada', 'saida'],
             description: 'saida = gasto/pagamento; entrada = receita/venda.',
           },
-          categoria: {
-            type: 'string',
-            enum: nomes,
-            description: 'Categoria do lançamento (lista oficial do sítio).',
-          },
+          categoria: campoCategoria,
           descricao: {
             type: 'string',
             description: 'Descrição curta e fiel ao que o Pedro disse.',
@@ -1756,13 +1782,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // (sem tools = 1 volta, idêntico à v42).
     const blocoTexto = response.content.find((b) => b.type === 'text');
     const textoFinal = blocoTexto?.type === 'text' ? blocoTexto.text : '';
+    // C5: NUNCA persistir conteudo vazio sem erro (envenena histórico).
+    // Placeholder garante que a row sempre tem texto não-vazio.
     const conteudo = textoFinal.trim().length > 0
       ? textoFinal
       : (ultimoTextoComConteudo.trim().length > 0
         ? ultimoTextoComConteudo
         : (toolCallsAcumulados.length > 0
           ? '[tools executadas, sem resposta final do modelo]'
-          : ''));
+          : '[resposta vazia do modelo]'));
     const tokens_entrada = tokensEntradaTotal;
     const tokens_saida = tokensSaidaTotal;
     const modelo_usado = response.model;
@@ -1856,7 +1884,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       };
 
-      (async () => {
+      // C2/C3 (revisão 2026-07-07): registra o trabalho com waitUntil pra
+      // garantir que os INSERTs finais (assistant/erro) completem MESMO se o
+      // cliente desconectar no meio (celular suspende o Safari). Sem isso, o
+      // runtime pode matar o worker ao cancelar o stream → resposta some do
+      // histórico e, se uma tool já gravou, o reenvio duplica o lançamento.
+      const trabalho = (async () => {
         try {
           const payload = await pipeline(emit);
           emit('done', payload);
@@ -1873,6 +1906,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
         }
       })();
+      // deno-lint-ignore no-explicit-any
+      const er = (globalThis as any).EdgeRuntime;
+      if (er && typeof er.waitUntil === 'function') er.waitUntil(trabalho);
     },
     cancel() {
       clienteDesconectou = true;
