@@ -52,17 +52,18 @@ async function initApp(session) {
   });
 
   // Ping de sanity da conexão — inofensivo, detecta regressão cedo.
+  // 3.5.A.4: antes usava a tabela órfã `teste` (sobra da Fase 0, removida
+  // na limpeza de legado). Agora usa `entidades`, que sempre existe.
   try {
-    const { data, error } = await supabase
-      .from('teste')
-      .select('msg')
-      .limit(1)
-      .single();
+    const { error } = await supabase
+      .from('entidades')
+      .select('id')
+      .limit(1);
 
     if (error) {
-      console.warn('[initApp] erro na query teste:', error.message);
+      console.warn('[initApp] ping de conexão falhou:', error.message);
     } else {
-      console.log('[initApp] conexão ok:', data.msg);
+      console.log('[initApp] conexão ok');
     }
   } catch (err) {
     console.warn('[initApp] erro:', err.message);
