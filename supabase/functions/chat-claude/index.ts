@@ -1559,6 +1559,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let tokensEntradaTotal = 0;
     let tokensSaidaTotal = 0;
     let custoUsdTotal = 0;
+    // Fallback de conteúdo (validado em teste 3.H.1): o modelo às vezes
+    // escreve o comentário JUNTO do tool_use e devolve a resposta final
+    // VAZIA depois do tool_result. Guardamos o último texto não-vazio de
+    // qualquer volta pra não mostrar "[tools executadas...]" ao Pedro.
+    let ultimoTextoComConteudo = '';
 
     let response;
     try {
@@ -1604,6 +1609,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
           response.usage.output_tokens,
           precosModelos,
         );
+
+        const textoVolta = response.content
+          .filter((b) => b.type === 'text')
+          .map((b) => (b as { type: 'text'; text: string }).text)
+          .join('');
+        if (textoVolta.trim().length > 0) ultimoTextoComConteudo = textoVolta;
 
         if (response.stop_reason !== 'tool_use') break;
 
@@ -1744,11 +1755,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // primeiro bloco text. Métricas usam os TOTAIS acumulados do loop
     // (sem tools = 1 volta, idêntico à v42).
     const blocoTexto = response.content.find((b) => b.type === 'text');
-    const conteudo = blocoTexto?.type === 'text'
-      ? blocoTexto.text
-      : (toolCallsAcumulados.length > 0
-        ? '[tools executadas, sem resposta final do modelo]'
-        : '');
+    const textoFinal = blocoTexto?.type === 'text' ? blocoTexto.text : '';
+    const conteudo = textoFinal.trim().length > 0
+      ? textoFinal
+      : (ultimoTextoComConteudo.trim().length > 0
+        ? ultimoTextoComConteudo
+        : (toolCallsAcumulados.length > 0
+          ? '[tools executadas, sem resposta final do modelo]'
+          : ''));
     const tokens_entrada = tokensEntradaTotal;
     const tokens_saida = tokensSaidaTotal;
     const modelo_usado = response.model;
