@@ -631,6 +631,27 @@
       flex-shrink: 0;
     }
 
+    /* Ditado por voz (3.H.2) — touch target 44px (REGRA 7). */
+    .chat-btn-ditado {
+      flex-shrink: 0;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .chat-btn-ditado.gravando {
+      background: #dc2626;
+      color: #fff;
+      animation: pulso-gravando 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulso-gravando {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
     /* ---------- DESKTOP (>= 768px): sidebar fixa, sem drawer ---------- */
 
     @media (min-width: 768px) {
@@ -970,6 +991,19 @@
               rows="1"
               onkeydown="handleChatKeydown(event)"
             ></textarea>
+            <!-- Ditado por voz (3.H.2) — revelado pelo chat.js quando o
+                 browser suporta Web Speech API. Preenche o textarea; o
+                 envio continua manual (Pedro revisa a transcrição). -->
+            <button
+              type="button"
+              id="btn-ditado"
+              class="btn chat-btn-ditado"
+              onclick="toggleDitado()"
+              aria-label="Ditar mensagem por voz"
+              hidden
+            >
+              🎤
+            </button>
             <button
               type="button"
               id="btn-enviar"

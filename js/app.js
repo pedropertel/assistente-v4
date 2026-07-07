@@ -7,6 +7,7 @@ import {
   carregarHistorico,
   enviarMensagem,
   handleChatKeydown,
+  toggleDitado,
 } from './modules/chat.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
@@ -152,3 +153,4 @@ window.invokeFunction = invokeFunction;
 // CHAT (3.B — chat real com persistência)
 window.enviarMensagem = enviarMensagem;
 window.handleChatKeydown = handleChatKeydown;
+window.toggleDitado = toggleDitado; // 3.H.2 — ditado por voz

@@ -37,6 +37,13 @@ export async function enviarMensagem() {
   const texto = ta.value.trim();
   if (!texto) return;
 
+  // 3.H.2: se o texto veio de ditado, marca a origem (Edge grava
+  // origem='voz' + transcricao_original nas tools). Reseta o flag e
+  // para o mic se ainda estiver gravando.
+  const veioDeVoz = textoVeioDeVoz;
+  textoVeioDeVoz = false;
+  if (ditandoAtivo) recognition?.stop();
+
   btn.disabled = true;
   ta.disabled = true;
 
@@ -57,7 +64,7 @@ export async function enviarMensagem() {
   try {
     const { error } = await invokeFunctionStream(
       'chat-claude',
-      { texto, stream: true },
+      { texto, stream: true, origem_voz: veioDeVoz },
       {
         router: (d) => {
           garantirBolha(d);
@@ -156,6 +163,80 @@ export function handleChatKeydown(event) {
     event.preventDefault();
     enviarMensagem();
   }
+}
+
+// ──────────── Ditado por voz (3.H.2) ────────────
+//
+// Web Speech API (SpeechRecognition) — transcrição LOCAL no aparelho,
+// custo zero, pt-BR. Fluxo: 🎤 → fala → texto aparece no textarea →
+// Pedro REVISA e envia manualmente (decisão 3.H: transcrição errada
+// não pode virar lançamento financeiro sem conferência).
+//
+// iOS Safari: exige toque no botão pra ativar o mic (gesto do usuário)
+// e encerra sozinho em pausas de fala — ditado por frase, não contínuo.
+// O envio marca `origem_voz: true` → Edge grava origem='voz' +
+// transcricao_original nas tools de write.
+
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recognition = null;
+let ditandoAtivo = false;
+let textoVeioDeVoz = false;
+
+// Revela o botão 🎤 só quando o browser suporta a API (module scripts
+// são deferred — DOM já parseado quando isso roda).
+const btnDitadoEl = document.getElementById('btn-ditado');
+if (btnDitadoEl && SpeechRec) btnDitadoEl.hidden = false;
+
+/**
+ * toggleDitado — inicia/para o ditado. Chamado pelo onclick do 🎤
+ * (exposto no window via app.js — REGRA 4).
+ */
+export function toggleDitado() {
+  const btn = document.getElementById('btn-ditado');
+  const ta = document.getElementById('chat-textarea');
+  if (!SpeechRec || !btn || !ta) return;
+
+  if (ditandoAtivo) {
+    recognition?.stop();
+    return;
+  }
+
+  recognition = new SpeechRec();
+  recognition.lang = 'pt-BR';
+  recognition.interimResults = true; // texto vai aparecendo enquanto fala
+  recognition.continuous = false; // iOS encerra em pausa de qualquer jeito
+
+  // Preserva o que já estava digitado (ditado concatena no fim).
+  const baseTexto = ta.value.trim().length > 0 ? ta.value.trim() + ' ' : '';
+
+  recognition.onresult = (event) => {
+    let transcrito = '';
+    for (const resultado of event.results) {
+      transcrito += resultado[0].transcript;
+    }
+    ta.value = baseTexto + transcrito;
+    textoVeioDeVoz = true;
+  };
+
+  recognition.onerror = (event) => {
+    // 'no-speech' (silêncio) e 'aborted' (parou no botão) são normais.
+    if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      showToast(`Ditado falhou: ${event.error}`, 'error');
+    }
+  };
+
+  recognition.onend = () => {
+    ditandoAtivo = false;
+    btn.classList.remove('gravando');
+    btn.textContent = '🎤';
+    ta.focus();
+  };
+
+  ditandoAtivo = true;
+  btn.classList.add('gravando');
+  btn.textContent = '⏹';
+  recognition.start();
 }
 
 // ──────────── Helpers internos ────────────
