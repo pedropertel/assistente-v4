@@ -88,6 +88,18 @@ export async function invokeFunction(name, payload) {
  *     rede fora): { error: { message, status? } }, nenhum handler roda.
  */
 export async function invokeFunctionStream(name, payload, handlers = {}) {
+  // D2 (revisão 2026-07-07): timeout/abort. Sem isso, uma Edge pendurada
+  // (ou rede que morre no meio) travava o chat até recarregar a página.
+  // O timer reinicia a cada chunk recebido — só dispara em silêncio real
+  // de STREAM_TIMEOUT_MS (não corta respostas longas que estão fluindo).
+  const STREAM_TIMEOUT_MS = 45_000;
+  const ctrl = new AbortController();
+  let timer = setTimeout(() => ctrl.abort(), STREAM_TIMEOUT_MS);
+  const resetTimeout = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => ctrl.abort(), STREAM_TIMEOUT_MS);
+  };
+
   let resp;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -101,14 +113,24 @@ export async function invokeFunctionStream(name, payload, handlers = {}) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload === undefined ? {} : payload),
+      signal: ctrl.signal,
     });
   } catch (err) {
+    clearTimeout(timer);
+    const abortou = err && err.name === 'AbortError';
     console.error(`[invokeFunctionStream] ${name} falhou na rede:`, err);
-    return { error: { message: 'Sem conexão com o servidor.' } };
+    return {
+      error: {
+        message: abortou
+          ? 'O servidor demorou demais pra responder. Tenta de novo.'
+          : 'Sem conexão com o servidor.',
+      },
+    };
   }
 
   const contentType = resp.headers.get('Content-Type') || '';
   if (!resp.ok || !contentType.includes('text/event-stream')) {
+    clearTimeout(timer);
     // Erro pré-stream — a Edge responde JSON normal nesses casos.
     let error = { message: `Erro HTTP ${resp.status}`, status: resp.status };
     try {
@@ -124,33 +146,50 @@ export async function invokeFunctionStream(name, payload, handlers = {}) {
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resetTimeout(); // D2: chegou dado → reinicia o relógio de silêncio
+      buffer += decoder.decode(value, { stream: true });
 
-    let idx;
-    while ((idx = buffer.indexOf('\n\n')) !== -1) {
-      const bloco = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const bloco = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
 
-      let evento = 'message';
-      let dataStr = '';
-      for (const linha of bloco.split('\n')) {
-        if (linha.startsWith('event: ')) evento = linha.slice(7).trim();
-        else if (linha.startsWith('data: ')) dataStr += linha.slice(6);
-      }
-      if (!dataStr) continue;
+        let evento = 'message';
+        let dataStr = '';
+        for (const linha of bloco.split('\n')) {
+          if (linha.startsWith('event: ')) evento = linha.slice(7).trim();
+          else if (linha.startsWith('data: ')) dataStr += linha.slice(6);
+        }
+        if (!dataStr) continue;
 
-      try {
-        const dados = JSON.parse(dataStr);
-        if (typeof handlers[evento] === 'function') handlers[evento](dados);
-      } catch (err) {
-        // Handler quebrou ou JSON veio sujo — loga e segue o stream.
-        console.error(`[invokeFunctionStream] evento ${evento} falhou:`, err);
+        try {
+          const dados = JSON.parse(dataStr);
+          if (typeof handlers[evento] === 'function') handlers[evento](dados);
+        } catch (err) {
+          // Handler quebrou ou JSON veio sujo — loga e segue o stream.
+          console.error(`[invokeFunctionStream] evento ${evento} falhou:`, err);
+        }
       }
     }
+  } catch (err) {
+    clearTimeout(timer);
+    const abortou = err && err.name === 'AbortError';
+    console.error(`[invokeFunctionStream] ${name} stream interrompido:`, err);
+    // Stream já abriu (HTTP 200), então sinaliza via evento error pro caller,
+    // que já sabe lidar (mostra toast, marca bolha). Também retorna error.
+    const e = {
+      message: abortou
+        ? 'A resposta travou no meio. Tenta de novo.'
+        : 'Conexão interrompida no meio da resposta.',
+    };
+    if (typeof handlers.error === 'function') handlers.error(e);
+    return { error: e };
   }
+  clearTimeout(timer);
 
   return { error: null };
 }

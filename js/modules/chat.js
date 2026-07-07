@@ -94,6 +94,10 @@ export async function enviarMensagem() {
       optimisticEl.classList.remove('optimistic');
       optimisticEl.classList.add('failed');
       if (stream) stream.bubble.classList.add('error');
+      // C7 (revisão 2026-07-07): devolve o texto pro campo pra Pedro não
+      // reescrever. Só se o erro foi ANTES de qualquer resposta chegar
+      // (sem stream nem eventos) — senão a mensagem já foi processada.
+      if (!stream) ta.value = texto;
       return;
     }
 
@@ -105,6 +109,7 @@ export async function enviarMensagem() {
     showToast('Erro inesperado. Vê o console.', 'error');
     optimisticEl.classList.remove('optimistic');
     optimisticEl.classList.add('failed');
+    if (!stream) ta.value = texto; // C7: recupera a mensagem digitada
   } finally {
     btn.disabled = false;
     ta.disabled = false;

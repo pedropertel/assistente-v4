@@ -68,5 +68,24 @@ export function lerConfig<T>(
     }
     return fallback;
   }
-  return configs.get(chave) as T;
+  // C4 (revisão 2026-07-07): valida o tipo contra o shape do fallback.
+  // A tela da Fase 4 (e o SQL de hoje) grava jsonb livre — um tipo errado
+  // (ex: rate limit salvo como objeto, tools salvas como string) desligava
+  // proteções em silêncio. Aqui: se o formato não bate com o fallback,
+  // loga e usa o fallback (cumpre de verdade o "NUNCA quebra por config").
+  const valor = configs.get(chave);
+  const fbArray = Array.isArray(fallback);
+  const okTipo = fbArray
+    ? Array.isArray(valor)
+    : (valor !== null && typeof valor === typeof fallback);
+  if (!okTipo) {
+    logWarn('config.tipo_invalido', {
+      request_id: requestId,
+      chave,
+      tipo_recebido: Array.isArray(valor) ? 'array' : (valor === null ? 'null' : typeof valor),
+      tipo_esperado: fbArray ? 'array' : typeof fallback,
+    });
+    return fallback;
+  }
+  return valor as T;
 }

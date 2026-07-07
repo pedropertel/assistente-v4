@@ -792,30 +792,96 @@ infra de function calling que a 3.F vai reusar.
 
 ---
 
-## Fase 4 — UI dos módulos (cada módulo em 3-5 tarefas)
+## Fase 3.5 — Fundação & Correções (inserida pós-revisão 2026-07-07)
 
-> **Antes da reconciliação de 2026-05-02 esta era a Fase 3.** Continua o mesmo conteúdo: telas dos módulos visuais consumindo o banco da Fase 2 + a IA backend da Fase 3.
+> Sub-fase criada a partir da revisão multi-agente. Paga a dívida técnica
+> antes de construir a UI da Fase 4 por cima. Relatório completo:
+> `070 - Roadmap/REVISÃO — 2026-07-07 (multi-agente).md`. Ordem por payoff.
 
-Ao chegar aqui, planejar cada módulo junto com o Claude Code, uma sub-tarefa de cada vez. Exemplo pro módulo Tarefas:
+### ✅ 3.5.A — Blindar (parte autônoma feita 2026-07-07)
+Feito por Claude: backup completo dos dados (`090 - Backups/`), migrations
+versionadas + baseline (`supabase/migrations/`), snapshot dos prompts
+(`040 - IA e Agentes/prompts/`).
+**Falta (precisa do Pedro):**
+- [ ] **3.5.A.1** — `supabase login` no CLI → destrava deploy limpo (F1). Sem isso o deploy é payload manual de ~50KB com risco de drift.
+- [ ] **3.5.A.2** — Dashboard → Auth → desabilitar "Enable Sign Up" (A1: tranca a porta; a policy libera tudo pra qualquer conta logada).
+- [ ] **3.5.A.3** — Console Anthropic → cap de custo/uso diário (A2: rede contra queima de créditos, já que a anon key é pública).
+- [ ] **3.5.A.4** — Dropar as 4 Edge Functions legadas (`create-admin-user`, `portal`, `meta-sync`, `meta-balance` — código fora do repo) + tabela `teste` (após trocar o ping do login em `app.js:57`). Destrutivo → OK do Pedro; Claude executa via MCP. (A3/A4)
+- [ ] **3.5.A.5** — Decisão: upgrade Supabase (~US$25/mês, elimina pausa semanal) OU cron de ping OU conviver (B4). Recomendado: upgrade quando uso virar diário.
 
-- 4.1 — Listar tarefas existentes numa tela simples
-- 4.2 — Botão "nova tarefa" que abre modal com formulário
-- 4.3 — Salvar nova tarefa no banco
-- 4.4 — Editar tarefa existente (clicar na tarefa abre modal de edição)
-- 4.5 — Deletar tarefa (com confirmação)
-- 4.6 — Transformar lista em kanban (3 colunas)
-- 4.7 — Drag & drop entre colunas
-- 4.8 — Lembretes (notificações)
+### 🟡 3.5.C — Correções da Edge (código feito, deploy pendente de 3.5.A.1)
+Commitadas na `dev`, sobem no 1º `supabase functions deploy chat-claude`:
+C1 (caches não gravam falha/vazio), C2/C3 (waitUntil no SSE), C4 (lerConfig
+valida tipo), C5 (conteúdo vazio), C7 (front recupera msg), D1 (guardrail
+anti-fingir). **Falta testar em produção após o deploy.**
 
-**Nunca pular direto pra "fazer o módulo Tarefas" — sempre dividir em sub-tarefas antes.**
-
-**Primeira tela obrigatória da Fase 4:** cadastro Meta credenciais (paga a dívida temporária do bootstrap manual da 3.F.0). Depois disso, telas dos outros módulos em ordem de uso real do Pedro.
+### 🔴 3.5.D — Correções restantes (não bloqueiam, mas entram aqui)
+- [ ] **3.5.D.1 (C6)** — Histórico carrega `tool_calls`/`tool_results` (hoje só papel+conteúdo) pra o modelo não "esquecer" que já executou tool e re-lançar. Cuidado: cadeia de messages Anthropic com tool_use precisa do tool_result correspondente — avaliar formato. Esforço M.
+- [x] **3.5.D.2 (C8)** ✅ — Front: timeout/abort no stream (AbortController 45s, reinicia a cada chunk). `b449979`.
+- [ ] **3.5.D.3 (D4)** — Prompt caching Anthropic: mover `{data_hora}` pro fim do system (ou pro user message) e marcar cache_control no bloco estável → corta custo de input em toda mensagem. Esforço S, payoff de custo real.
+- [~] **3.5.D.4 (C9)** — ✅ extract concatena todos os blocos text + aviso de truncamento (`b449979`). Falta: ditado não sobrescrever edição manual.
+- [~] **3.5.D.5 (F2)** — ✅ script de fumaça `supabase/functions/fumaca.sh` (JSON+SSE+400). Falta: `deno check` local (precisa deno instalado) no fluxo.
+- [ ] **3.5.D.6 (F3)** — Extrair as tools de `chat-claude/index.ts` (~1400 linhas) pra `_shared/tools/` ANTES da 3.F engordar. Esforço M.
+- [ ] **3.5.D.7 (F4)** — Decidir estratégia Edge dev/prod (hoje compartilhada: todo deploy afeta produção). Opções: função `chat-claude-dev` separada, ou aceitar e testar sempre via curl antes. Esforço S (decisão).
 
 ---
 
-## Fase 5 — Polimento e fase final
+## Fase 4 — UI dos módulos (replanejada pós-revisão 2026-07-07)
 
-A ser definida conforme o uso real for revelando prioridades.
+> **Antes da reconciliação de 2026-05-02 esta era a Fase 3.** Telas dos
+> módulos consumindo o banco (Fase 2) + a IA (Fase 3).
+>
+> **Replanejamento (revisão):** a 1ª tela NÃO é mais o cadastro Meta (a 3.F
+> está pausada sem previsão). A prioridade é: (1) o chat, que é a interface
+> PRIMÁRIA e hoje é cru; (2) as telas de correção dos registros que as tools
+> já criam sem ter como consertar. Ordem por uso real, não por completude.
+
+### Pré-requisito de arquitetura (antes de qualquer tela de edição)
+- [ ] **4.0 — Invalidação de cache (E4/E1 da revisão).** Os caches de isolate
+  (~5min) vão sabotar as telas de edição: Pedro muda uma persona/config/label
+  e não vê efeito por minutos. Antes de construir telas que editam esses dados,
+  resolver: `cache_version` em `configuracoes` que a Edge checa, ou TTL curto,
+  ou botão "recarregar". Esforço M. **Bloqueia as telas de personas/configs.**
+
+### 4.A — Chat utilizável (interface primária primeiro)
+- [ ] **4.A.1** — Markdown no chat (E7): render de `**negrito**`, listas, quebras. Hoje é textContent literal. Biblioteca mínima ou parser próprio (sem bundler). Esforço M.
+- [ ] **4.A.2** — Seletor de entidade no chat (E2): hoje `entidade_id` é sempre null e as conversas de todas as empresas se misturam. Chip/dropdown que define a entidade ativa → passa no body → histórico e Roteador por empresa. Esforço M.
+- [ ] **4.A.3** — Editar/arquivar/favoritar mensagem; limpar conversa. Esforço M.
+
+### 4.B — Telas de correção (as tools já criam dados sem conserto — D2)
+- [ ] **4.B.1** — Tela de Ideias (Marina): listar, editar, arquivar, converter. A tool `salvar_ideia` já grava; hoje não há como corrigir. Esforço M.
+- [ ] **4.B.2** — Tela de Lançamentos do Sítio (Alemão): listar, editar, arquivar, filtrar por categoria/período; corrigir transcrição de voz errada. A tool `lancar_custo_sitio` já grava. **Também limpar a categoria "Outros" duplicada** (achado dados). Esforço L.
+
+### 4.C — Módulos CRUD (ordem por uso real — triagem, NÃO fazer todos; E5)
+Cada módulo = 3-5 sub-tarefas (listar → criar → editar → arquivar → [kanban/extras]).
+Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
+- [ ] **4.C.1** — Tarefas (kanban 4 status + drag&drop + lembrete)
+- [ ] **4.C.2** — Agenda/Eventos (lista + criação; recorrência depois)
+- [ ] **4.C.3** — Config: personas, entidades, configs de IA, labels (REGRA 12; depende de 4.0)
+- [ ] **4.C.4** — Documentos (biblioteca + upload Storage)
+- [ ] **4.C.5** — Dashboard (visão geral; por último, consome os outros)
+- [ ] **4.C.6** — Sítio (relatórios além dos lançamentos), CEDTEC (quando a 3.F voltar)
+
+### 4.D — PWA de verdade (F5 — hoje é documentado mas inexistente)
+- [ ] **4.D.1** — `manifest.json` + ícones (192/512) + `sw.js` com cache versionado (cuidado: SW que serve JS velho após deploy é armadilha — usar versão no nome do cache + skipWaiting). Só então "instalável/offline" é verdade.
+
+**Nunca pular direto pra "fazer o módulo X" — sempre dividir em sub-tarefas antes.**
+
+---
+
+## Fase 5 — Ampliação (depois da Fase 4)
+
+- **3.F — Marcos + Meta Ads** (PAUSADA por bloqueio externo: Meta Business
+  em nome da esposa). Quando o acesso existir: reconstruir o plano detalhado
+  (o arquivo `.claude/plans/temporal-tinkering-castle.md` com as 16 decisões
+  C1-C16 **se perdeu** — achado E6), Vault pro token, `_shared/meta-graph.ts`,
+  tools com confirmação humana inline pra writes. A infra de tools/spec
+  dinâmico (3.I/3.H) já está pronta pra receber.
+- **3.J — Briefing matinal da Marcela** (cron). Opcional.
+- **Proativo/observabilidade:** sugestões automáticas, dashboard de custo por
+  persona/dia (dados já em `chat_mensagens`), retenção de `chat_mensagens`
+  (rows `system` são ~30%; achado baixo).
+- Definir o resto conforme o uso real revelar prioridades.
 
 ---
 

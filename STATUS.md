@@ -12,59 +12,28 @@
 
 ## Onde paramos
 
-**Fase ativa:** 3 — IA real (Edge Functions + Anthropic + chat)
-**Sub-fase ativa:** **3.F ⏸️ PAUSADA por bloqueio externo**
-(2026-07-06). O Meta Business do CEDTEC está em nome da esposa
-do Pedro; Pedro criou a página, mas a autenticação como dono
-da empresa falhou. Retomada da 3.F exige side quest via conta
-dela (token + ad_account). Sem previsão — 3.F volta quando o
-acesso existir.
-**3.F.0.5 ✅ fechada** (commit `9730fc2`, 2026-05-03) — ALTER
-aplicado no banco (confirmado via SQL pós-restore em
-2026-07-06: `tool_calls` + `tool_results` existem em
-`chat_mensagens`) + docs de `chat_mensagens` e CONVENÇÕES.
-**3.I ✅ IMPLEMENTADA** (2026-07-06, mesma sessão da retomada):
-loop genérico de tools (3.I.1, v43) + tool `salvar_ideia`
-(3.I.2, v44) + tools transversais (3.I.2.1, v45) + fix do
-prompt do Roteador (Marina como opção + regra de captura de
-ideia com prioridade sobre entidade). Validada fim-a-fim via
-curl: 2 ideias salvas no banco com tags, rastreio e
-observabilidade em tool_calls/tool_results.
-**3.E ✅ IMPLEMENTADA E TESTADA** (2026-07-06, mesma sessão):
-streaming SSE opt-in. Edge v46 (`47f6f11`) com eventos
-router/delta/tool/done/error + pipeline compartilhado JSON/SSE
-+ histórico em paralelo com o Roteador (bônus aprovado,
-~300-500ms a menos por mensagem). Front (`abcd6fc`) com
-`invokeFunctionStream` (fetch+SSE) e bolha com chip antecipado
-+ "digitando…" + "⚙️ executando ação…". Pedro testou no preview:
-"funcionou, ficou rápido e mostra parcial".
-**EM PRODUÇÃO** — aprovada pelo Pedro e promovida em
-2026-07-06 (merge `b2bb72b` dev→main).
-**3.I em produção** desde 2026-07-06 (merge `bd7bf49`).
-**Próxima sub-fase:** 3.H (Alemão + voz) ou 3.G (polimento).
+**Fase 3 ✅ COMPLETA** (9/9 implementáveis, em produção). Fecha o backend de IA.
 
-**Últimas sub-tarefas fechadas (3.D.5 fecha a sub-fase inteira):**
+**Agora: Fase 3.5 — Fundação & Correções** (criada pela revisão multi-agente
+de 2026-07-07; relatório em `070 - Roadmap/`).
+- ✅ **3.5.A/B autônomo:** backup dos dados, migrations+baseline versionados,
+  snapshot dos prompts, fixes da Edge C1/C2/C3/C4/C5/C7 + guardrail D1
+  (commitados na `dev`, deploy pendente).
+- ✅ **3.5.A.1 + 3.5.C deploy:** CLI já autenticado; fixes da Edge deployados
+  via CLI e validados (fumaça passou, guardrail verificado). Deploy manual
+  aposentado.
+- ✅ **A4 legado limpo:** tabela `teste` + 5 functions legadas removidas.
+- ⏸️ **Decisões do Pedro:** signup mantido aberto (só 1 usuário — risco
+  registrado); cap Anthropic e upgrade Supabase segurados por ora.
+- 🟡 **Sync pendente:** front fixes (C7/D2/ping) na `dev` → próximo /aprovar.
+- 🔴 **3.5.D:** correções restantes (C6/C8, prompt caching, extrair tools,
+  deno check + fumaça). Detalhe no Backlog.
 
-- **3.D.5** — Ritual de fechamento. 2 commits finais
-  (`feat(3.D)` + `docs(3.D)`) + merge no-ff dev→main.
-  Sub-fase 3.D oficialmente em produção.
-- **3.D.4.2** — Scroll interno do chat corrigido. Cascata
-  `min-height: 0` (gotcha flexbox) + remoção de padding do
-  body + `safe-area-inset-bottom` no `.chat-input-wrapper`.
-  Hash dev `6a322cc`.
-- **3.D.4.1** — Chip "Assistente" 🤖 cinza fallback pra
-  mensagens sem persona (Roteador retornou null OU rows
-  pré-3.D). Hash dev `ea0b442`.
-- **3.D.4** — UI chip de persona ativa. Nested join
-  `personas(slug, nome, icone, cor_hex)` em `carregarHistorico`,
-  render condicional do chip no `renderHistorico`. CSS
-  `.chat-bubble-persona-chip`. Hash dev `4fdf860`.
+**Depois: Fase 4 replanejada** — chat utilizável (markdown, seletor de
+entidade) → telas de correção (ideias/lançamentos) → módulos CRUD por uso
+real → PWA. Pré-requisito 4.0: invalidação de cache. Detalhe no Backlog.
 
-**Bônus durante a 3.D.4.2:** commit `a2f41c4` adicionou log
-estruturado detalhado no `if (error)` de `carregarHistorico`
-pra investigar `TypeError: Load failed` esporádico. Erro não
-reproduziu — log fica como defesa em profundidade pra erros
-futuros.
+**Pausada:** 3.F (Meta, bloqueio externo) → Fase 5.
 
 ═══════════════════════════════════════════════════════════════
 
@@ -79,7 +48,7 @@ futuros.
 ✅ 3.I — Marina + tools (loop genérico + salvar_ideia transversal, v45 — em produção)
 ✅ 3.E — Streaming SSE (v46 + front, testado — aguarda aprovado)
 ✅ 3.G — Polimento (cotação real + configs no banco + rate limit, v49 — em produção)
-✅ 3.H — Alemão + voz (tool sítio + 🎤 ditado, v51 — aguarda aprovado)
+✅ 3.H — Alemão + voz (tool sítio + 🎤 ditado, v51 — em produção)
 ⏳ 3.J — Marcela briefing matinal (cron, opcional)
 
 **Total:** 9/9 sub-fases implementáveis fechadas. 🏁 3.F pausada não conta —
