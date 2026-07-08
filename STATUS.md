@@ -26,7 +26,11 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
   `signup_disabled`). Risco A1 encerrado.
 - ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
-- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.A.2. main = dev.
+- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.A.3. main = dev.
+- ✅ **4.A.3** feita 2026-07-08: arquivar/favoritar mensagem (menu no
+  toque) + 🧹 limpar conversa. Bloco 4.A (chat utilizável) COMPLETO.
+- 📝 **4.E Bloco de Notas** registrado no Backlog (pedido Pedro): tabela
+  anotacoes + tool salvar_anotacao + aba Notas.
 - ✅ **4.A.2 (seletor de entidade)** feita 2026-07-08: chips por empresa,
   histórico separado, nome real da entidade no Roteador/prompt. Inclui 3
   fixes do teste mobile (largura dos chips, stream preso à entidade,
