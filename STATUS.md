@@ -26,8 +26,12 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
   `signup_disabled`). Risco A1 encerrado.
 - ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
-- ✅ **Sincronizado:** última promoção 2026-07-08 — 3.5.D.6 (merge
-  `9927b78`). main = dev.
+- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.A.1. main = dev.
+- 🎉 **Fase 4 aberta.** 4.A.1 (markdown no chat) feita 2026-07-08
+  (`f12a978`): parser próprio seguro em js/core/markdown.js, render só
+  na bolha assistant. Testada e aprovada pelo Pedro.
+- 🔴 **Próxima: 4.A.2** — seletor de entidade no chat (histórico e
+  Roteador por empresa; hoje entidade_id é sempre null).
 - ✅ **3.5.D.1 (C6)** feita 2026-07-08 (`e393379`, Edge v53): histórico anexa
   registro textual de tools já executadas — modelo não re-executa. Testada
   pelo Pedro no celular, aprovada e em produção.

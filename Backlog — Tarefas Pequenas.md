@@ -843,7 +843,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
   ou botão "recarregar". Esforço M. **Bloqueia as telas de personas/configs.**
 
 ### 4.A — Chat utilizável (interface primária primeiro)
-- [ ] **4.A.1** — Markdown no chat (E7): render de `**negrito**`, listas, quebras. Hoje é textContent literal. Biblioteca mínima ou parser próprio (sem bundler). Esforço M.
+- [x] **4.A.1** ✅ — **Feita 2026-07-08** (`f12a978`): parser próprio em `js/core/markdown.js` (escapa HTML antes de transformar — XSS impossível; negrito/itálico/código/fences/listas/títulos/quebras). Só bolha assistant renderiza; user fica literal; streaming cru até o done. Testada pelo Pedro no preview.
 - [ ] **4.A.2** — Seletor de entidade no chat (E2): hoje `entidade_id` é sempre null e as conversas de todas as empresas se misturam. Chip/dropdown que define a entidade ativa → passa no body → histórico e Roteador por empresa. Esforço M.
 - [ ] **4.A.3** — Editar/arquivar/favoritar mensagem; limpar conversa. Esforço M.
 
