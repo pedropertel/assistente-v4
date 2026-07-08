@@ -355,7 +355,7 @@ window.toggleDitado = toggleDitado;
 
 - ✅ Infraestrutura: GitHub `pedropertel/assistente-v4` + Vercel + Supabase `msbwplsknncnxwsalumd`
 - ✅ Stack confirmada: HTML/CSS/JS puro + ES Modules + Supabase (PostgREST + Auth + Storage + Vault + Edge Functions Deno) + Anthropic SDK + Vercel
-- ✅ Banco (Fase 2): 18 tabelas, 6 personas (Marcos/Bruno/Marcela/Alemão/Marina + Roteador interno), Vault pra tokens externos. Convenções em `050 - Banco de Dados/CONVENÇÕES.md`.
+- ✅ Banco: 19 tabelas (18 da Fase 2 + anotacoes da 4.E), 6 personas (Marcos/Bruno/Marcela/Alemão/Marina + Roteador interno), Vault pra tokens externos. Convenções em `050 - Banco de Dados/CONVENÇÕES.md`.
 - ✅ Edge Functions ativas: `health-check`, `chat-claude` (em evolução pela Fase 3).
 - 🟡 Fase 3 em andamento — **5/9 sub-fases fechadas (3.D em produção). Próxima: 3.F (Marcos + Meta Ads, prioridade #1). Veja `STATUS.md` pro detalhe atualizado.**
 
