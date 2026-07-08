@@ -38,25 +38,64 @@ export const TOOL_SALVAR_ANOTACAO: ToolDef = {
             'Título da anotação. Se o Pedro deu um ("com título X"), use ' +
             'EXATAMENTE o que ele deu; senão, crie um curto e descritivo.',
         },
+        copiar_resposta_anterior: {
+          type: 'boolean',
+          description:
+            'Use true quando o Pedro pedir pra salvar/transformar A ' +
+            'RESPOSTA ANTERIOR da conversa ("essa resposta", "isso que ' +
+            'você escreveu"). O sistema copia o texto na ÍNTEGRA direto ' +
+            'do banco — zero risco de resumir. Nesse caso NÃO envie ' +
+            'conteudo.',
+        },
         conteudo: {
           type: 'string',
           description:
-            'O conteúdo da anotação em Markdown (negrito, listas, títulos ' +
-            'funcionam). Fiel ao que o Pedro pediu pra salvar — sem ' +
-            'opinião nova, sem resumir a menos que ele peça.',
+            'Conteúdo em Markdown — APENAS quando não for cópia da ' +
+            'resposta anterior (ex: "anota que o portão é código 4321"). ' +
+            'Fiel ao que o Pedro pediu — NUNCA resuma nem encurte.',
         },
       },
-      required: ['titulo', 'conteudo'],
+      required: ['titulo'],
     },
   },
   executar: async (input, ctx) => {
     const titulo = typeof input.titulo === 'string' ? input.titulo.trim() : '';
-    const conteudo = typeof input.conteudo === 'string'
+    if (!titulo) {
+      return { erro: 'titulo é obrigatório.' };
+    }
+
+    let conteudo = typeof input.conteudo === 'string'
       ? input.conteudo.trim()
       : '';
-    if (!titulo || !conteudo) {
+
+    // Fidelidade garantida por CÓDIGO (achado do Pedro, 4.E.2 fix):
+    // Haiku resumia a resposta mesmo com instrução de copiar na íntegra.
+    // Com o flag, buscamos a última resposta assistant da conversa direto
+    // do banco — a nota fica idêntica, palavra por palavra.
+    if (input.copiar_resposta_anterior === true) {
+      let q = ctx.supabase
+        .from('chat_mensagens')
+        .select('conteudo')
+        .eq('papel', 'assistant')
+        .eq('arquivada', false)
+        .is('erro', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      q = ctx.entidade_id === null
+        ? q.is('entidade_id', null)
+        : q.eq('entidade_id', ctx.entidade_id);
+      const { data: ultima, error: errUltima } = await q.single();
+      if (errUltima || !ultima?.conteudo) {
+        return {
+          erro: 'Não achei a resposta anterior desta conversa pra copiar.',
+        };
+      }
+      conteudo = ultima.conteudo as string;
+    }
+
+    if (!conteudo) {
       return {
-        erro: 'titulo e conteudo são obrigatórios e não podem ser vazios.',
+        erro: 'conteudo é obrigatório quando não é cópia da resposta anterior.',
       };
     }
 
