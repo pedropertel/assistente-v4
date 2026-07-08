@@ -821,7 +821,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 - [~] **3.5.D.4 (C9)** — ✅ extract concatena todos os blocos text + aviso de truncamento (`b449979`). Falta: ditado não sobrescrever edição manual.
 - [~] **3.5.D.5 (F2)** — ✅ script de fumaça `supabase/functions/fumaca.sh` (JSON+SSE+400). Falta: `deno check` local (precisa deno instalado) no fluxo.
 - [ ] **3.5.D.6 (F3)** — Extrair as tools de `chat-claude/index.ts` (~1400 linhas) pra `_shared/tools/` ANTES da 3.F engordar. Esforço M.
-- [ ] **3.5.D.7 (F4)** — Decidir estratégia Edge dev/prod (hoje compartilhada: todo deploy afeta produção). Opções: função `chat-claude-dev` separada, ou aceitar e testar sempre via curl antes. Esforço S (decisão).
+- [x] **3.5.D.7 (F4)** ✅ — **Decidido 2026-07-08 (Pedro):** Edge continua compartilhada; TODO deploy é obrigatoriamente seguido de `fumaca.sh` (ritual da D5). Racional: função dev separada isolaria só o código (banco continua o mesmo), usuário único e dados de teste não justificam o custo/drift. **Gatilho pra revisitar:** Fase 5 (Marcos + Meta agindo em campanha com dinheiro real) — aí avaliar projeto Supabase de dev inteiro, não só a função.
 
 ---
 
