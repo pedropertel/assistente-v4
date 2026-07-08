@@ -803,20 +803,19 @@ Feito por Claude: backup completo dos dados (`090 - Backups/`), migrations
 versionadas + baseline (`supabase/migrations/`), snapshot dos prompts
 (`040 - IA e Agentes/prompts/`).
 **Falta (precisa do Pedro):**
-- [ ] **3.5.A.1** — `supabase login` no CLI → destrava deploy limpo (F1). Sem isso o deploy é payload manual de ~50KB com risco de drift.
-- [ ] **3.5.A.2** — Dashboard → Auth → desabilitar "Enable Sign Up" (A1: tranca a porta; a policy libera tudo pra qualquer conta logada).
-- [ ] **3.5.A.3** — Console Anthropic → cap de custo/uso diário (A2: rede contra queima de créditos, já que a anon key é pública).
-- [ ] **3.5.A.4** — Dropar as 4 Edge Functions legadas (`create-admin-user`, `portal`, `meta-sync`, `meta-balance` — código fora do repo) + tabela `teste` (após trocar o ping do login em `app.js:57`). Destrutivo → OK do Pedro; Claude executa via MCP. (A3/A4)
-- [ ] **3.5.A.5** — Decisão: upgrade Supabase (~US$25/mês, elimina pausa semanal) OU cron de ping OU conviver (B4). Recomendado: upgrade quando uso virar diário.
+- [x] **3.5.A.1** ✅ — `supabase login` no CLI (F1). **Resolvido 2026-07-07: CLI já estava autenticado; deploy manual aposentado.**
+- [x] **3.5.A.2** ✅ — Dashboard → Auth → desabilitar "Enable Sign Up" (A1). **Pedro fechou em 2026-07-08; verificado via curl (`signup_disabled`, conta de teste recusada).**
+- [ ] **3.5.A.3** — Console Anthropic → cap de custo/uso diário (A2: rede contra queima de créditos, já que a anon key é pública). Pedro segurou (não urgente); recomendado US$5-10/dia.
+- [x] **3.5.A.4** ✅ — **Feito 2026-07-07:** tabela `teste` dropada + 5 Edge Functions legadas removidas; ping do login migrou pra `entidades`.
+- [ ] **3.5.A.5** — Decisão: upgrade Supabase (~US$25/mês, elimina pausa semanal) OU cron de ping OU conviver (B4). Pedro segurou; usando semanalmente não pausa.
 
-### 🟡 3.5.C — Correções da Edge (código feito, deploy pendente de 3.5.A.1)
-Commitadas na `dev`, sobem no 1º `supabase functions deploy chat-claude`:
+### ✅ 3.5.C — Correções da Edge (deployadas e validadas 2026-07-07)
 C1 (caches não gravam falha/vazio), C2/C3 (waitUntil no SSE), C4 (lerConfig
 valida tipo), C5 (conteúdo vazio), C7 (front recupera msg), D1 (guardrail
-anti-fingir). **Falta testar em produção após o deploy.**
+anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 
-### 🔴 3.5.D — Correções restantes (não bloqueiam, mas entram aqui)
-- [ ] **3.5.D.1 (C6)** — Histórico carrega `tool_calls`/`tool_results` (hoje só papel+conteúdo) pra o modelo não "esquecer" que já executou tool e re-lançar. Cuidado: cadeia de messages Anthropic com tool_use precisa do tool_result correspondente — avaliar formato. Esforço M.
+### 🟡 3.5.D — Correções restantes (não bloqueiam, mas entram aqui)
+- [x] **3.5.D.1 (C6)** ✅ — **Feita 2026-07-08** (`e393379`): histórico anexa registro textual das tools já executadas ao conteudo assistant (opção B — sem reconstruir blocos tool_use/tool_result; banco achata voltas numa row, reconstrução brigaria com dedup 3.D.3.1 + C5 + LIMIT). Testado em produção: modelo referencia ações passadas sem re-executar.
 - [x] **3.5.D.2 (C8)** ✅ — Front: timeout/abort no stream (AbortController 45s, reinicia a cada chunk). `b449979`.
 - [ ] **3.5.D.3 (D4)** — Prompt caching Anthropic: mover `{data_hora}` pro fim do system (ou pro user message) e marcar cache_control no bloco estável → corta custo de input em toda mensagem. Esforço S, payoff de custo real.
 - [~] **3.5.D.4 (C9)** — ✅ extract concatena todos os blocos text + aviso de truncamento (`b449979`). Falta: ditado não sobrescrever edição manual.

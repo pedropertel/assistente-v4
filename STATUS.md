@@ -6,7 +6,7 @@
 > Toda sessão nova LÊ ESTE ARQUIVO PRIMEIRO. Ignora status
 > mencionado em prompts iniciais — confere aqui.
 
-**Última atualização:** 2026-07-06
+**Última atualização:** 2026-07-08
 
 ═══════════════════════════════════════════════════════════════
 
@@ -23,11 +23,18 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   via CLI e validados (fumaça passou, guardrail verificado). Deploy manual
   aposentado.
 - ✅ **A4 legado limpo:** tabela `teste` + 5 functions legadas removidas.
-- ⏸️ **Decisões do Pedro:** signup mantido aberto (só 1 usuário — risco
-  registrado); cap Anthropic e upgrade Supabase segurados por ora.
+- ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
+  `signup_disabled`). Risco A1 encerrado.
+- ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
 - ✅ **Sincronizado:** Fase 3.5 promovida (merge `a921291`, 2026-07-07). main = dev.
-- 🔴 **3.5.D:** correções restantes (C6/C8, prompt caching, extrair tools,
-  deno check + fumaça). Detalhe no Backlog.
+- ✅ **3.5.D.1 (C6)** feita 2026-07-08 (`e393379`, Edge v53): histórico anexa
+  registro textual de tools já executadas — modelo não re-executa. Testado
+  em produção; aguarda teste do Pedro no celular.
+- 🔴 **3.5.D restante:** prompt caching (D3), extrair tools (D6), decisão
+  Edge dev/prod (D7), restos de D4/D5. Detalhe no Backlog.
+- 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
+  ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
+  desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.
 
 **Depois: Fase 4 replanejada** — chat utilizável (markdown, seletor de
 entidade) → telas de correção (ideias/lançamentos) → módulos CRUD por uso
@@ -64,15 +71,15 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (sincronizada com origin/dev)
-- **Working tree:** limpo (após fechamento da 3.I, 2026-07-06)
-- **Última versão Edge `chat-claude`:** v45 ACTIVE (3.I completa)
-- **Supabase:** projeto restaurado em 2026-07-06 (estava
-  INACTIVE por inatividade do free tier). Dados íntegros:
-  19 tabelas public, 1 usuário, 1 secret Vault, 29 mensagens,
-  6 personas. ⚠️ Free tier pausa de novo após ~7 dias sem uso.
-- **Último commit em dev:** `ec7bae5` (3.I.2.1) + docs de
-  fechamento na sequência
+- **Branch ativa:** dev (main sincronizada até `a921291`; commits da
+  3.5.D.1 + docs aguardam próximo /aprovar)
+- **Última versão Edge `chat-claude`:** v53 ACTIVE (3.5.D.1 — Edge é
+  compartilhada, já em produção)
+- **Supabase:** 18 tabelas public (tabela `teste` dropada na 3.5.A.4),
+  1 usuário, seeds íntegros; dados transacionais zerados em 2026-07-08
+  (eram teste). Signup desabilitado. ⚠️ Free tier pausa após ~7 dias
+  sem uso — backup em `090 - Backups/`.
+- **Último commit em dev:** `e393379` (3.5.D.1)
 
 ═══════════════════════════════════════════════════════════════
 
