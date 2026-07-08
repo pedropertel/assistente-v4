@@ -33,8 +33,10 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **3.5.D.3 (prompt caching)** feita 2026-07-08 (`6492d3d`, Edge v54):
   system em 2 blocos (estável cacheado + data/hora no fim) + custo com
   cache write/read. Validado: custo 4× menor na 2ª msg (Sonnet). Aprovada.
-- 🔴 **3.5.D restante:** extrair tools (D6), decisão Edge dev/prod (D7),
-  restos de D4/D5. Detalhe no Backlog.
+- ✅ **3.5.D.7 decidida** (2026-07-08): Edge segue compartilhada + fumaça
+  obrigatória pós-deploy. Revisitar na Fase 5 (Meta com dinheiro real).
+- 🔴 **3.5.D restante:** extrair tools (D6) e restos de D4/D5. Detalhe
+  no Backlog.
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
   ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
   desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.
