@@ -421,6 +421,12 @@
     #main-content {
       height: 100dvh;
       min-height: 0;
+      /* 4.A.2 fix: #app-screen vira flex via JS no login; sem min-width:0
+         o main herda a largura MÍNIMA do conteúdo (a fileira de chips não
+         quebra linha) e estoura a tela no mobile. O desktop já tinha essa
+         regra no media query ≥768px — aqui é a versão base. */
+      min-width: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
     }
