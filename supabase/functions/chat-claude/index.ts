@@ -380,10 +380,13 @@ async function buscarHistoricoMensagens(
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
   // C6 (3.5.D.1): tool_calls/tool_results entram no SELECT pra anexar o
   // resumo "[registro do sistema: ...]" — ver resumoToolsHistorico acima.
+  // 4.A.3a: mensagem arquivada sai do contexto da IA também (arquivar/
+  // limpar conversa "apaga" da memória de curto prazo, mesmo critério da UI).
   let q = supabase
     .from('chat_mensagens')
     .select('papel, conteudo, tool_calls, tool_results')
     .neq('papel', 'system')
+    .eq('arquivada', false)
     .is('erro', null)
     .neq('id', exceto_id)
     .order('created_at', { ascending: false })

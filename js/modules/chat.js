@@ -1,5 +1,6 @@
 import { invokeFunctionStream, supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
+import { show as showModal } from '../core/modal.js';
 import { mdParaHtml } from '../core/markdown.js';
 
 /**
@@ -43,6 +44,13 @@ let entidadeAtiva = localStorage.getItem('chat.entidade_id') || null;
 export async function initSeletorEntidade() {
   const el = document.getElementById('chat-entidades');
   if (!el) return;
+
+  // 4.A.3a: 🧹 limpar conversa (listener aqui — sem onclick inline).
+  const btnLimpar = document.getElementById('btn-limpar-conversa');
+  if (btnLimpar && !btnLimpar.dataset.ligado) {
+    btnLimpar.dataset.ligado = '1';
+    btnLimpar.addEventListener('click', limparConversa);
+  }
 
   const { data, error } = await supabase
     .from('entidades')
@@ -229,10 +237,11 @@ export async function carregarHistorico(entidadeId = entidadeAtiva) {
     .from('chat_mensagens')
     .select(`
       id, papel, conteudo, modelo_usado, custo_brl, latencia_ms, erro, created_at,
-      persona_id,
+      persona_id, favorita,
       personas(slug, nome, icone, cor_hex)
     `)
     .neq('papel', 'system')
+    .eq('arquivada', false)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -488,10 +497,107 @@ function renderHistorico(mensagens) {
       bubble.appendChild(meta);
     }
 
+    // 4.A.3a/b — toque na bolha abre menu ⭐/🗑 (só mensagens persistidas).
+    if (msg.favorita) bubble.classList.add('favorita');
+    bubble.addEventListener('click', () => toggleAcoesMensagem(bubble, msg));
+
     histEl.appendChild(bubble);
   }
 
   scrollToBottom();
+}
+
+// ──────────── Ações da mensagem: favoritar/arquivar (4.A.3a/b) ────────────
+
+/**
+ * toggleAcoesMensagem — toque na bolha abre/fecha o menu ⭐/🗑.
+ * Um menu aberto por vez; toque em outra bolha fecha o anterior.
+ */
+function toggleAcoesMensagem(bubble, msg) {
+  const existente = bubble.querySelector('.chat-msg-acoes');
+  document.querySelectorAll('.chat-msg-acoes').forEach((m) => m.remove());
+  if (existente) return; // já estava aberto nesta bolha → só fecha
+
+  const menu = document.createElement('div');
+  menu.className = 'chat-msg-acoes';
+
+  const btnFav = document.createElement('button');
+  btnFav.type = 'button';
+  btnFav.textContent = msg.favorita ? '⭐ Desfavoritar' : '⭐ Favoritar';
+  btnFav.addEventListener('click', async (ev) => {
+    ev.stopPropagation(); // não re-abre o menu pelo click da bolha
+    const { error } = await supabase
+      .from('chat_mensagens')
+      .update({ favorita: !msg.favorita })
+      .eq('id', msg.id);
+    if (error) {
+      showToast('Erro ao favoritar', 'error');
+      return;
+    }
+    msg.favorita = !msg.favorita;
+    bubble.classList.toggle('favorita', msg.favorita);
+    menu.remove();
+  });
+
+  const btnArq = document.createElement('button');
+  btnArq.type = 'button';
+  btnArq.textContent = '🗑 Arquivar';
+  btnArq.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    // Soft-delete (REGRA 12): some da UI e da memória da IA (filtro na
+    // Edge); a row continua no banco.
+    const { error } = await supabase
+      .from('chat_mensagens')
+      .update({ arquivada: true })
+      .eq('id', msg.id);
+    if (error) {
+      showToast('Erro ao arquivar', 'error');
+      return;
+    }
+    bubble.remove();
+    showToast('Mensagem arquivada');
+  });
+
+  menu.appendChild(btnFav);
+  menu.appendChild(btnArq);
+  bubble.appendChild(menu);
+}
+
+/**
+ * limparConversa — arquiva TODAS as mensagens da entidade ativa (soft:
+ * some da UI e da memória da IA; rows ficam no banco). Confirmação por
+ * modal. Listener ligado no initSeletorEntidade.
+ */
+function limparConversa() {
+  showModal({
+    title: 'Limpar conversa',
+    body: 'Arquivar todas as mensagens desta conversa? Elas somem do ' +
+      'chat e da memória da IA (continuam guardadas no banco).',
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Limpar',
+        type: 'danger',
+        onClick: async () => {
+          let q = supabase
+            .from('chat_mensagens')
+            .update({ arquivada: true })
+            .eq('arquivada', false)
+            .neq('papel', 'system');
+          q = entidadeAtiva === null
+            ? q.is('entidade_id', null)
+            : q.eq('entidade_id', entidadeAtiva);
+          const { error } = await q;
+          if (error) {
+            showToast('Erro ao limpar conversa', 'error');
+            return;
+          }
+          showToast('Conversa limpa');
+          carregarHistorico().catch(() => {});
+        },
+      },
+    ],
+  });
 }
 
 function showEmptyState() {

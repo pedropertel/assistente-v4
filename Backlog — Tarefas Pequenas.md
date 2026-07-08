@@ -845,7 +845,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 ### 4.A — Chat utilizável (interface primária primeiro)
 - [x] **4.A.1** ✅ — **Feita 2026-07-08** (`f12a978`): parser próprio em `js/core/markdown.js` (escapa HTML antes de transformar — XSS impossível; negrito/itálico/código/fences/listas/títulos/quebras). Só bolha assistant renderiza; user fica literal; streaming cru até o done. Testada pelo Pedro no preview.
 - [x] **4.A.2** ✅ — **Feita 2026-07-08** (`1a138f6` + fixes `8e7dd29`/`5486eeb`): chips de entidade (Geral + ativas do banco, localStorage), entidade_id no body, nome REAL no {entidade_atual} do Roteador/prompt (cache isolate). Fixes do teste mobile do Pedro: min-width:0 no #main-content (chips estouravam largura) e stream preso à entidade de origem (sem scroll puxado/bolha vazada ao trocar chip) + ditado iOS sem onresult tardio (msg repetida). E2E validado via Playwright.
-- [ ] **4.A.3** — Editar/arquivar/favoritar mensagem; limpar conversa. Esforço M.
+- [x] **4.A.3** ✅ — **Feita 2026-07-08:** arquivar (soft-delete, migration `arquivada`, some da UI e da memória da IA) + favoritar (coluna já existia; badge ⭐) via menu no toque da bolha + 🧹 limpar conversa com modal. EDITAR CORTADO (decisão Pedro: corrigir = reenviar). E2E Playwright validado. Pendente futuro: toggle 'mostrar arquivadas' + desarquivar (hoje recuperação só via banco).
 
 ### 4.B — Telas de correção (as tools já criam dados sem conserto — D2)
 - [ ] **4.B.1** — Tela de Ideias (Marina): listar, editar, arquivar, converter. A tool `salvar_ideia` já grava; hoje não há como corrigir. Esforço M.
@@ -860,6 +860,14 @@ Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 - [ ] **4.C.4** — Documentos (biblioteca + upload Storage)
 - [ ] **4.C.5** — Dashboard (visão geral; por último, consome os outros)
 - [ ] **4.C.6** — Sítio (relatórios além dos lançamentos), CEDTEC (quando a 3.F voltar)
+
+### 4.E — Bloco de Notas (pedido do Pedro, 2026-07-08)
+> "Uma aba que seja um bloco de notas tipo o Notes do iPhone — mando
+> 'transforme essa resposta em uma anotação com título X' e salvo coisas
+> importantes. Poderia fazer listas lá e outras coisas."
+- [ ] **4.E.1** — Tabela `anotacoes` (titulo, conteudo markdown, entidade_id, favorita, arquivada, mensagem_origem_id) + migration. Esforço S.
+- [ ] **4.E.2** — Tool `salvar_anotacao` em `_shared/tools/` ("transforma essa resposta em anotação com título X" — o modelo tem a resposta no próprio contexto). Esforço S com a infra da 3.5.D.6.
+- [ ] **4.E.3** — Aba Notas na sidebar: listar/abrir/editar/arquivar, render com js/core/markdown.js (listas/negrito de graça). Esforço M.
 
 ### 4.D — PWA de verdade (F5 — hoje é documentado mas inexistente)
 - [ ] **4.D.1** — `manifest.json` + ícones (192/512) + `sw.js` com cache versionado (cuidado: SW que serve JS velho após deploy é armadilha — usar versão no nome do cache + skipWaiting). Só então "instalável/offline" é verdade.
