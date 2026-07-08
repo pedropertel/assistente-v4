@@ -10,6 +10,9 @@ import {
   initSeletorEntidade,
   toggleDitado,
 } from './modules/chat.js';
+// 4.E.3 — Notas: import por efeito colateral (registra o listener de
+// page:change; carrega os dados quando a página abre).
+import './modules/notas.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

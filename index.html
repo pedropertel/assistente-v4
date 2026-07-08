@@ -587,6 +587,116 @@
       box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.55);
     }
 
+    /* ---------- Notas (4.E.3) ---------- */
+
+    .notas-toolbar {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .notas-lista {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .notas-vazio {
+      padding: var(--space-6);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-lg);
+      color: var(--text-secondary);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .nota-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .nota-card.favorita {
+      border-color: rgba(234, 179, 8, 0.55);
+    }
+
+    .nota-card-header {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      width: 100%;
+      min-height: 44px;
+      padding: var(--space-3) var(--space-4);
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nota-titulo {
+      font-size: 15px;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .nota-meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .nota-corpo {
+      padding: 0 var(--space-4) var(--space-3);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .nota-acoes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+    }
+
+    .nota-acoes button {
+      min-height: 36px;
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .nota-editor {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .nota-editor-titulo,
+    .nota-editor-conteudo {
+      width: 100%;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .nota-editor-conteudo {
+      resize: vertical;
+      line-height: 1.5;
+    }
+
     .chat-entidades::-webkit-scrollbar {
       display: none;
     }
@@ -1082,6 +1192,7 @@
       </div>
       <nav class="sidebar-nav">
         <button class="nav-item" type="button" data-page="chat" onclick="goPage('chat')"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">Chat</span></button>
+        <button class="nav-item" type="button" data-page="notas" onclick="goPage('notas')"><span class="nav-icon" aria-hidden="true">📝</span><span class="nav-label">Notas</span></button>
         <button class="nav-item" type="button" data-page="dashboard" onclick="goPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
         <button class="nav-item" type="button" data-page="tasks" onclick="goPage('tasks')"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Tarefas</span></button>
         <button class="nav-item" type="button" data-page="agenda" onclick="goPage('agenda')"><span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Agenda</span></button>
@@ -1106,6 +1217,17 @@
         <section class="page" id="page-dashboard">
           <h1>Dashboard</h1>
           <p class="page-placeholder">Aqui vai aparecer o resumo do seu dia. Em breve.</p>
+        </section>
+
+        <!-- 4.E.3 — Bloco de Notas: lista renderizada pelo notas.js
+             (recarrega via evento page:change do router). -->
+        <section class="page" id="page-notas" hidden>
+          <div class="notas-toolbar">
+            <button type="button" id="btn-nova-nota" class="btn btn-primary">
+              + Nova nota
+            </button>
+          </div>
+          <div id="notas-lista" class="notas-lista"></div>
         </section>
 
         <section class="page page-chat" id="page-chat" hidden>
