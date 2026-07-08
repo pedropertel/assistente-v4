@@ -301,6 +301,51 @@ function formatarDataHoraBrasilia(): string {
 }
 
 /**
+ * C6 (3.5.D.1): resumo textual das tools já executadas num turn antigo,
+ * anexado ao `conteudo` da mensagem assistant no histórico.
+ *
+ * Decisão da 3.5.D.1: NÃO reconstruímos blocos tool_use/tool_result
+ * formais — o banco achata as voltas do loop numa única row (conteudo =
+ * só texto final), então a reconstrução exigiria sintetizar mensagens
+ * que nunca existiram e sobreviver ao dedup da 3.D.3.1, ao filtro C5 e
+ * ao LIMIT do histórico (qualquer deslize = 400 em cadeia na Anthropic).
+ * O sufixo textual resolve o problema real — o modelo saber QUE já agiu
+ * e O QUÊ — com risco zero de formato: histórico continua string pura.
+ *
+ * `tool_calls`/`tool_results` chegam como jsonb (gravados desde 3.F.0.5);
+ * qualquer shape inesperado retorna '' (fail-safe, mensagem fica como era).
+ */
+function resumoToolsHistorico(
+  toolCalls: unknown,
+  toolResults: unknown,
+): string {
+  if (!Array.isArray(toolResults) || toolResults.length === 0) return '';
+  const calls = Array.isArray(toolCalls) ? toolCalls : [];
+
+  const partes = toolResults.map((r) => {
+    const nome = typeof r?.name === 'string' ? r.name : '(tool)';
+    const status = r?.is_error === true ? '✗ falhou' : '✓';
+    // Detalhe curto do input (o modelo precisa saber O QUE salvou, não
+    // só que salvou). Truncado — inputs grandes não incham o histórico.
+    const call = calls.find((c) => c?.id === r?.tool_use_id);
+    let detalhe = '';
+    if (call?.input && typeof call.input === 'object') {
+      try {
+        const json = JSON.stringify(call.input);
+        detalhe = ` ${json.length > 150 ? json.slice(0, 150) + '…' : json}`;
+      } catch {
+        // input não-serializável — segue sem detalhe
+      }
+    }
+    return `${nome} ${status}${detalhe}`;
+  });
+
+  return '\n\n[registro do sistema: neste turno as seguintes ações JÁ ' +
+    `FORAM executadas e gravadas — ${partes.join(' · ')}. ` +
+    'NÃO execute essas ações de novo.]';
+}
+
+/**
  * Busca últimas N mensagens da mesma entidade pra construir messages[]
  * da Anthropic — IA ganha memória de curto prazo (contexto da conversa).
  *
@@ -327,9 +372,11 @@ async function buscarHistoricoMensagens(
   requestId: string,
   maxHistorico: number = MAX_HISTORICO,
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  // C6 (3.5.D.1): tool_calls/tool_results entram no SELECT pra anexar o
+  // resumo "[registro do sistema: ...]" — ver resumoToolsHistorico acima.
   let q = supabase
     .from('chat_mensagens')
-    .select('papel, conteudo')
+    .select('papel, conteudo, tool_calls, tool_results')
     .neq('papel', 'system')
     .is('erro', null)
     .neq('id', exceto_id)
@@ -360,7 +407,12 @@ async function buscarHistoricoMensagens(
     .reverse()
     .map((m) => ({
       role: m.papel as 'user' | 'assistant',
-      content: m.conteudo,
+      // C6: assistant que executou tools ganha o sufixo de registro —
+      // o modelo vê que já agiu e não re-executa (re-lançar custo,
+      // re-salvar ideia). User passa intocado.
+      content: m.papel === 'assistant'
+        ? m.conteudo + resumoToolsHistorico(m.tool_calls, m.tool_results)
+        : m.conteudo,
     }));
 
   // Defesa contra cadeia user/assistant inválida (3.D.3.1).
