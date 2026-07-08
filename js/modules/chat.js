@@ -110,7 +110,14 @@ export async function enviarMensagem() {
   // para o mic se ainda estiver gravando.
   const veioDeVoz = textoVeioDeVoz;
   textoVeioDeVoz = false;
-  if (ditandoAtivo) recognition?.stop();
+  if (ditandoAtivo && recognition) {
+    // Bug fix (4.A.2): iOS entrega um onresult FINAL depois do stop().
+    // Sem desligar o handler, o closure antigo reescrevia o textarea com
+    // a transcrição JÁ ENVIADA — ao ditar de novo (em outra entidade),
+    // a mensagem anterior saía repetida na frente da nova.
+    recognition.onresult = null;
+    recognition.stop();
+  }
 
   btn.disabled = true;
   ta.disabled = true;
@@ -124,8 +131,21 @@ export async function enviarMensagem() {
   let stream = null;
   let erroEvento = null;
 
+  // Bug fix (4.A.2): o stream pertence à entidade em que a mensagem foi
+  // ENVIADA. Se Pedro trocar de chip no meio, os eventos não podem mexer
+  // na tela da outra empresa (bolha aparecendo lá, scroll puxado a cada
+  // token). A resposta continua sendo persistida pela Edge; ao voltar
+  // pro chip ela aparece do histórico.
+  const entidadeDaMensagem = entidadeAtiva;
+  const aindaNaMesma = () => entidadeAtiva === entidadeDaMensagem;
+
   const garantirBolha = (chipData) => {
     if (!stream) stream = appendBubbleStreaming(chipData);
+    // Voltou pro chip da conversa depois de sair: a troca limpou o DOM
+    // (innerHTML) e a bolha ficou órfã — reanexa pra retomar o vivo.
+    else if (!stream.bubble.isConnected && aindaNaMesma()) {
+      document.getElementById('chat-historico').appendChild(stream.bubble);
+    }
     return stream;
   };
 
@@ -134,18 +154,23 @@ export async function enviarMensagem() {
       'chat-claude',
       // 4.A.2: entidade ativa vai no body — Edge filtra histórico e
       // resolve o nome pro Roteador/prompt. null = chat geral.
-      { texto, stream: true, origem_voz: veioDeVoz, entidade_id: entidadeAtiva },
+      { texto, stream: true, origem_voz: veioDeVoz, entidade_id: entidadeDaMensagem },
       {
         router: (d) => {
-          garantirBolha(d);
+          if (aindaNaMesma()) garantirBolha(d);
         },
         delta: (d) => {
+          // Sem bolha ainda + fora do chip = não cria na tela errada.
+          // (Com bolha existente, appenda mesmo órfã — o texto fica
+          // acumulado pra quando Pedro voltar pro chip.)
+          if (!stream && !aindaNaMesma()) return;
           const s = garantirBolha(null);
           if (s.status.textContent) s.status.textContent = '';
           s.texto.textContent += d.texto;
-          scrollToBottom();
+          if (aindaNaMesma()) scrollToBottom();
         },
         tool: (d) => {
+          if (!stream && !aindaNaMesma()) return;
           const s = garantirBolha(null);
           s.status.textContent = d.status === 'executando'
             ? '⚙️ executando ação…'
@@ -166,20 +191,25 @@ export async function enviarMensagem() {
       if (stream) stream.bubble.classList.add('error');
       // C7 (revisão 2026-07-07): devolve o texto pro campo pra Pedro não
       // reescrever. Só se o erro foi ANTES de qualquer resposta chegar
-      // (sem stream nem eventos) — senão a mensagem já foi processada.
-      if (!stream) ta.value = texto;
+      // (sem stream nem eventos) E se Pedro ainda está no mesmo chip —
+      // senão o texto iria pra conversa de OUTRA empresa.
+      if (!stream && aindaNaMesma()) ta.value = texto;
       return;
     }
 
     // Sucesso: recarrega histórico — substitui otimista + bolha de
     // stream pelas rows persistidas (métricas reais + chip do banco).
-    await carregarHistorico();
+    // Só se Pedro continua no chip da mensagem: recarregar a conversa de
+    // OUTRA empresa puxaria o scroll dela. Ao voltar pro chip, o clique
+    // já recarrega e a resposta aparece do banco.
+    if (aindaNaMesma()) await carregarHistorico();
   } catch (err) {
     console.error('[chat] exception inesperada', err);
     showToast('Erro inesperado. Vê o console.', 'error');
     optimisticEl.classList.remove('optimistic');
     optimisticEl.classList.add('failed');
-    if (!stream) ta.value = texto; // C7: recupera a mensagem digitada
+    // C7: recupera a mensagem digitada (só no chip original — ver acima)
+    if (!stream && aindaNaMesma()) ta.value = texto;
   } finally {
     btn.disabled = false;
     ta.disabled = false;
@@ -274,6 +304,10 @@ export function toggleDitado() {
     recognition?.stop();
     return;
   }
+
+  // Cinto de segurança: instância anterior nunca mais escreve no textarea
+  // (mesma classe de bug do onresult tardio do iOS).
+  if (recognition) recognition.onresult = null;
 
   recognition = new SpeechRec();
   recognition.lang = 'pt-BR';
