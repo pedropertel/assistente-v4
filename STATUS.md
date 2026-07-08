@@ -26,7 +26,12 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
   `signup_disabled`). Risco A1 encerrado.
 - ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
-- ✅ **Sincronizado:** última promoção 2026-07-08 — 3.5.D.3. main = dev.
+- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.A.1. main = dev.
+- 🎉 **Fase 4 aberta.** 4.A.1 (markdown no chat) feita 2026-07-08
+  (`f12a978`): parser próprio seguro em js/core/markdown.js, render só
+  na bolha assistant. Testada e aprovada pelo Pedro.
+- 🔴 **Próxima: 4.A.2** — seletor de entidade no chat (histórico e
+  Roteador por empresa; hoje entidade_id é sempre null).
 - ✅ **3.5.D.1 (C6)** feita 2026-07-08 (`e393379`, Edge v53): histórico anexa
   registro textual de tools já executadas — modelo não re-executa. Testada
   pelo Pedro no celular, aprovada e em produção.
@@ -36,7 +41,7 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **3.5.D.7 decidida** (2026-07-08): Edge segue compartilhada + fumaça
   obrigatória pós-deploy. Revisitar na Fase 5 (Meta com dinheiro real).
 - ✅ **3.5.D.6 (extrair tools)** feita 2026-07-08 (`68be064`, Edge v55):
-  tools em `_shared/tools/`, index.ts 2029→1568 linhas. Aguarda aprovado.
+  tools em `_shared/tools/`, index.ts 2029→1568 linhas. Aprovada, em produção.
 - 🔴 **3.5.D restante:** só restos de D4/D5 (ditado não sobrescrever
   edição manual + deno check no fluxo). Detalhe no Backlog.
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,

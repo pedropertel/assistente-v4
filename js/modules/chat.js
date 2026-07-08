@@ -1,5 +1,6 @@
 import { invokeFunctionStream, supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
+import { mdParaHtml } from '../core/markdown.js';
 
 /**
  * enviarMensagem — envia mensagem do user pra Edge chat-claude em
@@ -361,6 +362,15 @@ function renderHistorico(mensagens) {
     if (msg.erro) {
       bubble.classList.add('error');
       bubble.appendChild(document.createTextNode(`[erro] ${msg.erro}`));
+    } else if (msg.papel === 'assistant') {
+      // 4.A.1: assistant renderiza Markdown (negrito, listas, código,
+      // quebras). innerHTML é seguro: mdParaHtml escapa TODO o conteúdo
+      // antes de gerar as próprias tags. Mensagem do USER continua
+      // texto literal (linha abaixo) — o que Pedro digita não vira HTML.
+      const md = document.createElement('div');
+      md.className = 'chat-md';
+      md.innerHTML = mdParaHtml(msg.conteudo);
+      bubble.appendChild(md);
     } else {
       bubble.appendChild(document.createTextNode(msg.conteudo));
     }
