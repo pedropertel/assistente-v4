@@ -532,15 +532,59 @@
     /* 4.A.2 — chips de entidade: linha horizontal com scroll (mobile
        375px), touch 44px. Filho de altura fixa da .page-chat — não
        entra na cascata min-height:0 do scroll do histórico. */
+    /* 4.A.3a — toolbar: chips (rolam) + 🧹 fixo à direita. */
+    .chat-toolbar {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      min-width: 0;
+    }
+
     .chat-entidades {
       display: flex;
       gap: var(--space-2);
       padding: var(--space-2) var(--space-4);
       overflow-x: auto;
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--border);
+      flex: 1;
+      min-width: 0;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
+    }
+
+    .chat-btn-limpar {
+      flex-shrink: 0;
+      min-width: 44px;
+      min-height: 44px;
+      margin-right: var(--space-2);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    /* 4.A.3a/b — menu de ações da mensagem (toque na bolha abre). */
+    .chat-msg-acoes {
+      display: flex;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+
+    .chat-msg-acoes button {
+      min-height: 36px;
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .chat-bubble.favorita {
+      box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.55);
     }
 
     .chat-entidades::-webkit-scrollbar {
@@ -1067,8 +1111,20 @@
         <section class="page page-chat" id="page-chat" hidden>
           <!-- 4.A.2 — seletor de entidade: chips preenchidos pelo chat.js
                (initSeletorEntidade). Define a empresa ativa da conversa:
-               histórico filtrado + entidade_id no body da Edge. -->
-          <div class="chat-entidades" id="chat-entidades"></div>
+               histórico filtrado + entidade_id no body da Edge.
+               4.A.3a — 🧹 limpar conversa (listener no chat.js, sem
+               onclick inline → fora da window bridge). -->
+          <div class="chat-toolbar">
+            <div class="chat-entidades" id="chat-entidades"></div>
+            <button
+              type="button"
+              id="btn-limpar-conversa"
+              class="chat-btn-limpar"
+              aria-label="Limpar conversa"
+            >
+              🧹
+            </button>
+          </div>
           <div class="chat-historico" id="chat-historico" aria-live="polite">
             <div class="chat-empty" id="chat-empty">Sem mensagens ainda. Manda um "oi" pra começar.</div>
           </div>
