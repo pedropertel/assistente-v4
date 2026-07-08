@@ -817,7 +817,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 ### 🟡 3.5.D — Correções restantes (não bloqueiam, mas entram aqui)
 - [x] **3.5.D.1 (C6)** ✅ — **Feita 2026-07-08** (`e393379`): histórico anexa registro textual das tools já executadas ao conteudo assistant (opção B — sem reconstruir blocos tool_use/tool_result; banco achata voltas numa row, reconstrução brigaria com dedup 3.D.3.1 + C5 + LIMIT). Testado em produção: modelo referencia ações passadas sem re-executar.
 - [x] **3.5.D.2 (C8)** ✅ — Front: timeout/abort no stream (AbortController 45s, reinicia a cada chunk). `b449979`.
-- [ ] **3.5.D.3 (D4)** — Prompt caching Anthropic: mover `{data_hora}` pro fim do system (ou pro user message) e marcar cache_control no bloco estável → corta custo de input em toda mensagem. Esforço S, payoff de custo real.
+- [x] **3.5.D.3 (D4)** ✅ — **Feita 2026-07-08** (`6492d3d`, Edge v54): system em 2 blocos (estável com cache_control + data/hora no fim) e calcCustoUSD precificando cache write/read. Validado: custo 4× menor na 2ª mensagem (Sonnet). Mínimos: Sonnet 2048 tokens ✅, Haiku/Opus 4096 (prompts curtos não cacheiam — sem erro, sem custo extra).
 - [~] **3.5.D.4 (C9)** — ✅ extract concatena todos os blocos text + aviso de truncamento (`b449979`). Falta: ditado não sobrescrever edição manual.
 - [~] **3.5.D.5 (F2)** — ✅ script de fumaça `supabase/functions/fumaca.sh` (JSON+SSE+400). Falta: `deno check` local (precisa deno instalado) no fluxo.
 - [ ] **3.5.D.6 (F3)** — Extrair as tools de `chat-claude/index.ts` (~1400 linhas) pra `_shared/tools/` ANTES da 3.F engordar. Esforço M.
