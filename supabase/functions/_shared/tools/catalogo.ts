@@ -25,8 +25,10 @@
 import type { ToolDef } from './tipos.ts';
 import { TOOL_SALVAR_IDEIA } from './salvar_ideia.ts';
 import { TOOL_LANCAR_CUSTO_SITIO } from './lancar_custo_sitio.ts';
+import { TOOL_SALVAR_ANOTACAO } from './salvar_anotacao.ts';
 
 export const CATALOGO_TOOLS: Record<string, ToolDef> = {
   salvar_ideia: TOOL_SALVAR_IDEIA,
   lancar_custo_sitio: TOOL_LANCAR_CUSTO_SITIO,
+  salvar_anotacao: TOOL_SALVAR_ANOTACAO,
 };

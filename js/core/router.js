@@ -5,6 +5,7 @@
 export const PAGES = {
   dashboard: { title: 'Dashboard',     icon: '🏠' },
   chat:      { title: 'Chat',          icon: '💬' },
+  notas:     { title: 'Notas',         icon: '📝' },
   tasks:     { title: 'Tarefas',       icon: '✓'  },
   agenda:    { title: 'Agenda',        icon: '📅' },
   docs:      { title: 'Documentos',    icon: '📁' },
@@ -39,6 +40,11 @@ export function goPage(pageId) {
   document.getElementById('sidebar-backdrop').classList.remove('open');
 
   currentPage = pageId;
+
+  // 4.E.3 — evento genérico de navegação: cada módulo escuta e recarrega
+  // os próprios dados quando a SUA página abre (ex: notas.js). Evita o
+  // app.js ter que conhecer o init de cada módulo da Fase 4.
+  document.dispatchEvent(new CustomEvent('page:change', { detail: pageId }));
 }
 
 export function getCurrentPage() {

@@ -58,7 +58,10 @@ export function show(config = {}) {
 
   const bodyEl = document.createElement('div');
   bodyEl.className = 'modal-body';
-  if (typeof body === 'string' && body.includes('<')) {
+  if (body instanceof Node) {
+    // 4.E.3: body pode ser elemento montado com createElement (forms).
+    bodyEl.appendChild(body);
+  } else if (typeof body === 'string' && body.includes('<')) {
     bodyEl.innerHTML = body;
   } else {
     bodyEl.textContent = body;
@@ -72,8 +75,15 @@ export function show(config = {}) {
     btn.type = 'button';
     btn.className = 'btn btn-' + (action.type || 'primary');
     btn.textContent = action.label;
-    btn.addEventListener('click', () => {
-      if (typeof action.onClick === 'function') action.onClick();
+    btn.addEventListener('click', async () => {
+      // 4.E.3: onClick que retorna false (ou Promise<false>) SEGURA o
+      // modal aberto — ex: validação de form falhou; fechar apagaria o
+      // que o usuário digitou. undefined/qualquer outro = fecha (igual
+      // ao comportamento original).
+      if (typeof action.onClick === 'function') {
+        const resultado = await action.onClick();
+        if (resultado === false) return;
+      }
       close();
     });
     actionsEl.appendChild(btn);

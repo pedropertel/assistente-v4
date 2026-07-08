@@ -865,9 +865,9 @@ Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 > "Uma aba que seja um bloco de notas tipo o Notes do iPhone — mando
 > 'transforme essa resposta em uma anotação com título X' e salvo coisas
 > importantes. Poderia fazer listas lá e outras coisas."
-- [ ] **4.E.1** — Tabela `anotacoes` (titulo, conteudo markdown, entidade_id, favorita, arquivada, mensagem_origem_id) + migration. Esforço S.
-- [ ] **4.E.2** — Tool `salvar_anotacao` em `_shared/tools/` ("transforma essa resposta em anotação com título X" — o modelo tem a resposta no próprio contexto). Esforço S com a infra da 3.5.D.6.
-- [ ] **4.E.3** — Aba Notas na sidebar: listar/abrir/editar/arquivar, render com js/core/markdown.js (listas/negrito de graça). Esforço M.
+- [x] **4.E.1** ✅ — **Feita 2026-07-08** (`3caa2fa`): tabela `anotacoes` espelhada na ideias (soft-delete, RLS, trigger updated_at), migration versionada.
+- [x] **4.E.2** ✅ — **Feita 2026-07-08** (`3caa2fa` + fix `789a147`): tool transversal via convenção da 3.5.D.6. Fix crítico (achado Pedro): Haiku RESUMIA a resposta — flag `copiar_resposta_anterior` faz o executor buscar o texto do banco (fidelidade por código; validado: 2349 chars = 2349 chars, idênticas).
+- [x] **4.E.3** ✅ — **Feita 2026-07-08** (`ec5991f`): aba 📝 Notas (cards expansíveis com markdown, ✏️/⭐/🗑, + Nova manual). Router ganhou evento `page:change` (padrão pros módulos da Fase 4); modal aceita Node e onClick=false segura aberto.
 
 ### 4.D — PWA de verdade (F5 — hoje é documentado mas inexistente)
 - [ ] **4.D.1** — `manifest.json` + ícones (192/512) + `sw.js` com cache versionado (cuidado: SW que serve JS velho após deploy é armadilha — usar versão no nome do cache + skipWaiting). Só então "instalável/offline" é verdade.

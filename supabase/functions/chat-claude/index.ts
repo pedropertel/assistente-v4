@@ -583,7 +583,11 @@ function escolherModelo(
 type EmitSSE = (evento: string, dados: unknown) => void;
 
 // Fallbacks de ai_tools.* (3.I.2.1 + 3.H.1).
-const TOOLS_TRANSVERSAIS_FALLBACK = ['salvar_ideia', 'lancar_custo_sitio'];
+const TOOLS_TRANSVERSAIS_FALLBACK = [
+  'salvar_ideia',
+  'lancar_custo_sitio',
+  'salvar_anotacao', // 4.E.2 — bloco de notas
+];
 const TOOLS_POR_PERSONA_FALLBACK: Record<string, string[]> = {};
 
 /**
