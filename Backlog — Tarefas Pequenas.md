@@ -861,6 +861,14 @@ Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 - [ ] **4.C.5** — Dashboard (visão geral; por último, consome os outros)
 - [ ] **4.C.6** — Sítio (relatórios além dos lançamentos), CEDTEC (quando a 3.F voltar)
 
+### 4.E — Bloco de Notas (pedido do Pedro, 2026-07-08)
+> "Uma aba que seja um bloco de notas tipo o Notes do iPhone — mando
+> 'transforme essa resposta em uma anotação com título X' e salvo coisas
+> importantes. Poderia fazer listas lá e outras coisas."
+- [ ] **4.E.1** — Tabela `anotacoes` (titulo, conteudo markdown, entidade_id, favorita, arquivada, mensagem_origem_id) + migration. Esforço S.
+- [ ] **4.E.2** — Tool `salvar_anotacao` em `_shared/tools/` ("transforma essa resposta em anotação com título X" — o modelo tem a resposta no próprio contexto). Esforço S com a infra da 3.5.D.6.
+- [ ] **4.E.3** — Aba Notas na sidebar: listar/abrir/editar/arquivar, render com js/core/markdown.js (listas/negrito de graça). Esforço M.
+
 ### 4.D — PWA de verdade (F5 — hoje é documentado mas inexistente)
 - [ ] **4.D.1** — `manifest.json` + ícones (192/512) + `sw.js` com cache versionado (cuidado: SW que serve JS velho após deploy é armadilha — usar versão no nome do cache + skipWaiting). Só então "instalável/offline" é verdade.
 
