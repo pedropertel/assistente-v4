@@ -71,6 +71,12 @@ export function calcCustoUSD(
   // 3.G.2: pricing vindo de configuracoes.ai_defaults.precos_modelos.
   // Ausente/sem o modelo → cai no MODEL_PRICING hardcoded (fail-safe).
   pricing?: Record<string, PrecoModelo>,
+  // D3 (3.5.D.3) — prompt caching: usage.input_tokens NÃO inclui tokens
+  // cacheados. Cache write custa 1.25× do preço de input, read 0.1×
+  // (multiplicadores fixos da API Anthropic, TTL 5min). Default 0 mantém
+  // os callers sem caching (Roteador) intactos.
+  cacheWriteTokens: number = 0,
+  cacheReadTokens: number = 0,
 ): number {
   const p = pricing?.[modelo] ??
     MODEL_PRICING[modelo as keyof typeof MODEL_PRICING];
@@ -85,7 +91,10 @@ export function calcCustoUSD(
     });
     return 0;
   }
-  return (tokensIn / 1_000_000) * p.input
+  const inputEquivalente = tokensIn +
+    cacheWriteTokens * 1.25 +
+    cacheReadTokens * 0.1;
+  return (inputEquivalente / 1_000_000) * p.input
        + (tokensOut / 1_000_000) * p.output;
 }
 

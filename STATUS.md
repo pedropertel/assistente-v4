@@ -26,12 +26,15 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
   `signup_disabled`). Risco A1 encerrado.
 - ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
-- ✅ **Sincronizado:** Fase 3.5 promovida (merge `a921291`, 2026-07-07). main = dev.
+- ✅ **Sincronizado:** última promoção 2026-07-08 — 3.5.D.3. main = dev.
 - ✅ **3.5.D.1 (C6)** feita 2026-07-08 (`e393379`, Edge v53): histórico anexa
-  registro textual de tools já executadas — modelo não re-executa. Testado
-  em produção; aguarda teste do Pedro no celular.
-- 🔴 **3.5.D restante:** prompt caching (D3), extrair tools (D6), decisão
-  Edge dev/prod (D7), restos de D4/D5. Detalhe no Backlog.
+  registro textual de tools já executadas — modelo não re-executa. Testada
+  pelo Pedro no celular, aprovada e em produção.
+- ✅ **3.5.D.3 (prompt caching)** feita 2026-07-08 (`6492d3d`, Edge v54):
+  system em 2 blocos (estável cacheado + data/hora no fim) + custo com
+  cache write/read. Validado: custo 4× menor na 2ª msg (Sonnet). Aprovada.
+- 🔴 **3.5.D restante:** extrair tools (D6), decisão Edge dev/prod (D7),
+  restos de D4/D5. Detalhe no Backlog.
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
   ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
   desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.

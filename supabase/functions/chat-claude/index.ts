@@ -1554,16 +1554,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const promptCru = persona
       ? `${agente.prompt_base}\n\n---\n\n${persona.contexto}`
       : agente.prompt_base;
-    const promptProcessadoComPersona = substituirPlaceholders(
+
+    // D3 (3.5.D.3) — prompt caching. O system vira DOIS blocos:
+    //   1. estável (prompt+persona) com cache_control ephemeral — o
+    //      breakpoint cacheia tools+system juntos (ordem da API: tools →
+    //      system → messages). Write custa 1.25×, read 0.1×, TTL 5 min.
+    //   2. volátil só com a data/hora, no FIM. `{data_hora}` muda a cada
+    //      minuto — dentro do bloco estável invalidava o prefixo inteiro
+    //      em toda mensagem.
+    // Mínimo cacheável por modelo (Haiku/Opus 4096 tokens, Sonnet 2048):
+    // prefixo abaixo do mínimo → marker ignorado EM SILÊNCIO (sem erro,
+    // cache_creation=0). Verificação: campos cache_* no log `done`.
+    const promptEstavel = substituirPlaceholders(
       promptCru,
       {
         usuario: 'Pedro Pertel',
-        data_hora: formatarDataHoraBrasilia(),
+        data_hora: '(informada no bloco final deste prompt)',
         entidade_atual: entidade_id ? '(entidade ativa)' : '(geral)',
         persona_ativa: persona?.nome ?? '',
       },
       request_id,
     );
+    const systemBlocks = [
+      {
+        type: 'text' as const,
+        text: promptEstavel,
+        cache_control: { type: 'ephemeral' as const },
+      },
+      {
+        type: 'text' as const,
+        text: `Data e hora atual (Brasília): ${formatarDataHoraBrasilia()}.`,
+      },
+    ];
 
     // Modelo: Roteador via persona.modelo_override ou mapa[nivel_complexidade]
     // (mapa de configuracoes, 3.G.2). Persona null → agente.modelo.
@@ -1637,6 +1659,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let tokensEntradaTotal = 0;
     let tokensSaidaTotal = 0;
     let custoUsdTotal = 0;
+    // D3: tokens de cache acumulados no loop (write 1.25×, read 0.1× —
+    // entram no custo via calcCustoUSD e no log `done` pra verificação).
+    let cacheWriteTotal = 0;
+    let cacheReadTotal = 0;
     // Fallback de conteúdo (validado em teste 3.H.1): o modelo às vezes
     // escreve o comentário JUNTO do tool_use e devolve a resposta final
     // VAZIA depois do tool_result. Guardamos o último texto não-vazio de
@@ -1658,7 +1684,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const baseParams = {
           model: modeloEscolhido,
           max_tokens: agente.max_tokens,
-          system: promptProcessadoComPersona,
+          system: systemBlocks,
           messages,
           ...(specsResolvidos.length > 0 ? { tools: specsResolvidos } : {}),
         };
@@ -1681,11 +1707,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         tokensEntradaTotal += response.usage.input_tokens;
         tokensSaidaTotal += response.usage.output_tokens;
+        // D3: input_tokens NÃO inclui tokens cacheados — write e read
+        // chegam em campos próprios e têm preço próprio.
+        const cacheWrite = response.usage.cache_creation_input_tokens ?? 0;
+        const cacheRead = response.usage.cache_read_input_tokens ?? 0;
+        cacheWriteTotal += cacheWrite;
+        cacheReadTotal += cacheRead;
         custoUsdTotal += calcCustoUSD(
           response.model,
           response.usage.input_tokens,
           response.usage.output_tokens,
           precosModelos,
+          cacheWrite,
+          cacheRead,
         );
 
         const textoVolta = response.content
@@ -1890,6 +1924,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       modelo_usado,
       tokens_entrada,
       tokens_saida,
+      // D3: cache_write > 0 = prefixo gravado; cache_read > 0 = hit
+      // (economia real). Ambos 0 em modelo cujo prefixo < mínimo cacheável.
+      cache_write: cacheWriteTotal,
+      cache_read: cacheReadTotal,
       custo_usd,
       latencia_ms,
       user_msg_id: userMsgId,
