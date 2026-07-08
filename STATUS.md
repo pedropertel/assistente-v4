@@ -26,7 +26,12 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
   `signup_disabled`). Risco A1 encerrado.
 - ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
-- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.A.3. main = dev.
+- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.E completo. main = dev.
+- ✅ **4.E Bloco de Notas COMPLETO** em 2026-07-08 (mesmo dia do pedido):
+  tabela `anotacoes` (19ª de app) + tool `salvar_anotacao` (com
+  fidelidade por código — flag copia a resposta do banco, sem resumo do
+  modelo) + aba 📝 Notas (markdown, editar/favoritar/arquivar, + Nova).
+  Testado pelo Pedro no celular ("funciona muito bem").
 - ✅ **4.A.3** feita 2026-07-08: arquivar/favoritar mensagem (menu no
   toque) + 🧹 limpar conversa. Bloco 4.A (chat utilizável) COMPLETO.
 - 📝 **4.E Bloco de Notas** registrado no Backlog (pedido Pedro): tabela
