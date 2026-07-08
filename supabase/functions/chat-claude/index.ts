@@ -448,6 +448,39 @@ async function buscarHistoricoMensagens(
  * fluxo da 3.D. REGRA 12: se Pedro deletou ou desativou o seed,
  * mensagem educativa no log (sem fallback hardcoded silencioso).
  */
+// 4.A.2: cache isolate id→nome de entidade (pro placeholder
+// {entidade_atual}). Entidades quase nunca mudam; cold-start refresca.
+const cachedNomesEntidades = new Map<string, string>();
+
+/**
+ * Resolve o NOME da entidade pro placeholder {entidade_atual} (4.A.2).
+ * Antes o placeholder era o literal "(entidade ativa)" — o Roteador e o
+ * prompt não sabiam QUAL empresa estava ativa; com o seletor no front
+ * isso vira sinal real de roteamento.
+ *
+ * null → '(geral)'. Falha na query → fallback '(entidade ativa)' SEM
+ * cachear (padrão C1). Estável por entidade → não invalida o prompt
+ * caching da D3 (1 prefixo por combinação persona×entidade).
+ */
+async function getNomeEntidade(
+  supabase: SupabaseClient,
+  entidade_id: string | null,
+): Promise<string> {
+  if (!entidade_id) return '(geral)';
+  const cached = cachedNomesEntidades.get(entidade_id);
+  if (cached) return cached;
+
+  const { data } = await supabase
+    .from('entidades')
+    .select('nome')
+    .eq('id', entidade_id)
+    .single();
+
+  if (!data?.nome) return '(entidade ativa)';
+  cachedNomesEntidades.set(entidade_id, data.nome as string);
+  return data.nome as string;
+}
+
 async function getRoteador(supabase: SupabaseClient): Promise<PersonaRow> {
   if (cachedRoteador) return cachedRoteador;
 
@@ -687,12 +720,13 @@ async function chamarRoteador(
 
   // System: contexto do Roteador com placeholders substituídos.
   // {persona_ativa}='' porque Roteador é meta — não opera sob outra persona.
+  // 4.A.2: entidade_atual agora é o NOME real — sinal de roteamento.
   const systemRoteador = substituirPlaceholders(
     roteador.contexto,
     {
       usuario: 'Pedro Pertel',
       data_hora: formatarDataHoraBrasilia(),
-      entidade_atual: entidade_id ? '(entidade ativa)' : '(geral)',
+      entidade_atual: await getNomeEntidade(supabase, entidade_id),
       persona_ativa: '',
     },
     requestId,
@@ -1091,8 +1125,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // conforme convenção `Tabela — personas.md` linha 67). Substitui
     // placeholders APÓS concat (decisão B13 — `{persona_ativa}` aparece
     // no `prompt_base` mas valores futuros podem aparecer em `persona.contexto`).
-    // TODO 3.G ou Fase 4: resolver entidade_atual pra nome real (SELECT em
-    // entidades pelo entidade_id) quando seletor de entidade entrar na UI.
     // TODO multi-user (fora do roadmap): lookup do nome do user via session.
     const promptCru = persona
       ? `${agente.prompt_base}\n\n---\n\n${persona.contexto}`
@@ -1113,7 +1145,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       {
         usuario: 'Pedro Pertel',
         data_hora: '(informada no bloco final deste prompt)',
-        entidade_atual: entidade_id ? '(entidade ativa)' : '(geral)',
+        // 4.A.2: nome real da entidade (cache isolate; estável por
+        // entidade — preserva o prompt caching da D3).
+        entidade_atual: await getNomeEntidade(supabase, entidade_id),
         persona_ativa: persona?.nome ?? '',
       },
       request_id,

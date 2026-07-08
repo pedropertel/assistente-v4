@@ -26,6 +26,73 @@ import { mdParaHtml } from '../core/markdown.js';
  *      .failed + toast
  *   8. Reabilita controles, foca textarea
  */
+// ──────────── Seletor de entidade (4.A.2) ────────────
+//
+// Estado da empresa ativa da conversa. null = chat geral (comportamento
+// idêntico ao pré-4.A.2). Persiste em localStorage pra sobreviver a
+// reload/reabrir o PWA. O id é validado contra a lista carregada do
+// banco — id órfão (entidade apagada) volta pra Geral em silêncio.
+
+let entidadeAtiva = localStorage.getItem('chat.entidade_id') || null;
+
+/**
+ * initSeletorEntidade — carrega entidades ativas e renderiza os chips.
+ * Chamada 1x no initApp (app.js). Falha graciosa: sem chips, o chat
+ * geral continua funcionando (entidadeAtiva permanece utilizável).
+ */
+export async function initSeletorEntidade() {
+  const el = document.getElementById('chat-entidades');
+  if (!el) return;
+
+  const { data, error } = await supabase
+    .from('entidades')
+    .select('id, nome, icone, cor_hex')
+    .eq('ativa', true)
+    .order('ordem');
+
+  if (error) {
+    console.error('[chat] erro ao carregar entidades', error);
+    return;
+  }
+
+  const entidades = data || [];
+  if (entidadeAtiva && !entidades.some((e) => e.id === entidadeAtiva)) {
+    entidadeAtiva = null;
+    localStorage.removeItem('chat.entidade_id');
+  }
+
+  renderChipsEntidade(el, entidades);
+}
+
+function renderChipsEntidade(el, entidades) {
+  el.innerHTML = '';
+  const opcoes = [
+    { id: null, nome: 'Geral', icone: '🌐', cor_hex: '6B7280' },
+    ...entidades,
+  ];
+  for (const ent of opcoes) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-entidade-chip' +
+      (ent.id === entidadeAtiva ? ' ativa' : '');
+    btn.style.setProperty('--chip-cor', '#' + (ent.cor_hex || '6B7280'));
+    btn.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    // addEventListener (não onclick no HTML) → sem window bridge (REGRA 4
+    // só vale pra onclick inline).
+    btn.addEventListener('click', () => {
+      if (ent.id === entidadeAtiva) return;
+      entidadeAtiva = ent.id;
+      if (ent.id) localStorage.setItem('chat.entidade_id', ent.id);
+      else localStorage.removeItem('chat.entidade_id');
+      renderChipsEntidade(el, entidades);
+      carregarHistorico().catch((err) => {
+        console.error('[chat] erro ao trocar entidade', err);
+      });
+    });
+    el.appendChild(btn);
+  }
+}
+
 export async function enviarMensagem() {
   const ta = document.getElementById('chat-textarea');
   const btn = document.getElementById('btn-enviar');
@@ -65,7 +132,9 @@ export async function enviarMensagem() {
   try {
     const { error } = await invokeFunctionStream(
       'chat-claude',
-      { texto, stream: true, origem_voz: veioDeVoz },
+      // 4.A.2: entidade ativa vai no body — Edge filtra histórico e
+      // resolve o nome pro Roteador/prompt. null = chat geral.
+      { texto, stream: true, origem_voz: veioDeVoz, entidade_id: entidadeAtiva },
       {
         router: (d) => {
           garantirBolha(d);
@@ -121,13 +190,11 @@ export async function enviarMensagem() {
 /**
  * carregarHistorico — busca últimas 50 mensagens do chat.
  *
- * 3.B: entidadeId sempre null (UI ainda não tem seletor de
- * entidade). Filtra entidade_id IS NULL pra mostrar só chat
- * geral.
- * 3.D vai estender pra suportar histórico por entidade ativa
- * + filtragem por persona quando relevante.
+ * 4.A.2: sem argumento, usa a entidade ATIVA do seletor (null = chat
+ * geral). Conversas de empresas diferentes não se misturam — mesmo
+ * critério de filtro da Edge.
  */
-export async function carregarHistorico(entidadeId = null) {
+export async function carregarHistorico(entidadeId = entidadeAtiva) {
   let q = supabase
     .from('chat_mensagens')
     .select(`

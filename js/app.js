@@ -7,6 +7,7 @@ import {
   carregarHistorico,
   enviarMensagem,
   handleChatKeydown,
+  initSeletorEntidade,
   toggleDitado,
 } from './modules/chat.js';
 
@@ -47,6 +48,10 @@ async function initApp(session) {
   console.log('[initApp] logado como', session.user.email);
   showApp();
   goPage('chat');
+  // 4.A.2: chips de entidade (listeners internos — sem window bridge).
+  initSeletorEntidade().catch((err) => {
+    console.error('[initApp] initSeletorEntidade falhou', err);
+  });
   carregarHistorico().catch((err) => {
     console.error('[initApp] carregarHistorico falhou', err);
   });
