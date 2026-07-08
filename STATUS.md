@@ -35,8 +35,10 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   cache write/read. Validado: custo 4× menor na 2ª msg (Sonnet). Aprovada.
 - ✅ **3.5.D.7 decidida** (2026-07-08): Edge segue compartilhada + fumaça
   obrigatória pós-deploy. Revisitar na Fase 5 (Meta com dinheiro real).
-- 🔴 **3.5.D restante:** extrair tools (D6) e restos de D4/D5. Detalhe
-  no Backlog.
+- ✅ **3.5.D.6 (extrair tools)** feita 2026-07-08 (`68be064`, Edge v55):
+  tools em `_shared/tools/`, index.ts 2029→1568 linhas. Aguarda aprovado.
+- 🔴 **3.5.D restante:** só restos de D4/D5 (ditado não sobrescrever
+  edição manual + deno check no fluxo). Detalhe no Backlog.
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
   ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
   desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.

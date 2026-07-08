@@ -820,7 +820,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 - [x] **3.5.D.3 (D4)** ✅ — **Feita 2026-07-08** (`6492d3d`, Edge v54): system em 2 blocos (estável com cache_control + data/hora no fim) e calcCustoUSD precificando cache write/read. Validado: custo 4× menor na 2ª mensagem (Sonnet). Mínimos: Sonnet 2048 tokens ✅, Haiku/Opus 4096 (prompts curtos não cacheiam — sem erro, sem custo extra).
 - [~] **3.5.D.4 (C9)** — ✅ extract concatena todos os blocos text + aviso de truncamento (`b449979`). Falta: ditado não sobrescrever edição manual.
 - [~] **3.5.D.5 (F2)** — ✅ script de fumaça `supabase/functions/fumaca.sh` (JSON+SSE+400). Falta: `deno check` local (precisa deno instalado) no fluxo.
-- [ ] **3.5.D.6 (F3)** — Extrair as tools de `chat-claude/index.ts` (~1400 linhas) pra `_shared/tools/` ANTES da 3.F engordar. Esforço M.
+- [x] **3.5.D.6 (F3)** ✅ — **Feita 2026-07-08** (`68be064`, Edge v55): tools extraídas pra `_shared/tools/` (tipos.ts + salvar_ideia.ts + lancar_custo_sitio.ts + catalogo.ts); index.ts 2029→1568 linhas, só o loop. Tool nova (3.F) = arquivo novo + registro no catálogo. Validado: fumaça 🟢 + as 2 tools gravando no banco.
 - [x] **3.5.D.7 (F4)** ✅ — **Decidido 2026-07-08 (Pedro):** Edge continua compartilhada; TODO deploy é obrigatoriamente seguido de `fumaca.sh` (ritual da D5). Racional: função dev separada isolaria só o código (banco continua o mesmo), usuário único e dados de teste não justificam o custo/drift. **Gatilho pra revisitar:** Fase 5 (Marcos + Meta agindo em campanha com dinheiro real) — aí avaliar projeto Supabase de dev inteiro, não só a função.
 
 ---
