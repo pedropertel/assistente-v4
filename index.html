@@ -421,6 +421,12 @@
     #main-content {
       height: 100dvh;
       min-height: 0;
+      /* 4.A.2 fix: #app-screen vira flex via JS no login; sem min-width:0
+         o main herda a largura MÍNIMA do conteúdo (a fileira de chips não
+         quebra linha) e estoura a tela no mobile. O desktop já tinha essa
+         regra no media query ≥768px — aqui é a versão base. */
+      min-width: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
     }
@@ -521,6 +527,45 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+    }
+
+    /* 4.A.2 — chips de entidade: linha horizontal com scroll (mobile
+       375px), touch 44px. Filho de altura fixa da .page-chat — não
+       entra na cascata min-height:0 do scroll do histórico. */
+    .chat-entidades {
+      display: flex;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      overflow-x: auto;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .chat-entidades::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chat-entidade-chip {
+      flex-shrink: 0;
+      min-height: 44px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .chat-entidade-chip.ativa {
+      background: var(--chip-cor, var(--accent));
+      border-color: transparent;
+      color: white;
+      font-weight: 600;
     }
 
     .chat-empty {
@@ -1020,6 +1065,10 @@
         </section>
 
         <section class="page page-chat" id="page-chat" hidden>
+          <!-- 4.A.2 — seletor de entidade: chips preenchidos pelo chat.js
+               (initSeletorEntidade). Define a empresa ativa da conversa:
+               histórico filtrado + entidade_id no body da Edge. -->
+          <div class="chat-entidades" id="chat-entidades"></div>
           <div class="chat-historico" id="chat-historico" aria-live="polite">
             <div class="chat-empty" id="chat-empty">Sem mensagens ainda. Manda um "oi" pra começar.</div>
           </div>

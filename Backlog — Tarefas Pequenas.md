@@ -844,7 +844,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 
 ### 4.A — Chat utilizável (interface primária primeiro)
 - [x] **4.A.1** ✅ — **Feita 2026-07-08** (`f12a978`): parser próprio em `js/core/markdown.js` (escapa HTML antes de transformar — XSS impossível; negrito/itálico/código/fences/listas/títulos/quebras). Só bolha assistant renderiza; user fica literal; streaming cru até o done. Testada pelo Pedro no preview.
-- [ ] **4.A.2** — Seletor de entidade no chat (E2): hoje `entidade_id` é sempre null e as conversas de todas as empresas se misturam. Chip/dropdown que define a entidade ativa → passa no body → histórico e Roteador por empresa. Esforço M.
+- [x] **4.A.2** ✅ — **Feita 2026-07-08** (`1a138f6` + fixes `8e7dd29`/`5486eeb`): chips de entidade (Geral + ativas do banco, localStorage), entidade_id no body, nome REAL no {entidade_atual} do Roteador/prompt (cache isolate). Fixes do teste mobile do Pedro: min-width:0 no #main-content (chips estouravam largura) e stream preso à entidade de origem (sem scroll puxado/bolha vazada ao trocar chip) + ditado iOS sem onresult tardio (msg repetida). E2E validado via Playwright.
 - [ ] **4.A.3** — Editar/arquivar/favoritar mensagem; limpar conversa. Esforço M.
 
 ### 4.B — Telas de correção (as tools já criam dados sem conserto — D2)

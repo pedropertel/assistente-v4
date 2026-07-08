@@ -26,6 +26,73 @@ import { mdParaHtml } from '../core/markdown.js';
  *      .failed + toast
  *   8. Reabilita controles, foca textarea
  */
+// ──────────── Seletor de entidade (4.A.2) ────────────
+//
+// Estado da empresa ativa da conversa. null = chat geral (comportamento
+// idêntico ao pré-4.A.2). Persiste em localStorage pra sobreviver a
+// reload/reabrir o PWA. O id é validado contra a lista carregada do
+// banco — id órfão (entidade apagada) volta pra Geral em silêncio.
+
+let entidadeAtiva = localStorage.getItem('chat.entidade_id') || null;
+
+/**
+ * initSeletorEntidade — carrega entidades ativas e renderiza os chips.
+ * Chamada 1x no initApp (app.js). Falha graciosa: sem chips, o chat
+ * geral continua funcionando (entidadeAtiva permanece utilizável).
+ */
+export async function initSeletorEntidade() {
+  const el = document.getElementById('chat-entidades');
+  if (!el) return;
+
+  const { data, error } = await supabase
+    .from('entidades')
+    .select('id, nome, icone, cor_hex')
+    .eq('ativa', true)
+    .order('ordem');
+
+  if (error) {
+    console.error('[chat] erro ao carregar entidades', error);
+    return;
+  }
+
+  const entidades = data || [];
+  if (entidadeAtiva && !entidades.some((e) => e.id === entidadeAtiva)) {
+    entidadeAtiva = null;
+    localStorage.removeItem('chat.entidade_id');
+  }
+
+  renderChipsEntidade(el, entidades);
+}
+
+function renderChipsEntidade(el, entidades) {
+  el.innerHTML = '';
+  const opcoes = [
+    { id: null, nome: 'Geral', icone: '🌐', cor_hex: '6B7280' },
+    ...entidades,
+  ];
+  for (const ent of opcoes) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-entidade-chip' +
+      (ent.id === entidadeAtiva ? ' ativa' : '');
+    btn.style.setProperty('--chip-cor', '#' + (ent.cor_hex || '6B7280'));
+    btn.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    // addEventListener (não onclick no HTML) → sem window bridge (REGRA 4
+    // só vale pra onclick inline).
+    btn.addEventListener('click', () => {
+      if (ent.id === entidadeAtiva) return;
+      entidadeAtiva = ent.id;
+      if (ent.id) localStorage.setItem('chat.entidade_id', ent.id);
+      else localStorage.removeItem('chat.entidade_id');
+      renderChipsEntidade(el, entidades);
+      carregarHistorico().catch((err) => {
+        console.error('[chat] erro ao trocar entidade', err);
+      });
+    });
+    el.appendChild(btn);
+  }
+}
+
 export async function enviarMensagem() {
   const ta = document.getElementById('chat-textarea');
   const btn = document.getElementById('btn-enviar');
@@ -43,7 +110,14 @@ export async function enviarMensagem() {
   // para o mic se ainda estiver gravando.
   const veioDeVoz = textoVeioDeVoz;
   textoVeioDeVoz = false;
-  if (ditandoAtivo) recognition?.stop();
+  if (ditandoAtivo && recognition) {
+    // Bug fix (4.A.2): iOS entrega um onresult FINAL depois do stop().
+    // Sem desligar o handler, o closure antigo reescrevia o textarea com
+    // a transcrição JÁ ENVIADA — ao ditar de novo (em outra entidade),
+    // a mensagem anterior saía repetida na frente da nova.
+    recognition.onresult = null;
+    recognition.stop();
+  }
 
   btn.disabled = true;
   ta.disabled = true;
@@ -57,26 +131,46 @@ export async function enviarMensagem() {
   let stream = null;
   let erroEvento = null;
 
+  // Bug fix (4.A.2): o stream pertence à entidade em que a mensagem foi
+  // ENVIADA. Se Pedro trocar de chip no meio, os eventos não podem mexer
+  // na tela da outra empresa (bolha aparecendo lá, scroll puxado a cada
+  // token). A resposta continua sendo persistida pela Edge; ao voltar
+  // pro chip ela aparece do histórico.
+  const entidadeDaMensagem = entidadeAtiva;
+  const aindaNaMesma = () => entidadeAtiva === entidadeDaMensagem;
+
   const garantirBolha = (chipData) => {
     if (!stream) stream = appendBubbleStreaming(chipData);
+    // Voltou pro chip da conversa depois de sair: a troca limpou o DOM
+    // (innerHTML) e a bolha ficou órfã — reanexa pra retomar o vivo.
+    else if (!stream.bubble.isConnected && aindaNaMesma()) {
+      document.getElementById('chat-historico').appendChild(stream.bubble);
+    }
     return stream;
   };
 
   try {
     const { error } = await invokeFunctionStream(
       'chat-claude',
-      { texto, stream: true, origem_voz: veioDeVoz },
+      // 4.A.2: entidade ativa vai no body — Edge filtra histórico e
+      // resolve o nome pro Roteador/prompt. null = chat geral.
+      { texto, stream: true, origem_voz: veioDeVoz, entidade_id: entidadeDaMensagem },
       {
         router: (d) => {
-          garantirBolha(d);
+          if (aindaNaMesma()) garantirBolha(d);
         },
         delta: (d) => {
+          // Sem bolha ainda + fora do chip = não cria na tela errada.
+          // (Com bolha existente, appenda mesmo órfã — o texto fica
+          // acumulado pra quando Pedro voltar pro chip.)
+          if (!stream && !aindaNaMesma()) return;
           const s = garantirBolha(null);
           if (s.status.textContent) s.status.textContent = '';
           s.texto.textContent += d.texto;
-          scrollToBottom();
+          if (aindaNaMesma()) scrollToBottom();
         },
         tool: (d) => {
+          if (!stream && !aindaNaMesma()) return;
           const s = garantirBolha(null);
           s.status.textContent = d.status === 'executando'
             ? '⚙️ executando ação…'
@@ -97,20 +191,25 @@ export async function enviarMensagem() {
       if (stream) stream.bubble.classList.add('error');
       // C7 (revisão 2026-07-07): devolve o texto pro campo pra Pedro não
       // reescrever. Só se o erro foi ANTES de qualquer resposta chegar
-      // (sem stream nem eventos) — senão a mensagem já foi processada.
-      if (!stream) ta.value = texto;
+      // (sem stream nem eventos) E se Pedro ainda está no mesmo chip —
+      // senão o texto iria pra conversa de OUTRA empresa.
+      if (!stream && aindaNaMesma()) ta.value = texto;
       return;
     }
 
     // Sucesso: recarrega histórico — substitui otimista + bolha de
     // stream pelas rows persistidas (métricas reais + chip do banco).
-    await carregarHistorico();
+    // Só se Pedro continua no chip da mensagem: recarregar a conversa de
+    // OUTRA empresa puxaria o scroll dela. Ao voltar pro chip, o clique
+    // já recarrega e a resposta aparece do banco.
+    if (aindaNaMesma()) await carregarHistorico();
   } catch (err) {
     console.error('[chat] exception inesperada', err);
     showToast('Erro inesperado. Vê o console.', 'error');
     optimisticEl.classList.remove('optimistic');
     optimisticEl.classList.add('failed');
-    if (!stream) ta.value = texto; // C7: recupera a mensagem digitada
+    // C7: recupera a mensagem digitada (só no chip original — ver acima)
+    if (!stream && aindaNaMesma()) ta.value = texto;
   } finally {
     btn.disabled = false;
     ta.disabled = false;
@@ -121,13 +220,11 @@ export async function enviarMensagem() {
 /**
  * carregarHistorico — busca últimas 50 mensagens do chat.
  *
- * 3.B: entidadeId sempre null (UI ainda não tem seletor de
- * entidade). Filtra entidade_id IS NULL pra mostrar só chat
- * geral.
- * 3.D vai estender pra suportar histórico por entidade ativa
- * + filtragem por persona quando relevante.
+ * 4.A.2: sem argumento, usa a entidade ATIVA do seletor (null = chat
+ * geral). Conversas de empresas diferentes não se misturam — mesmo
+ * critério de filtro da Edge.
  */
-export async function carregarHistorico(entidadeId = null) {
+export async function carregarHistorico(entidadeId = entidadeAtiva) {
   let q = supabase
     .from('chat_mensagens')
     .select(`
@@ -207,6 +304,10 @@ export function toggleDitado() {
     recognition?.stop();
     return;
   }
+
+  // Cinto de segurança: instância anterior nunca mais escreve no textarea
+  // (mesma classe de bug do onresult tardio do iOS).
+  if (recognition) recognition.onresult = null;
 
   recognition = new SpeechRec();
   recognition.lang = 'pt-BR';
