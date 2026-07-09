@@ -7,7 +7,7 @@
  *   - Recebe { texto: string, entidade_id?: uuid } no body.
  *   - Lê o agente 'assistente' do banco (prompt_base, modelo, temperatura,
  *     max_tokens). Cache em variável de módulo do isolate (cold-start
- *     refresca; TODO 4.x: cache_version pra invalidação ativa).
+ *     refresca; invalidação ativa via cache_version — 4.0).
  *   - INSERT user antes da chamada Anthropic.
  *   - Substitui placeholders {usuario}, {data_hora}, {entidade_atual},
  *     {persona_ativa} no prompt_base. Chave desconhecida vira string vazia
@@ -127,7 +127,12 @@ import {
 } from '../_shared/anthropic.ts';
 import { getSupabaseAdmin } from '../_shared/supabase-admin.ts';
 import { getCotacaoUSDBRL } from '../_shared/cotacao.ts';
-import { getConfigs, lerConfig } from '../_shared/config.ts';
+import {
+  getConfigs,
+  lerConfig,
+  registrarResetDeCache,
+  verificarVersaoCache,
+} from '../_shared/config.ts';
 // 3.5.D.6: tools extraídas pra _shared/tools/ (tipos + implementações +
 // catálogo). Tool nova = novo arquivo lá + registro no catalogo.ts.
 import type { ToolDef } from '../_shared/tools/tipos.ts';
@@ -193,8 +198,7 @@ interface AgenteRow {
 
 // Cache do agente assistente — primeiro request por isolate faz lookup,
 // próximos reusam. Custo: 1 query extra a cada cold-start.
-// TODO 4.x: invalidação via cache_version ou updated_at em agentes
-// quando UI de edição existir (botão "reload" é hacky).
+// 4.0: invalidação ativa via cache_version (reset registrado abaixo).
 let cachedAgente: AgenteRow | null = null;
 
 // Linha do banco da tabela `personas` (campos que a Edge usa pro router).
@@ -214,7 +218,7 @@ interface PersonaRow {
 }
 
 // Cache da persona interna 'roteador' (modelo_override='claude-haiku-4-5-20251001').
-// Mesmo padrão de cache de isolate. TODO 4.x: invalidação ativa.
+// Mesmo padrão de cache de isolate; invalidação ativa via cache_version (4.0).
 let cachedRoteador: PersonaRow | null = null;
 
 // Cache das 5 personas reais (interno=false, ativa=true) indexadas por slug.
@@ -454,6 +458,18 @@ async function buscarHistoricoMensagens(
 // 4.A.2: cache isolate id→nome de entidade (pro placeholder
 // {entidade_atual}). Entidades quase nunca mudam; cold-start refresca.
 const cachedNomesEntidades = new Map<string, string>();
+
+// 4.0 (E4): quando cache_version muda no banco, `verificarVersaoCache`
+// (chamada no início de cada request) zera TODOS os caches de isolate
+// deste módulo — junto com o Map de configuracoes do config.ts. A
+// cotação (cotacao.ts) fica de fora de propósito: é dado externo com
+// TTL próprio de 1h, não editável por tela.
+registrarResetDeCache(() => {
+  cachedAgente = null;
+  cachedRoteador = null;
+  cachedPersonasReais = null;
+  cachedNomesEntidades.clear();
+});
 
 /**
  * Resolve o NOME da entidade pro placeholder {entidade_atual} (4.A.2).
@@ -978,6 +994,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let userMsgId: string;
   try {
     supabase = getSupabaseAdmin();
+    // 4.0: checa cache_version ANTES de qualquer leitura cacheada — se
+    // Pedro editou persona/config e bumpou a versão, este request já
+    // responde com o dado fresco (getAgenteAssistente abaixo é cacheado).
+    await verificarVersaoCache(supabase, request_id);
     agente = await getAgenteAssistente(supabase);
 
     const { data: userMsg, error: errUser } = await supabase
