@@ -6,7 +6,7 @@
 > Toda sessão nova LÊ ESTE ARQUIVO PRIMEIRO. Ignora status
 > mencionado em prompts iniciais — confere aqui.
 
-**Última atualização:** 2026-07-08
+**Última atualização:** 2026-07-09
 
 ═══════════════════════════════════════════════════════════════
 
@@ -25,8 +25,14 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
 - ✅ **A4 legado limpo:** tabela `teste` + 5 functions legadas removidas.
 - ✅ **Signup fechado** (Pedro, 2026-07-08 — verificado via curl:
   `signup_disabled`). Risco A1 encerrado.
-- ⏸️ **Decisões do Pedro:** cap Anthropic e upgrade Supabase segurados por ora.
-- ✅ **Sincronizado:** última promoção 2026-07-08 — 4.E completo. main = dev.
+- ⏸️ **Decisões do Pedro:** cap Anthropic (A.3) e upgrade Supabase (A.5)
+  segurados por ora — são o ÚNICO resto da Fase 3.5.
+- ✅ **3.5.D COMPLETA em 2026-07-09:** D4 (digitar durante o ditado desliga
+  o mic e preserva a edição) + D5 (deno instalado + `checar.sh` typecheck
+  pré-deploy; fluxo: checar → deploy → fumaça). Bônus: fix de tipo no
+  ToolSpec achado pelo próprio check (só tipo, sem deploy).
+- ✅ **Sincronizado:** última promoção 2026-07-09 (`d6601a8`) — D4+D5.
+  main = dev (só docs de fechamento à frente).
 - ✅ **4.E Bloco de Notas COMPLETO** em 2026-07-08 (mesmo dia do pedido):
   tabela `anotacoes` (19ª de app) + tool `salvar_anotacao` (com
   fidelidade por código — flag copia a resposta do banco, sem resumo do
@@ -56,8 +62,8 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   obrigatória pós-deploy. Revisitar na Fase 5 (Meta com dinheiro real).
 - ✅ **3.5.D.6 (extrair tools)** feita 2026-07-08 (`68be064`, Edge v55):
   tools em `_shared/tools/`, index.ts 2029→1568 linhas. Aprovada, em produção.
-- 🔴 **3.5.D restante:** só restos de D4/D5 (ditado não sobrescrever
-  edição manual + deno check no fluxo). Detalhe no Backlog.
+- 🔴 **Próxima:** 4.0 (invalidação de cache — pré-requisito das telas de
+  edição) → 4.B.1 (tela Ideias) ou 4.B.2 (Lançamentos do Sítio).
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
   ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
   desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.
@@ -97,20 +103,25 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (main sincronizada até `a921291`; commits da
-  3.5.D.1 + docs aguardam próximo /aprovar)
-- **Última versão Edge `chat-claude`:** v53 ACTIVE (3.5.D.1 — Edge é
-  compartilhada, já em produção)
-- **Supabase:** 18 tabelas public (tabela `teste` dropada na 3.5.A.4),
-  1 usuário, seeds íntegros; dados transacionais zerados em 2026-07-08
-  (eram teste). Signup desabilitado. ⚠️ Free tier pausa após ~7 dias
-  sem uso — backup em `090 - Backups/`.
-- **Último commit em dev:** `e393379` (3.5.D.1)
+- **Branch ativa:** dev (main sincronizada até `d6601a8`, promoção de
+  2026-07-09 — D4+D5)
+- **Última versão Edge `chat-claude`:** v59 ACTIVE (4.E — Edge é
+  compartilhada, já em produção). Fluxo de deploy: `checar.sh` →
+  deploy → `fumaca.sh` (3.5.D.5/D.7).
+- **Supabase:** 19 tabelas public (18 da Fase 2 − `teste` + `anotacoes`
+  da 4.E), 1 usuário, seeds íntegros; dados transacionais zerados em
+  2026-07-08 (eram teste). Signup desabilitado. ⚠️ Free tier pausa após
+  ~7 dias sem uso — backup em `090 - Backups/`.
+- **Último commit em dev:** `7cbad80` (3.5.D.5) + docs de fechamento
 
 ═══════════════════════════════════════════════════════════════
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-09 — 3.5.D.4 + 3.5.D.5 ✅ Restos da 3.5.D (ditado preserva
+  edição manual; deno check pré-deploy via `checar.sh` + fix de tipo
+  no ToolSpec). 3.5.D completa; da 3.5 sobram só decisões A.3/A.5.
+  Promovido pra produção no mesmo dia (`d6601a8`).
 - 2026-07-06 — 3.E ✅ Streaming SSE. 3.E.0 análise (achado:
   Roteador come ~2s não-streamáveis → evento `router` antecipa
   o chip; front precisa de fetch+ReadableStream porque

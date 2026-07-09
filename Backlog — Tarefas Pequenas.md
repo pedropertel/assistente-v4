@@ -814,12 +814,12 @@ C1 (caches não gravam falha/vazio), C2/C3 (waitUntil no SSE), C4 (lerConfig
 valida tipo), C5 (conteúdo vazio), C7 (front recupera msg), D1 (guardrail
 anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 
-### 🟡 3.5.D — Correções restantes (não bloqueiam, mas entram aqui)
+### ✅ 3.5.D — Correções restantes (completa 2026-07-09)
 - [x] **3.5.D.1 (C6)** ✅ — **Feita 2026-07-08** (`e393379`): histórico anexa registro textual das tools já executadas ao conteudo assistant (opção B — sem reconstruir blocos tool_use/tool_result; banco achata voltas numa row, reconstrução brigaria com dedup 3.D.3.1 + C5 + LIMIT). Testado em produção: modelo referencia ações passadas sem re-executar.
 - [x] **3.5.D.2 (C8)** ✅ — Front: timeout/abort no stream (AbortController 45s, reinicia a cada chunk). `b449979`.
 - [x] **3.5.D.3 (D4)** ✅ — **Feita 2026-07-08** (`6492d3d`, Edge v54): system em 2 blocos (estável com cache_control + data/hora no fim) e calcCustoUSD precificando cache write/read. Validado: custo 4× menor na 2ª mensagem (Sonnet). Mínimos: Sonnet 2048 tokens ✅, Haiku/Opus 4096 (prompts curtos não cacheiam — sem erro, sem custo extra).
-- [~] **3.5.D.4 (C9)** — ✅ extract concatena todos os blocos text + aviso de truncamento (`b449979`). Falta: ditado não sobrescrever edição manual.
-- [~] **3.5.D.5 (F2)** — ✅ script de fumaça `supabase/functions/fumaca.sh` (JSON+SSE+400). Falta: `deno check` local (precisa deno instalado) no fluxo.
+- [x] **3.5.D.4 (C9)** ✅ — extract concatena todos os blocos text + aviso de truncamento (`b449979`). **Resto fechado 2026-07-09** (`490ffa3`): digitar no textarea com o mic ligado desliga o ditado e preserva a edição manual (input programático não dispara 'input' — evento durante o ditado = Pedro digitando).
+- [x] **3.5.D.5 (F2)** ✅ — script de fumaça `supabase/functions/fumaca.sh` (JSON+SSE+400). **Resto fechado 2026-07-09** (`7cbad80`): deno 2.9.2 instalado + `checar.sh` (deno check pré-deploy, fluxo checar→deploy→fumaça no CLAUDE.md) + deno.json/deno.lock. Bônus: fix de tipo no ToolSpec (input_schema exige `type: 'object'`).
 - [x] **3.5.D.6 (F3)** ✅ — **Feita 2026-07-08** (`68be064`, Edge v55): tools extraídas pra `_shared/tools/` (tipos.ts + salvar_ideia.ts + lancar_custo_sitio.ts + catalogo.ts); index.ts 2029→1568 linhas, só o loop. Tool nova (3.F) = arquivo novo + registro no catálogo. Validado: fumaça 🟢 + as 2 tools gravando no banco.
 - [x] **3.5.D.7 (F4)** ✅ — **Decidido 2026-07-08 (Pedro):** Edge continua compartilhada; TODO deploy é obrigatoriamente seguido de `fumaca.sh` (ritual da D5). Racional: função dev separada isolaria só o código (banco continua o mesmo), usuário único e dados de teste não justificam o custo/drift. **Gatilho pra revisitar:** Fase 5 (Marcos + Meta agindo em campanha com dinheiro real) — aí avaliar projeto Supabase de dev inteiro, não só a função.
 

@@ -856,6 +856,31 @@ Convenção do projeto: extrai quando vira pattern, YAGNI por default.
 
 **Auditoria:** queries em `Tabela — chat_mensagens.md` (subseção "Function calling") cobrem casos comuns (tudo que Marcos chamou, confirmações pendentes abandonadas, tool mais frequente, custo extra de turns com tool).
 
+### Caches de isolate e `cache_version` (4.0)
+
+A Edge cacheia em variáveis de módulo do isolate: configuracoes (Map do
+`config.ts`), agente, persona Roteador, personas reais e nomes de
+entidades. A invalidação é ATIVA via chave `configuracoes.cache_version`:
+`verificarVersaoCache` (em `_shared/config.ts`) roda no início de cada
+request — versão mudou → zera todos os caches (os da chat-claude são
+registrados via `registrarResetDeCache` no init do módulo) e recarrega
+do banco na resposta seguinte.
+
+**CONVENÇÃO: toda edição em `agentes`, `personas`, `configuracoes` ou
+`entidades` (por tela na Fase 4 ou por SQL) incrementa a versão:**
+
+```sql
+UPDATE configuracoes
+SET valor = to_jsonb((valor #>> '{}')::int + 1)
+WHERE chave = 'cache_version';
+```
+
+Sem o bump, a mudança só aparece quando o isolate reciclar (minutos).
+A cotação USD (`cotacao.ts`) fica FORA do mecanismo de propósito: dado
+externo com TTL próprio de 1h, não editável por tela. Fail-open: se a
+checagem falhar, a Edge segue com os caches atuais + warning
+`config.versao_check_fail` (NUNCA quebra por config).
+
 ---
 
 ## Relacionado
