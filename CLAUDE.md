@@ -273,8 +273,12 @@ git checkout dev
 ```
 
 ### Deploy de Edge Function (quando alterada)
+A Edge é compartilhada dev/prod (decisão 3.5.D.7) — todo deploy é produção.
+Fluxo obrigatório: typecheck ANTES, fumaça DEPOIS.
 ```bash
+bash supabase/functions/checar.sh    # deno check — 🔴 = NÃO deployar
 supabase functions deploy [nome-da-funcao] --project-ref [ref-do-projeto]
+bash supabase/functions/fumaca.sh    # 🔴 = NÃO promover, investigar
 ```
 
 ---
