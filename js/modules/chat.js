@@ -300,6 +300,20 @@ let textoVeioDeVoz = false;
 const btnDitadoEl = document.getElementById('btn-ditado');
 if (btnDitadoEl && SpeechRec) btnDitadoEl.hidden = false;
 
+// D4 (C9): digitar manualmente com o mic ligado desliga o ditado e
+// preserva a edição. Atribuição programática (ta.value = ...) NÃO
+// dispara 'input' — se o evento chegou durante o ditado, foi o Pedro
+// digitando; sem isso, o próximo onresult reescreveria o campo inteiro
+// (baseTexto + transcrito) por cima da correção manual.
+const taDitadoEl = document.getElementById('chat-textarea');
+if (taDitadoEl && SpeechRec) {
+  taDitadoEl.addEventListener('input', () => {
+    if (!ditandoAtivo || !recognition) return;
+    recognition.onresult = null; // onresult tardio não desfaz a edição
+    recognition.stop(); // onend cuida do estado/botão
+  });
+}
+
 /**
  * toggleDitado — inicia/para o ditado. Chamado pelo onclick do 🎤
  * (exposto no window via app.js — REGRA 4).

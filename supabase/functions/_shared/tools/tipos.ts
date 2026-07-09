@@ -35,7 +35,9 @@ export interface ToolContext {
 export interface ToolSpec {
   name: string;
   description: string;
-  input_schema: Record<string, unknown>;
+  // O SDK Anthropic exige `type: 'object'` no schema (InputSchema) —
+  // sem o literal aqui, `deno check` acusa TS2345 no client.messages.
+  input_schema: { type: 'object' } & Record<string, unknown>;
 }
 
 /**
