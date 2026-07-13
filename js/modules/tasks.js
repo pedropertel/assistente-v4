@@ -1,0 +1,208 @@
+// Módulo Tarefas (4.C.1a) — kanban de 4 colunas.
+//
+// Fontes das tarefas: conversão de ideia (4.B.1b, origem='sistema'),
+// futuras tools da Marcela, e criação manual (4.C.1b). Esta primeira
+// sub-tarefa é READ-ONLY: ver o board; criar/editar vem na 1b e mover
+// de coluna na 1c (menu no toque — decisão: sem drag&drop no touch).
+//
+// Mobile 375px: colunas em scroll horizontal com snap (uma coluna por
+// "tela"); desktop = 4 colunas lado a lado. Labels de status/prioridade
+// vêm de `configuracoes` (`ui_labels.tarefa.*`, REGRA 12) com fallback.
+//
+// Recarrega via `page:change`; listeners internos (sem window bridge).
+
+import { supabase } from '../core/supabase.js';
+import { show as showToast } from '../core/toast.js';
+
+// Ordem estrutural das colunas (CHECK da tabela — kanban tem 4 colunas
+// por design; o NOME de cada uma é customizável via configuracoes).
+const COLUNAS = ['backlog', 'a_fazer', 'fazendo', 'feito'];
+
+const LABELS_FALLBACK = {
+  'status.backlog': 'Backlog',
+  'status.a_fazer': 'A fazer',
+  'status.fazendo': 'Fazendo',
+  'status.feito': 'Feito',
+  'prioridade.baixa': 'Baixa',
+  'prioridade.media': 'Média',
+  'prioridade.alta': 'Alta',
+  'prioridade.urgente': 'Urgente',
+};
+let labelsCache = null; // 1x por sessão
+
+// Filtro de empresa do board (null = todas). Só memória de sessão.
+let entidadeFiltro = null;
+
+document.addEventListener('page:change', (ev) => {
+  if (ev.detail !== 'tasks') return;
+  carregarBoard().catch((err) => {
+    console.error('[tasks] erro ao carregar', err);
+  });
+});
+
+async function getLabels() {
+  if (labelsCache) return labelsCache;
+  const { data, error } = await supabase
+    .from('configuracoes')
+    .select('chave, valor')
+    .like('chave', 'ui_labels.tarefa.%');
+  labelsCache = { ...LABELS_FALLBACK };
+  if (!error && data) {
+    for (const row of data) {
+      // 'ui_labels.tarefa.status.feito' → 'status.feito'
+      const chave = row.chave.replace('ui_labels.tarefa.', '');
+      if (typeof row.valor === 'string') labelsCache[chave] = row.valor;
+    }
+  }
+  return labelsCache;
+}
+
+export async function carregarBoard() {
+  const boardEl = document.getElementById('tasks-board');
+  if (!boardEl) return;
+
+  const labels = await getLabels();
+  await montarFiltroEntidades();
+
+  let q = supabase
+    .from('tarefas')
+    .select(`
+      id, titulo, descricao, status, prioridade, prazo, ordem, origem,
+      entidade_id, created_at, entidades(nome, icone, cor_hex)
+    `)
+    .eq('arquivada', false)
+    .order('ordem')
+    .order('created_at');
+
+  if (entidadeFiltro) q = q.eq('entidade_id', entidadeFiltro);
+
+  const { data, error } = await q;
+
+  if (error) {
+    console.error('[tasks] erro no SELECT', error);
+    showToast('Erro ao carregar tarefas', 'error');
+    return;
+  }
+
+  renderBoard(boardEl, data || [], labels);
+}
+
+/** Chips de empresa (Todas + ativas) — liga 1x, mesmo padrão do chat. */
+async function montarFiltroEntidades() {
+  const el = document.getElementById('tasks-entidades');
+  if (!el || el.dataset.ligado) return;
+  el.dataset.ligado = '1';
+
+  const { data, error } = await supabase
+    .from('entidades')
+    .select('id, nome, icone, cor_hex')
+    .eq('ativa', true)
+    .order('ordem');
+
+  if (error) {
+    console.error('[tasks] erro ao carregar entidades', error);
+    return;
+  }
+
+  const opcoes = [
+    { id: null, nome: 'Todas', icone: '🗂', cor_hex: '6B7280' },
+    ...(data || []),
+  ];
+  for (const ent of opcoes) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-entidade-chip' +
+      (ent.id === entidadeFiltro ? ' ativa' : '');
+    btn.style.setProperty('--chip-cor', '#' + (ent.cor_hex || '6B7280'));
+    btn.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    btn.addEventListener('click', () => {
+      if (ent.id === entidadeFiltro) return;
+      entidadeFiltro = ent.id;
+      el.querySelectorAll('button').forEach((b, i) => {
+        b.classList.toggle('ativa', opcoes[i].id === entidadeFiltro);
+      });
+      carregarBoard().catch(() => {});
+    });
+    el.appendChild(btn);
+  }
+}
+
+function renderBoard(boardEl, tarefas, labels) {
+  boardEl.innerHTML = '';
+
+  for (const status of COLUNAS) {
+    const daColuna = tarefas.filter((t) => t.status === status);
+
+    const coluna = document.createElement('div');
+    coluna.className = 'tasks-coluna';
+
+    const header = document.createElement('div');
+    header.className = 'tasks-coluna-header';
+    const nome = document.createElement('span');
+    nome.textContent = labels[`status.${status}`] ?? status;
+    const contador = document.createElement('small');
+    contador.textContent = String(daColuna.length);
+    header.appendChild(nome);
+    header.appendChild(contador);
+    coluna.appendChild(header);
+
+    const lista = document.createElement('div');
+    lista.className = 'tasks-coluna-lista';
+    if (!daColuna.length) {
+      const vazio = document.createElement('div');
+      vazio.className = 'tasks-coluna-vazia';
+      vazio.textContent = '—';
+      lista.appendChild(vazio);
+    } else {
+      for (const tarefa of daColuna) {
+        lista.appendChild(criarCardTarefa(tarefa, labels));
+      }
+    }
+    coluna.appendChild(lista);
+    boardEl.appendChild(coluna);
+  }
+}
+
+function criarCardTarefa(tarefa, labels) {
+  const card = document.createElement('article');
+  card.className = 'tasks-card';
+
+  const titulo = document.createElement('strong');
+  titulo.className = 'tasks-card-titulo';
+  titulo.textContent = tarefa.titulo;
+  card.appendChild(titulo);
+
+  const meta = document.createElement('div');
+  meta.className = 'tasks-card-meta';
+
+  const prio = document.createElement('span');
+  prio.className = `tasks-prioridade ${tarefa.prioridade}`;
+  prio.textContent = labels[`prioridade.${tarefa.prioridade}`] ?? tarefa.prioridade;
+  meta.appendChild(prio);
+
+  if (tarefa.prazo) {
+    const prazoEl = document.createElement('span');
+    prazoEl.className = 'tasks-prazo';
+    const d = new Date(tarefa.prazo);
+    prazoEl.textContent = '📅 ' + d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    });
+    // Vencida e ainda não feita → alerta (⚠ no texto, não só cor).
+    if (tarefa.status !== 'feito' && d < new Date()) {
+      prazoEl.classList.add('vencido');
+      prazoEl.textContent = '⚠ ' + prazoEl.textContent;
+    }
+    meta.appendChild(prazoEl);
+  }
+
+  if (tarefa.entidades) {
+    const ent = document.createElement('span');
+    ent.className = 'tasks-entidade';
+    ent.textContent = `${tarefa.entidades.icone ?? ''} ${tarefa.entidades.nome}`.trim();
+    meta.appendChild(ent);
+  }
+
+  card.appendChild(meta);
+  return card;
+}

@@ -961,6 +961,132 @@
       }
     }
 
+    /* ---------- Tarefas: kanban (4.C.1) ---------- */
+
+    .tasks-filtros {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .tasks-filtros::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tasks-board {
+      display: flex;
+      gap: var(--space-3);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
+      /* respiro pro card não colar na borda ao "snapar" */
+      padding-bottom: var(--space-2);
+    }
+
+    .tasks-coluna {
+      flex: 0 0 80%;
+      max-width: 320px;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      min-width: 0;
+    }
+
+    .tasks-coluna-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .tasks-coluna-header small {
+      min-width: 22px;
+      text-align: center;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .tasks-coluna-lista {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .tasks-coluna-vazia {
+      padding: var(--space-4);
+      text-align: center;
+      color: var(--text-tertiary);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .tasks-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .tasks-card-titulo {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .tasks-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .tasks-prioridade {
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .tasks-prioridade.media   { border-color: var(--accent);  color: var(--accent); }
+    .tasks-prioridade.alta    { border-color: var(--warning); color: var(--warning); }
+    .tasks-prioridade.urgente { border-color: var(--danger);  color: var(--danger); }
+
+    .tasks-prazo.vencido {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    @media (min-width: 768px) {
+      .tasks-board {
+        scroll-snap-type: none;
+      }
+
+      .tasks-coluna {
+        flex: 1;
+        max-width: none;
+      }
+    }
+
     /* ---------- Sítio: evolução + projeção (4.B.3e) ---------- */
 
     .sitio-evolucao {
@@ -1697,9 +1823,12 @@
           </div>
         </section>
 
+        <!-- 4.C.1 — Kanban de tarefas: board renderizado pelo tasks.js
+             (page:change). Mobile: 1 coluna por tela com scroll-snap
+             horizontal; desktop: 4 lado a lado. -->
         <section class="page" id="page-tasks" hidden>
-          <h1>Tarefas</h1>
-          <p class="page-placeholder">Aqui vão aparecer suas tarefas em formato kanban. Em breve.</p>
+          <div class="tasks-filtros" id="tasks-entidades"></div>
+          <div class="tasks-board" id="tasks-board"></div>
         </section>
 
         <section class="page" id="page-agenda" hidden>
