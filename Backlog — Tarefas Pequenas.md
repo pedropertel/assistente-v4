@@ -865,7 +865,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 ### 4.C — Módulos CRUD (ordem por uso real — triagem, NÃO fazer todos; E5)
 Cada módulo = 3-5 sub-tarefas (listar → criar → editar → arquivar → [kanban/extras]).
 Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
-- [ ] **4.C.1** — Tarefas (kanban 4 status + drag&drop + lembrete)
+- [x] **4.C.1** ✅ — Tarefas, completa 2026-07-13 (`dff5a04`): kanban 4 colunas + filtro empresa + CRUD + drag&drop (long-press touch, auto-scroll borda). Lembrete FICOU DE FORA (depende de decidir push/agenda/Marcela — anotado no STATUS).
 - [ ] **4.C.2** — Agenda/Eventos (lista + criação; recorrência depois)
 - [ ] **4.C.3** — Config: personas, entidades, configs de IA, labels (REGRA 12; depende de 4.0)
 - [ ] **4.C.4** — Documentos (biblioteca + upload Storage)

@@ -37,9 +37,12 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   editou agentes/personas/configuracoes/entidades → incrementa a versão
   (SQL no CONVENÇÕES.md). Validada por comportamento (rate limit).
   **Desbloqueia 4.C.3 e as telas de edição.**
-- ✅ **Sincronizado:** última promoção 2026-07-13 (`ff657ce`) — rename
-  das abas do Sítio (Realizados · A pagar/receber). main = dev (só
-  docs de fechamento à frente).
+- ✅ **4.C.1 (kanban de Tarefas) COMPLETA em 2026-07-13:** 4 colunas
+  com labels do banco, filtro por empresa, + Nova/editar/arquivar,
+  DRAG&DROP (long-press no touch, colunas 45%, auto-scroll na borda,
+  snap desliga no drag). Feito carimba concluida_em.
+- ✅ **Sincronizado:** última promoção 2026-07-13 (`dff5a04`) — 4.C.1.
+  main = dev (só docs de fechamento à frente).
 - ✅ **4.E Bloco de Notas COMPLETO** em 2026-07-08 (mesmo dia do pedido):
   tabela `anotacoes` (19ª de app) + tool `salvar_anotacao` (com
   fidelidade por código — flag copia a resposta do banco, sem resumo do
@@ -82,10 +85,10 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   repetição N meses; ✓ Pago vira realizado). "Outros" desduplicada
   por rename. 14 lançamentos "[TESTE dash]" no banco pra demo.
   **Gap D2 da revisão FECHADO** (ideias + lançamentos com tela).
-- 🔴 **Próxima:** 4.C.1 (kanban de Tarefas — já tem tarefa convertida
-  esperando) OU 4.C.2 (Agenda) OU melhorias do dash que o Pedro pedir.
+- 🔴 **Próxima:** 4.C.2 (Agenda/Eventos) OU 4.B.2+ melhorias do dash.
   Tarefinhas anotadas: caches das tools no reset do cache_version;
-  Alemão lançar previsto por voz.
+  Alemão lançar previsto por voz; lembrete de tarefa (depende de
+  decidir push/agenda/Marcela).
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
   ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
   desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.
@@ -125,8 +128,8 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (main sincronizada até `ff657ce`, promoção de
-  2026-07-13 — rename abas Sítio)
+- **Branch ativa:** dev (main sincronizada até `dff5a04`, promoção de
+  2026-07-13 — 4.C.1 kanban)
 - **Última versão Edge `chat-claude`:** v60 ACTIVE (4.0 — Edge é
   compartilhada, já em produção). Fluxo de deploy: `checar.sh` →
   deploy → `fumaca.sh` (3.5.D.5/D.7).
@@ -140,6 +143,9 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-13 — 4.C.1 ✅ Kanban de Tarefas (a board+filtro, b CRUD,
+  c drag&drop long-press com fix de snap/colunas do teste mobile).
+  Promovida (`dff5a04`).
 - 2026-07-13 — 4.B.3 ✅ Dash de gestão do Sítio (5 commits: status
   previsto/realizado, sub-abas + períodos, KPIs + donuts, aba Contas,
   evolução + projeção). Plano aprovado e executado no mesmo dia.
