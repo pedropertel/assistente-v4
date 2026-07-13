@@ -13,6 +13,8 @@ import {
 // 4.E.3 — Notas: import por efeito colateral (registra o listener de
 // page:change; carrega os dados quando a página abre).
 import './modules/notas.js';
+// 4.B.1a — Ideias: mesmo padrão (listener de page:change).
+import './modules/ideias.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

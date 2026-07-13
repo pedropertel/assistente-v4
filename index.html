@@ -697,6 +697,19 @@
       line-height: 1.5;
     }
 
+    /* ---------- Ideias (4.B.1a) — cards reusam as classes nota-* ---------- */
+
+    .ideia-proxima-acao {
+      margin-top: var(--space-3);
+      margin-bottom: 0;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-primary);
+      border-left: 3px solid rgba(234, 179, 8, 0.55);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
     .chat-entidades::-webkit-scrollbar {
       display: none;
     }
@@ -1193,6 +1206,7 @@
       <nav class="sidebar-nav">
         <button class="nav-item" type="button" data-page="chat" onclick="goPage('chat')"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">Chat</span></button>
         <button class="nav-item" type="button" data-page="notas" onclick="goPage('notas')"><span class="nav-icon" aria-hidden="true">📝</span><span class="nav-label">Notas</span></button>
+        <button class="nav-item" type="button" data-page="ideias" onclick="goPage('ideias')"><span class="nav-icon" aria-hidden="true">💡</span><span class="nav-label">Ideias</span></button>
         <button class="nav-item" type="button" data-page="dashboard" onclick="goPage('dashboard')"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">Dashboard</span></button>
         <button class="nav-item" type="button" data-page="tasks" onclick="goPage('tasks')"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Tarefas</span></button>
         <button class="nav-item" type="button" data-page="agenda" onclick="goPage('agenda')"><span class="nav-icon" aria-hidden="true">📅</span><span class="nav-label">Agenda</span></button>
@@ -1217,6 +1231,17 @@
         <section class="page" id="page-dashboard">
           <h1>Dashboard</h1>
           <p class="page-placeholder">Aqui vai aparecer o resumo do seu dia. Em breve.</p>
+        </section>
+
+        <!-- 4.B.1a — Ideias (Marina): lista renderizada pelo ideias.js
+             (recarrega via page:change; cards reusam as classes nota-*). -->
+        <section class="page" id="page-ideias" hidden>
+          <div class="notas-toolbar">
+            <button type="button" id="btn-nova-ideia" class="btn btn-primary">
+              + Nova ideia
+            </button>
+          </div>
+          <div id="ideias-lista" class="notas-lista"></div>
         </section>
 
         <!-- 4.E.3 — Bloco de Notas: lista renderizada pelo notas.js

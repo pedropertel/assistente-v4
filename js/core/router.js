@@ -6,6 +6,7 @@ export const PAGES = {
   dashboard: { title: 'Dashboard',     icon: '🏠' },
   chat:      { title: 'Chat',          icon: '💬' },
   notas:     { title: 'Notas',         icon: '📝' },
+  ideias:    { title: 'Ideias',        icon: '💡' },
   tasks:     { title: 'Tarefas',       icon: '✓'  },
   agenda:    { title: 'Agenda',        icon: '📅' },
   docs:      { title: 'Documentos',    icon: '📁' },

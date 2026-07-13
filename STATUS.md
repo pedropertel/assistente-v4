@@ -31,7 +31,13 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   o mic e preserva a edição) + D5 (deno instalado + `checar.sh` typecheck
   pré-deploy; fluxo: checar → deploy → fumaça). Bônus: fix de tipo no
   ToolSpec achado pelo próprio check (só tipo, sem deploy).
-- ✅ **Sincronizado:** última promoção 2026-07-09 (`d6601a8`) — D4+D5.
+- ✅ **4.0 (invalidação de cache) COMPLETA em 2026-07-09** (`b9ed0a1`,
+  Edge v60): `cache_version` em configuracoes + checagem no início de
+  cada request → bump zera os 5 caches de isolate na hora. Convenção:
+  editou agentes/personas/configuracoes/entidades → incrementa a versão
+  (SQL no CONVENÇÕES.md). Validada por comportamento (rate limit).
+  **Desbloqueia 4.C.3 e as telas de edição.**
+- ✅ **Sincronizado:** última promoção 2026-07-09 (`05d296b`) — 4.0.
   main = dev (só docs de fechamento à frente).
 - ✅ **4.E Bloco de Notas COMPLETO** em 2026-07-08 (mesmo dia do pedido):
   tabela `anotacoes` (19ª de app) + tool `salvar_anotacao` (com
@@ -62,8 +68,8 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   obrigatória pós-deploy. Revisitar na Fase 5 (Meta com dinheiro real).
 - ✅ **3.5.D.6 (extrair tools)** feita 2026-07-08 (`68be064`, Edge v55):
   tools em `_shared/tools/`, index.ts 2029→1568 linhas. Aprovada, em produção.
-- 🔴 **Próxima:** 4.0 (invalidação de cache — pré-requisito das telas de
-  edição) → 4.B.1 (tela Ideias) ou 4.B.2 (Lançamentos do Sítio).
+- 🔴 **Próxima:** 4.B.1 (tela Ideias) ou 4.B.2 (Lançamentos do Sítio) —
+  telas de correção dos dados que as tools já criam.
 - 🧹 **Dados de teste zerados em 2026-07-08** a pedido do Pedro (chat,
   ideias, lançamentos, tarefas, eventos). Seeds intactos. Até o fim do
   desenvolvimento, dado no banco é teste — sem cerimônia pra limpar.
@@ -103,9 +109,9 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (main sincronizada até `d6601a8`, promoção de
-  2026-07-09 — D4+D5)
-- **Última versão Edge `chat-claude`:** v59 ACTIVE (4.E — Edge é
+- **Branch ativa:** dev (main sincronizada até `05d296b`, promoção de
+  2026-07-09 — 4.0)
+- **Última versão Edge `chat-claude`:** v60 ACTIVE (4.0 — Edge é
   compartilhada, já em produção). Fluxo de deploy: `checar.sh` →
   deploy → `fumaca.sh` (3.5.D.5/D.7).
 - **Supabase:** 19 tabelas public (18 da Fase 2 − `teste` + `anotacoes`
@@ -118,6 +124,10 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-09 — 4.0 ✅ Invalidação ativa de cache (`cache_version` +
+  `verificarVersaoCache` a cada request, Edge v60). Validada por
+  comportamento nos dois sentidos. Desbloqueia as telas de edição.
+  Promovida em produção no mesmo dia (`05d296b`).
 - 2026-07-09 — 3.5.D.4 + 3.5.D.5 ✅ Restos da 3.5.D (ditado preserva
   edição manual; deno check pré-deploy via `checar.sh` + fix de tipo
   no ToolSpec). 3.5.D completa; da 3.5 sobram só decisões A.3/A.5.

@@ -836,11 +836,14 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 > já criam sem ter como consertar. Ordem por uso real, não por completude.
 
 ### Pré-requisito de arquitetura (antes de qualquer tela de edição)
-- [ ] **4.0 — Invalidação de cache (E4/E1 da revisão).** Os caches de isolate
-  (~5min) vão sabotar as telas de edição: Pedro muda uma persona/config/label
-  e não vê efeito por minutos. Antes de construir telas que editam esses dados,
-  resolver: `cache_version` em `configuracoes` que a Edge checa, ou TTL curto,
-  ou botão "recarregar". Esforço M. **Bloqueia as telas de personas/configs.**
+- [x] **4.0 — Invalidação de cache (E4/E1 da revisão)** ✅ — **Feita 2026-07-09**
+  (`b9ed0a1`, Edge v60): chave `cache_version` em `configuracoes` +
+  `verificarVersaoCache` no início de cada request → versão mudou → zera os
+  5 caches de isolate (configs, agente, Roteador, personas, nomes de
+  entidades). Convenção do bump no CONVENÇÕES.md. Validada por comportamento
+  (rate limit 10→1 + bump → 429 imediato; restauro + bump → 200 imediato).
+  **Telas de personas/configs desbloqueadas** — devem incrementar
+  cache_version ao salvar.
 
 ### 4.A — Chat utilizável (interface primária primeiro)
 - [x] **4.A.1** ✅ — **Feita 2026-07-08** (`f12a978`): parser próprio em `js/core/markdown.js` (escapa HTML antes de transformar — XSS impossível; negrito/itálico/código/fences/listas/títulos/quebras). Só bolha assistant renderiza; user fica literal; streaming cru até o done. Testada pelo Pedro no preview.
