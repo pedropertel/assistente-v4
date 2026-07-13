@@ -851,7 +851,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 - [x] **4.A.3** ✅ — **Feita 2026-07-08:** arquivar (soft-delete, migration `arquivada`, some da UI e da memória da IA) + favoritar (coluna já existia; badge ⭐) via menu no toque da bolha + 🧹 limpar conversa com modal. EDITAR CORTADO (decisão Pedro: corrigir = reenviar). E2E Playwright validado. Pendente futuro: toggle 'mostrar arquivadas' + desarquivar (hoje recuperação só via banco).
 
 ### 4.B — Telas de correção (as tools já criam dados sem conserto — D2)
-- [~] **4.B.1** — Tela de Ideias (Marina). **4.B.1a feita 2026-07-13** (`e6b4a85`): aba 💡 com listar/editar/favoritar/arquivar + Nova manual (espelho da notas.js; labels de status do banco — REGRA 12). Falta **4.B.1b**: converter em tarefa (INSERT em `tarefas` + status='convertida').
+- [x] **4.B.1** ✅ — Tela de Ideias (Marina), completa 2026-07-13. **a** (`e6b4a85`): aba 💡 com listar/editar/favoritar/arquivar + Nova manual (espelho da notas.js; labels do banco — REGRA 12). **b** (`023bea4`): converter em tarefa — modal com empresa obrigatória (tarefas.entidade_id NOT NULL vs ideia transversal), tarefa a_fazer origem='sistema', ideia vira 'convertida'; re-converter bloqueado.
 - [ ] **4.B.2** — Tela de Lançamentos do Sítio (Alemão): listar, editar, arquivar, filtrar por categoria/período; corrigir transcrição de voz errada. A tool `lancar_custo_sitio` já grava. **Também limpar a categoria "Outros" duplicada** (achado dados). Esforço L.
 
 ### 4.C — Módulos CRUD (ordem por uso real — triagem, NÃO fazer todos; E5)
