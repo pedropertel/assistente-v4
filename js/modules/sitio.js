@@ -64,6 +64,9 @@ export async function carregarLancamentos() {
       categoria_id, sitio_categorias(nome, tipo)
     `)
     .eq('arquivado', false)
+    // 4.B.3a: a lista de Lançamentos mostra só o que ACONTECEU. Previstos
+    // (contas a pagar/receber) vivem na aba Contas (4.B.3d).
+    .eq('status', 'realizado')
     .order('data_lancamento', { ascending: false })
     .order('created_at', { ascending: false });
 
