@@ -697,7 +697,62 @@
       line-height: 1.5;
     }
 
-    /* ---------- Sítio (4.B.2b) — filtros; cards reusam nota-* ---------- */
+    /* ---------- Sítio (4.B.2b + 4.B.3) — abas, períodos, filtros ---------- */
+
+    .sitio-abas {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .sitio-abas button {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .sitio-abas button.ativa {
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Sub-abas empilham conteúdo no fluxo da .page (gap herdado). */
+    #sitio-aba-resumo,
+    #sitio-aba-lancamentos,
+    #sitio-aba-contas {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+
+    #sitio-aba-resumo[hidden],
+    #sitio-aba-lancamentos[hidden],
+    #sitio-aba-contas[hidden] {
+      display: none;
+    }
+
+    .sitio-periodos {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .sitio-periodos::-webkit-scrollbar {
+      display: none;
+    }
 
     .sitio-filtros {
       display: flex;
@@ -1348,15 +1403,38 @@
           <p class="page-placeholder">Aqui vai aparecer o painel do CEDTEC — Meta Ads, leads, funil. Em breve.</p>
         </section>
 
-        <!-- 4.B.2b — Lançamentos do Sítio: lista renderizada pelo sitio.js
-             (recarrega via page:change; cards reusam as classes nota-*).
-             Sem "+ Novo": entrada é pelo chat/voz (Alemão). -->
+        <!-- 4.B.2b + 4.B.3 — Gestão do Sítio: 3 sub-abas (Resumo BI /
+             Lançamentos / Contas a pagar-receber) renderizadas pelo
+             sitio.js via page:change. Cards reusam as classes nota-*.
+             Sem "+ Novo" em Lançamentos: entrada é pelo chat/voz. -->
         <section class="page" id="page-sitio" hidden>
-          <div class="sitio-filtros">
-            <select id="sitio-filtro-categoria" aria-label="Filtrar por categoria"></select>
-            <select id="sitio-filtro-mes" aria-label="Filtrar por mês"></select>
+          <div class="sitio-abas" id="sitio-abas">
+            <button type="button" data-aba="resumo" class="ativa">📊 Resumo</button>
+            <button type="button" data-aba="lancamentos">📋 Lançamentos</button>
+            <button type="button" data-aba="contas">📅 Contas</button>
           </div>
-          <div id="sitio-lista" class="notas-lista"></div>
+
+          <div id="sitio-aba-resumo">
+            <div class="sitio-periodos" id="sitio-periodos"></div>
+            <div id="sitio-resumo-conteudo" class="notas-lista"></div>
+          </div>
+
+          <div id="sitio-aba-lancamentos" hidden>
+            <div class="sitio-filtros">
+              <select id="sitio-filtro-categoria" aria-label="Filtrar por categoria"></select>
+              <select id="sitio-filtro-mes" aria-label="Filtrar por mês"></select>
+            </div>
+            <div id="sitio-lista" class="notas-lista"></div>
+          </div>
+
+          <div id="sitio-aba-contas" hidden>
+            <div class="notas-toolbar">
+              <button type="button" id="btn-nova-conta" class="btn btn-primary">
+                + Nova conta
+              </button>
+            </div>
+            <div id="sitio-contas-lista" class="notas-lista"></div>
+          </div>
         </section>
 
         <section class="page" id="page-config" hidden>

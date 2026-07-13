@@ -27,12 +27,148 @@ let filtroMes = ''; // 'YYYY-MM' ou '' = todos
 // selects de filtro e de edição.
 let categoriasCache = null;
 
+// ──────────── Sub-abas + período (4.B.3b) ────────────
+
+let abaAtiva = 'resumo';
+let periodoAtivo = 'mes'; // chave de PERIODOS
+
+const PERIODOS = [
+  { chave: 'mes', label: 'Este mês' },
+  { chave: 'mes_passado', label: 'Mês passado' },
+  { chave: 'ano', label: 'Este ano' },
+  { chave: 'safra', label: 'Ano-safra' }, // jul–jun (café)
+  { chave: 'tudo', label: 'Tudo' },
+];
+
+/** 'YYYY-MM-DD' local (data_lancamento é DATE puro — nunca usar ISO/UTC). */
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Intervalo [ini, fim) do período. null = sem limite (Tudo).
+ * Ano-safra do café: jul→jun (mês >= jul → safra corrente começa em jul
+ * deste ano; senão começou em jul do ano passado).
+ */
+function intervaloPeriodo(chave) {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth(); // 0-11
+  switch (chave) {
+    case 'mes':
+      return { ini: ymd(new Date(ano, mes, 1)), fim: ymd(new Date(ano, mes + 1, 1)) };
+    case 'mes_passado':
+      return { ini: ymd(new Date(ano, mes - 1, 1)), fim: ymd(new Date(ano, mes, 1)) };
+    case 'ano':
+      return { ini: `${ano}-01-01`, fim: `${ano + 1}-01-01` };
+    case 'safra': {
+      const inicioSafra = mes >= 6 ? ano : ano - 1;
+      return { ini: `${inicioSafra}-07-01`, fim: `${inicioSafra + 1}-07-01` };
+    }
+    default:
+      return { ini: null, fim: null };
+  }
+}
+
+/** Período anterior de mesmo tamanho (pro ▲▼ dos KPIs). null pra Tudo. */
+function intervaloPeriodoAnterior(chave) {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+  switch (chave) {
+    case 'mes':
+      return { ini: ymd(new Date(ano, mes - 1, 1)), fim: ymd(new Date(ano, mes, 1)) };
+    case 'mes_passado':
+      return { ini: ymd(new Date(ano, mes - 2, 1)), fim: ymd(new Date(ano, mes - 1, 1)) };
+    case 'ano':
+      return { ini: `${ano - 1}-01-01`, fim: `${ano}-01-01` };
+    case 'safra': {
+      const inicioSafra = (mes >= 6 ? ano : ano - 1) - 1;
+      return { ini: `${inicioSafra}-07-01`, fim: `${inicioSafra + 1}-07-01` };
+    }
+    default:
+      return null;
+  }
+}
+
 document.addEventListener('page:change', (ev) => {
   if (ev.detail !== 'sitio') return;
-  carregarLancamentos().catch((err) => {
+  initAbas();
+  carregarAba().catch((err) => {
     console.error('[sitio] erro ao carregar', err);
   });
 });
+
+/** Liga os chips de aba e de período (1x) e sincroniza o visual. */
+function initAbas() {
+  const abasEl = document.getElementById('sitio-abas');
+  if (abasEl && !abasEl.dataset.ligado) {
+    abasEl.dataset.ligado = '1';
+    abasEl.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.aba === abaAtiva) return;
+        abaAtiva = btn.dataset.aba;
+        abasEl.querySelectorAll('button').forEach((b) => {
+          b.classList.toggle('ativa', b.dataset.aba === abaAtiva);
+        });
+        for (const aba of ['resumo', 'lancamentos', 'contas']) {
+          const el = document.getElementById(`sitio-aba-${aba}`);
+          if (el) el.hidden = aba !== abaAtiva;
+        }
+        carregarAba().catch(() => {});
+      });
+    });
+  }
+
+  const perEl = document.getElementById('sitio-periodos');
+  if (perEl && !perEl.dataset.ligado) {
+    perEl.dataset.ligado = '1';
+    for (const p of PERIODOS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chat-entidade-chip' + (p.chave === periodoAtivo ? ' ativa' : '');
+      btn.textContent = p.label;
+      btn.addEventListener('click', () => {
+        if (p.chave === periodoAtivo) return;
+        periodoAtivo = p.chave;
+        perEl.querySelectorAll('button').forEach((b, i) => {
+          b.classList.toggle('ativa', PERIODOS[i].chave === periodoAtivo);
+        });
+        carregarResumo().catch(() => {});
+      });
+      perEl.appendChild(btn);
+    }
+  }
+}
+
+/** Roteia o carregamento pra sub-aba ativa. */
+function carregarAba() {
+  if (abaAtiva === 'lancamentos') return carregarLancamentos();
+  if (abaAtiva === 'contas') return carregarContas();
+  return carregarResumo();
+}
+
+/** Resumo BI — conteúdo real na 4.B.3c/e. */
+async function carregarResumo() {
+  const el = document.getElementById('sitio-resumo-conteudo');
+  if (!el) return;
+  el.innerHTML = '';
+  const vazio = document.createElement('div');
+  vazio.className = 'notas-vazio';
+  vazio.textContent = 'Resumo em construção (4.B.3c) — KPIs, gráficos e projeção chegam aqui.';
+  el.appendChild(vazio);
+}
+
+/** Contas a pagar/receber — conteúdo real na 4.B.3d. */
+async function carregarContas() {
+  const el = document.getElementById('sitio-contas-lista');
+  if (!el) return;
+  el.innerHTML = '';
+  const vazio = document.createElement('div');
+  vazio.className = 'notas-vazio';
+  vazio.textContent = 'Contas a pagar/receber em construção (4.B.3d).';
+  el.appendChild(vazio);
+}
 
 async function getCategorias() {
   if (categoriasCache) return categoriasCache;
