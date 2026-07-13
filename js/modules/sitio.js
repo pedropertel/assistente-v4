@@ -419,15 +419,313 @@ function blocoDonut(titulo, lancamentos, tipo, categorias) {
   return bloco;
 }
 
-/** Contas a pagar/receber — conteúdo real na 4.B.3d. */
+// ──────────── Contas a pagar/receber (4.B.3d) ────────────
+//
+// Conta = lançamento status='previsto'; data_lancamento = vencimento.
+// Vencida (< hoje) ganha destaque e fica no topo (ordem asc natural).
+// ✓ Pago/Recebido vira 'realizado' — a data real é escolhida na hora
+// (hoje ou o vencimento) e o lançamento passa a contar nos números.
+
+let entidadeSitioId = null;
+
+async function getEntidadeSitioId() {
+  if (entidadeSitioId) return entidadeSitioId;
+  const { data } = await supabase
+    .from('entidades')
+    .select('id')
+    .eq('slug', 'sitio')
+    .single();
+  if (data?.id) entidadeSitioId = data.id;
+  return entidadeSitioId;
+}
+
 async function carregarContas() {
   const el = document.getElementById('sitio-contas-lista');
   if (!el) return;
+
+  const btnNova = document.getElementById('btn-nova-conta');
+  if (btnNova && !btnNova.dataset.ligado) {
+    btnNova.dataset.ligado = '1';
+    btnNova.addEventListener('click', () => abrirNovaConta());
+  }
+
+  const { data, error } = await supabase
+    .from('sitio_lancamentos')
+    .select(`
+      id, tipo, data_lancamento, descricao, valor_centavos,
+      forma_pagamento, fornecedor, categoria_id, sitio_categorias(nome)
+    `)
+    .eq('arquivado', false)
+    .eq('status', 'previsto')
+    .order('data_lancamento', { ascending: true });
+
+  if (error) {
+    console.error('[sitio] erro no SELECT de contas', error);
+    showToast('Erro ao carregar contas', 'error');
+    return;
+  }
+
   el.innerHTML = '';
-  const vazio = document.createElement('div');
-  vazio.className = 'notas-vazio';
-  vazio.textContent = 'Contas a pagar/receber em construção (4.B.3d).';
-  el.appendChild(vazio);
+  const contas = data || [];
+
+  if (!contas.length) {
+    const vazio = document.createElement('div');
+    vazio.className = 'notas-vazio';
+    vazio.textContent = 'Nenhuma conta futura. Cadastra em "+ Nova conta" ' +
+      'o que tem pra pagar ou receber.';
+    el.appendChild(vazio);
+    return;
+  }
+
+  const hoje = ymd(new Date());
+  for (const conta of contas) {
+    el.appendChild(criarCardConta(conta, hoje));
+  }
+}
+
+function criarCardConta(conta, hoje) {
+  const vencida = conta.data_lancamento < hoje;
+  const card = document.createElement('article');
+  card.className = 'nota-card' + (vencida ? ' conta-vencida' : '');
+
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'nota-card-header';
+
+  const titulo = document.createElement('span');
+  titulo.className = 'nota-titulo';
+  const rotuloTipo = conta.tipo === 'entrada' ? 'a receber' : 'a pagar';
+  titulo.textContent = `${conta.tipo === 'entrada' ? '+' : '−'} ${fmtMoney(conta.valor_centavos)} · ${conta.descricao}`;
+
+  const meta = document.createElement('small');
+  meta.className = 'nota-meta';
+  const [ano, mes, dia] = conta.data_lancamento.split('-');
+  meta.textContent = [
+    (vencida ? '⚠️ VENCIDA — ' : '') + `vence ${dia}/${mes}/${ano}`,
+    rotuloTipo,
+    conta.sitio_categorias?.nome ?? '(sem categoria)',
+  ].join(' · ');
+
+  header.appendChild(titulo);
+  header.appendChild(meta);
+  card.appendChild(header);
+
+  const corpo = document.createElement('div');
+  corpo.className = 'nota-corpo';
+  corpo.hidden = true;
+
+  const acoes = document.createElement('div');
+  acoes.className = 'nota-acoes';
+
+  const btnPagar = document.createElement('button');
+  btnPagar.type = 'button';
+  btnPagar.textContent = conta.tipo === 'entrada' ? '✓ Recebido' : '✓ Pago';
+  btnPagar.addEventListener('click', () => confirmarPagamento(conta));
+
+  const btnEditar = document.createElement('button');
+  btnEditar.type = 'button';
+  btnEditar.textContent = '✏️ Editar';
+  btnEditar.addEventListener('click', () => abrirEditor(conta));
+
+  const btnArq = document.createElement('button');
+  btnArq.type = 'button';
+  btnArq.textContent = '🗑 Arquivar';
+  btnArq.addEventListener('click', async () => {
+    const { error } = await supabase
+      .from('sitio_lancamentos')
+      .update({ arquivado: true })
+      .eq('id', conta.id);
+    if (error) {
+      showToast('Erro ao arquivar', 'error');
+      return;
+    }
+    showToast('Conta arquivada');
+    carregarContas().catch(() => {});
+  });
+
+  acoes.appendChild(btnPagar);
+  acoes.appendChild(btnEditar);
+  acoes.appendChild(btnArq);
+  corpo.appendChild(acoes);
+  card.appendChild(corpo);
+
+  header.addEventListener('click', () => {
+    corpo.hidden = !corpo.hidden;
+  });
+
+  return card;
+}
+
+/**
+ * confirmarPagamento — vira `realizado`. A data REAL importa pros números
+ * do Resumo: pergunta se foi hoje ou se mantém a do vencimento.
+ */
+function confirmarPagamento(conta) {
+  const verbo = conta.tipo === 'entrada' ? 'Recebido' : 'Pago';
+  const hoje = ymd(new Date());
+
+  const marcar = async (dataReal) => {
+    const { error } = await supabase
+      .from('sitio_lancamentos')
+      .update({ status: 'realizado', data_lancamento: dataReal })
+      .eq('id', conta.id);
+    if (error) {
+      showToast('Erro ao marcar', 'error');
+      return;
+    }
+    showToast(`${verbo} ✓ — já conta nos números do Resumo`);
+    carregarContas().catch(() => {});
+  };
+
+  const [ano, mes, dia] = conta.data_lancamento.split('-');
+  showModal({
+    title: `${verbo} — qual data?`,
+    body: `${conta.descricao} (${fmtMoney(conta.valor_centavos)}). ` +
+      'A data entra nos totais do período.',
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: `No vencimento (${dia}/${mes})`,
+        type: 'secondary',
+        onClick: () => marcar(conta.data_lancamento),
+      },
+      {
+        label: 'Hoje',
+        type: 'primary',
+        onClick: () => marcar(hoje),
+      },
+    ],
+  });
+}
+
+/**
+ * abrirNovaConta — cadastra previsto(s). "Repetir por N meses" cria N
+ * rows de uma vez (decisão do plano: sem engine de recorrência — editar/
+ * apagar depois é por row). Categoria filtrada pelo tipo escolhido.
+ */
+async function abrirNovaConta() {
+  const categorias = await getCategorias();
+  const sitioId = await getEntidadeSitioId();
+  if (!sitioId) {
+    showToast('Entidade do sítio não encontrada', 'error');
+    return;
+  }
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const selTipo = document.createElement('select');
+  selTipo.className = 'nota-editor-titulo';
+  for (const [valor, label] of [['saida', '− A pagar'], ['entrada', '+ A receber']]) {
+    const opt = document.createElement('option');
+    opt.value = valor;
+    opt.textContent = label;
+    selTipo.appendChild(opt);
+  }
+
+  const inputDesc = document.createElement('input');
+  inputDesc.type = 'text';
+  inputDesc.className = 'nota-editor-titulo';
+  inputDesc.placeholder = 'Descrição (ex: Salário Zé)';
+
+  const inputValor = document.createElement('input');
+  inputValor.type = 'text';
+  inputValor.inputMode = 'decimal';
+  inputValor.className = 'nota-editor-titulo';
+  inputValor.placeholder = 'Valor em reais (ex: 1.800,00)';
+
+  const inputVenc = document.createElement('input');
+  inputVenc.type = 'date';
+  inputVenc.className = 'nota-editor-titulo';
+
+  const selCategoria = document.createElement('select');
+  selCategoria.className = 'nota-editor-titulo';
+  const popularCategorias = () => {
+    selCategoria.innerHTML = '';
+    for (const cat of categorias.filter((c) => c.tipo === selTipo.value)) {
+      const opt = document.createElement('option');
+      opt.value = cat.id;
+      opt.textContent = cat.nome;
+      selCategoria.appendChild(opt);
+    }
+  };
+  popularCategorias();
+  selTipo.addEventListener('change', popularCategorias);
+
+  const selForma = document.createElement('select');
+  selForma.className = 'nota-editor-titulo';
+  for (const forma of ['pix', 'dinheiro', 'transferencia', 'cartao', 'boleto']) {
+    const opt = document.createElement('option');
+    opt.value = forma;
+    opt.textContent = 'Pagamento: ' + forma;
+    selForma.appendChild(opt);
+  }
+
+  const inputRepetir = document.createElement('input');
+  inputRepetir.type = 'number';
+  inputRepetir.min = '1';
+  inputRepetir.max = '24';
+  inputRepetir.value = '1';
+  inputRepetir.className = 'nota-editor-titulo';
+  inputRepetir.title = 'Repetir por N meses';
+  const labelRepetir = document.createElement('label');
+  labelRepetir.className = 'sitio-label-repetir';
+  labelRepetir.textContent = 'Repetir por quantos meses? (1 = só esta)';
+  labelRepetir.appendChild(inputRepetir);
+
+  form.appendChild(selTipo);
+  form.appendChild(inputDesc);
+  form.appendChild(inputValor);
+  form.appendChild(inputVenc);
+  form.appendChild(selCategoria);
+  form.appendChild(selForma);
+  form.appendChild(labelRepetir);
+
+  showModal({
+    title: 'Nova conta',
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          const descricao = inputDesc.value.trim();
+          const valorCentavos = parseReaisParaCentavos(inputValor.value);
+          const venc = inputVenc.value;
+          const repetir = Math.min(24, Math.max(1, Number(inputRepetir.value) || 1));
+          if (!descricao || !valorCentavos || !venc) {
+            showToast('Descrição, valor (> 0) e vencimento são obrigatórios', 'error');
+            return false; // segura o modal
+          }
+
+          const [ano, mes, dia] = venc.split('-').map(Number);
+          const rows = [];
+          for (let i = 0; i < repetir; i++) {
+            rows.push({
+              entidade_id: sitioId,
+              categoria_id: selCategoria.value,
+              tipo: selTipo.value,
+              data_lancamento: ymd(new Date(ano, mes - 1 + i, dia)),
+              descricao: repetir > 1 ? `${descricao} (${i + 1}/${repetir})` : descricao,
+              valor_centavos: valorCentavos,
+              forma_pagamento: selForma.value,
+              origem: 'manual',
+              status: 'previsto',
+            });
+          }
+
+          const { error } = await supabase.from('sitio_lancamentos').insert(rows);
+          if (error) {
+            showToast('Erro ao salvar conta', 'error');
+            return false;
+          }
+          showToast(repetir > 1 ? `${repetir} contas criadas` : 'Conta criada');
+          carregarContas().catch(() => {});
+        },
+      },
+    ],
+  });
 }
 
 async function getCategorias() {
