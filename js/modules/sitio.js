@@ -148,15 +148,275 @@ function carregarAba() {
   return carregarResumo();
 }
 
-/** Resumo BI — conteúdo real na 4.B.3c/e. */
+// ──────────── Resumo BI (4.B.3c) ────────────
+//
+// Uma query só: TODOS os realizados não-arquivados (volume minúsculo,
+// usuário único — decisão do plano). Tudo é agregado aqui: período atual,
+// período anterior (tendência ▲▼), investimento acumulado e burn médio.
+// Gráficos em CSS puro (donut conic-gradient); cores das categorias raiz
+// vêm de sitio_categorias.cor_hex (paleta validada — migration 4.B.3c).
+
+const COR_FALLBACK = '6B7280'; // cinza (cor_hex nula = categoria criada sem cor)
+
 async function carregarResumo() {
   const el = document.getElementById('sitio-resumo-conteudo');
   if (!el) return;
+
+  const categorias = await getCategorias();
+
+  const { data, error } = await supabase
+    .from('sitio_lancamentos')
+    .select('tipo, valor_centavos, data_lancamento, categoria_id')
+    .eq('arquivado', false)
+    .eq('status', 'realizado');
+
+  if (error) {
+    console.error('[sitio] erro no SELECT do resumo', error);
+    showToast('Erro ao carregar resumo', 'error');
+    return;
+  }
+
+  const todos = data || [];
   el.innerHTML = '';
-  const vazio = document.createElement('div');
-  vazio.className = 'notas-vazio';
-  vazio.textContent = 'Resumo em construção (4.B.3c) — KPIs, gráficos e projeção chegam aqui.';
-  el.appendChild(vazio);
+
+  if (!todos.length) {
+    const vazio = document.createElement('div');
+    vazio.className = 'notas-vazio';
+    vazio.textContent = 'Nenhum lançamento realizado ainda. Os números ' +
+      'aparecem aqui conforme o Alemão registra.';
+    el.appendChild(vazio);
+    return;
+  }
+
+  const { ini, fim } = intervaloPeriodo(periodoAtivo);
+  const noIntervalo = (l, int) =>
+    (!int.ini || l.data_lancamento >= int.ini) &&
+    (!int.fim || l.data_lancamento < int.fim);
+
+  const doPeriodo = todos.filter((l) => noIntervalo(l, { ini, fim }));
+  const soma = (lista, tipo) => lista
+    .filter((l) => l.tipo === tipo)
+    .reduce((acc, l) => acc + Number(l.valor_centavos), 0);
+
+  const entradas = soma(doPeriodo, 'entrada');
+  const saidas = soma(doPeriodo, 'saida');
+
+  // Tendência vs período anterior de mesmo tamanho ('tudo' não tem).
+  const intAnterior = intervaloPeriodoAnterior(periodoAtivo);
+  const doAnterior = intAnterior
+    ? todos.filter((l) => noIntervalo(l, intAnterior))
+    : null;
+
+  // Investimento acumulado: entradas do grupo raiz 'investimento', sempre
+  // all-time (o número da fase de investimento não depende do período).
+  const invAcumulado = todos
+    .filter((l) => l.tipo === 'entrada' &&
+      grupoRaizDe(l.categoria_id, categorias)?.slug === 'investimento')
+    .reduce((acc, l) => acc + Number(l.valor_centavos), 0);
+
+  // Burn médio mensal: total de saídas all-time / meses desde o 1º lançamento.
+  const datas = todos.map((l) => l.data_lancamento).sort();
+  const [a0, m0] = datas[0].split('-').map(Number);
+  const agora = new Date();
+  const meses = Math.max(1, (agora.getFullYear() - a0) * 12 + (agora.getMonth() + 1 - m0) + 1);
+  const burnMensal = Math.round(soma(todos, 'saida') / meses);
+
+  // ── KPIs ──
+  const kpis = document.createElement('div');
+  kpis.className = 'sitio-kpis';
+  kpis.appendChild(kpiCard('Entradas', entradas, tendencia(entradas, doAnterior ? soma(doAnterior, 'entrada') : null, false)));
+  kpis.appendChild(kpiCard('Saídas', saidas, tendencia(saidas, doAnterior ? soma(doAnterior, 'saida') : null, true)));
+  kpis.appendChild(kpiCard('Saldo do período', entradas - saidas, tendencia(entradas - saidas, doAnterior ? soma(doAnterior, 'entrada') - soma(doAnterior, 'saida') : null, false)));
+  kpis.appendChild(kpiCard('Investimento acumulado', invAcumulado, null));
+  kpis.appendChild(kpiCard('Burn médio mensal', burnMensal, null));
+  el.appendChild(kpis);
+
+  // ── Donuts por categoria (gastos e receitas) ──
+  el.appendChild(blocoDonut('Gastos por categoria', doPeriodo, 'saida', categorias));
+  el.appendChild(blocoDonut('Receitas por categoria', doPeriodo, 'entrada', categorias));
+}
+
+/**
+ * tendencia — Δ% vs período anterior. `inverso=true` quando subir é RUIM
+ * (saídas). Sem base de comparação (anterior 0/null) → null (KPI sem seta).
+ * Seta + sinal no TEXTO (nunca só cor — acessibilidade).
+ */
+function tendencia(atual, anterior, inverso) {
+  if (anterior === null || anterior === 0) return null;
+  const pct = ((atual - anterior) / Math.abs(anterior)) * 100;
+  if (!Number.isFinite(pct)) return null;
+  const subiu = pct >= 0;
+  return {
+    texto: `${subiu ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}% vs anterior`,
+    boa: inverso ? !subiu : subiu,
+  };
+}
+
+function kpiCard(titulo, centavos, tend) {
+  const card = document.createElement('div');
+  card.className = 'kpi-card';
+
+  const label = document.createElement('small');
+  label.className = 'kpi-label';
+  label.textContent = titulo;
+
+  const valor = document.createElement('strong');
+  valor.className = 'kpi-valor';
+  if (centavos < 0) valor.classList.add('negativo');
+  valor.textContent = (centavos < 0 ? '−' : '') + fmtMoney(Math.abs(centavos));
+
+  card.appendChild(label);
+  card.appendChild(valor);
+
+  if (tend) {
+    const t = document.createElement('small');
+    t.className = 'kpi-tendencia ' + (tend.boa ? 'boa' : 'ruim');
+    t.textContent = tend.texto;
+    card.appendChild(t);
+  }
+  return card;
+}
+
+/**
+ * blocoDonut — título + donut (conic-gradient com gap de 2° entre fatias,
+ * total no furo) + legenda com swatch/nome/valor/% por grupo raiz. Toque
+ * na linha da legenda expande as subcategorias em barras horizontais
+ * (uma cor só — magnitude dentro do grupo, não identidade).
+ */
+function blocoDonut(titulo, lancamentos, tipo, categorias) {
+  const bloco = document.createElement('section');
+  bloco.className = 'sitio-bloco';
+
+  const h = document.createElement('h2');
+  h.className = 'sitio-bloco-titulo';
+  h.textContent = titulo;
+  bloco.appendChild(h);
+
+  const doTipo = lancamentos.filter((l) => l.tipo === tipo);
+  if (!doTipo.length) {
+    const vazio = document.createElement('p');
+    vazio.className = 'sitio-bloco-vazio';
+    vazio.textContent = tipo === 'saida'
+      ? 'Sem gastos no período.'
+      : 'Sem receitas no período.';
+    bloco.appendChild(vazio);
+    return bloco;
+  }
+
+  // Agrega por grupo raiz (e guarda o detalhe por subcategoria).
+  const grupos = new Map(); // raizId → { raiz, total, subs: Map(catId → total) }
+  for (const l of doTipo) {
+    const raiz = grupoRaizDe(l.categoria_id, categorias);
+    const chave = raiz?.id ?? 'sem';
+    if (!grupos.has(chave)) {
+      grupos.set(chave, { raiz, total: 0, subs: new Map() });
+    }
+    const g = grupos.get(chave);
+    g.total += Number(l.valor_centavos);
+    g.subs.set(l.categoria_id, (g.subs.get(l.categoria_id) ?? 0) + Number(l.valor_centavos));
+  }
+  const ordenados = [...grupos.values()].sort((a, b) => b.total - a.total);
+  const totalGeral = ordenados.reduce((acc, g) => acc + g.total, 0);
+
+  // Donut: fatias em conic-gradient + gap de 2° na cor da superfície
+  // (spacer do spec de marks — separa fatias sem borda).
+  const GAP_GRAUS = 2;
+  const wrap = document.createElement('div');
+  wrap.className = 'sitio-donut-wrap';
+
+  const donut = document.createElement('div');
+  donut.className = 'sitio-donut';
+  const fatias = [];
+  let anguloAtual = 0;
+  for (const g of ordenados) {
+    const graus = (g.total / totalGeral) * 360;
+    const cor = '#' + (g.raiz?.cor_hex || COR_FALLBACK);
+    const fimFatia = anguloAtual + Math.max(0, graus - GAP_GRAUS);
+    fatias.push(`${cor} ${anguloAtual}deg ${fimFatia}deg`);
+    fatias.push(`var(--bg-primary) ${fimFatia}deg ${anguloAtual + graus}deg`);
+    anguloAtual += graus;
+  }
+  donut.style.background = `conic-gradient(${fatias.join(', ')})`;
+
+  const furo = document.createElement('div');
+  furo.className = 'sitio-donut-furo';
+  const furoLabel = document.createElement('small');
+  furoLabel.textContent = 'Total';
+  const furoValor = document.createElement('strong');
+  furoValor.textContent = fmtMoney(totalGeral);
+  furo.appendChild(furoLabel);
+  furo.appendChild(furoValor);
+  donut.appendChild(furo);
+  wrap.appendChild(donut);
+
+  // Legenda (é também a "tabela" do gráfico: nome + valor + %).
+  const legenda = document.createElement('div');
+  legenda.className = 'sitio-legenda';
+  for (const g of ordenados) {
+    const linha = document.createElement('button');
+    linha.type = 'button';
+    linha.className = 'sitio-legenda-linha';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'sitio-swatch';
+    swatch.style.backgroundColor = '#' + (g.raiz?.cor_hex || COR_FALLBACK);
+
+    const nome = document.createElement('span');
+    nome.className = 'sitio-legenda-nome';
+    nome.textContent = g.raiz?.nome ?? '(sem categoria)';
+
+    const valor = document.createElement('span');
+    valor.className = 'sitio-legenda-valor';
+    const pct = ((g.total / totalGeral) * 100).toFixed(0);
+    valor.textContent = `${fmtMoney(g.total)} · ${pct}%`;
+
+    linha.appendChild(swatch);
+    linha.appendChild(nome);
+    linha.appendChild(valor);
+    legenda.appendChild(linha);
+
+    // Subcategorias em barras (expande no toque; só quando há detalhe).
+    const detalhe = document.createElement('div');
+    detalhe.className = 'sitio-subbarras';
+    detalhe.hidden = true;
+    const subsOrdenadas = [...g.subs.entries()].sort((a, b) => b[1] - a[1]);
+    const maiorSub = subsOrdenadas[0]?.[1] ?? 1;
+    for (const [catId, subTotal] of subsOrdenadas) {
+      const cat = categorias.find((c) => c.id === catId);
+      const item = document.createElement('div');
+      item.className = 'sitio-subbarra';
+
+      const rotulo = document.createElement('span');
+      rotulo.className = 'sitio-subbarra-rotulo';
+      rotulo.textContent = cat?.nome ?? '(desconhecida)';
+
+      const trilho = document.createElement('div');
+      trilho.className = 'sitio-subbarra-trilho';
+      const barra = document.createElement('div');
+      barra.className = 'sitio-subbarra-fill';
+      barra.style.width = `${Math.max(2, (subTotal / maiorSub) * 100)}%`;
+      barra.style.backgroundColor = '#' + (g.raiz?.cor_hex || COR_FALLBACK);
+      trilho.appendChild(barra);
+
+      const subValor = document.createElement('span');
+      subValor.className = 'sitio-subbarra-valor';
+      subValor.textContent = fmtMoney(subTotal);
+
+      item.appendChild(rotulo);
+      item.appendChild(trilho);
+      item.appendChild(subValor);
+      detalhe.appendChild(item);
+    }
+    legenda.appendChild(detalhe);
+
+    linha.addEventListener('click', () => {
+      detalhe.hidden = !detalhe.hidden;
+    });
+  }
+  wrap.appendChild(legenda);
+  bloco.appendChild(wrap);
+
+  return bloco;
 }
 
 /** Contas a pagar/receber — conteúdo real na 4.B.3d. */
@@ -174,7 +434,7 @@ async function getCategorias() {
   if (categoriasCache) return categoriasCache;
   const { data, error } = await supabase
     .from('sitio_categorias')
-    .select('id, nome, tipo, categoria_pai_id')
+    .select('id, slug, nome, tipo, cor_hex, categoria_pai_id')
     .eq('ativa', true)
     .order('tipo')
     .order('ordem');
@@ -184,6 +444,17 @@ async function getCategorias() {
   }
   categoriasCache = data;
   return categoriasCache;
+}
+
+/** Resolve a categoria RAIZ (grupo) de uma categoria qualquer. */
+function grupoRaizDe(categoriaId, categorias) {
+  let cat = categorias.find((c) => c.id === categoriaId);
+  while (cat?.categoria_pai_id) {
+    const pai = categorias.find((c) => c.id === cat.categoria_pai_id);
+    if (!pai) break;
+    cat = pai;
+  }
+  return cat ?? null;
 }
 
 export async function carregarLancamentos() {
