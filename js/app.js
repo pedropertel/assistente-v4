@@ -21,6 +21,8 @@ import './modules/sitio.js';
 import './modules/tasks.js';
 // 4.C.2 — Agenda: mesmo padrão.
 import './modules/agenda.js';
+// 4.C.3 — Configurações: mesmo padrão.
+import './modules/config.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

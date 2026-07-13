@@ -961,6 +961,89 @@
       }
     }
 
+    /* ---------- Configurações (4.C.3) ---------- */
+
+    .config-conteudo {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .config-secao-header {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .config-seta {
+      font-size: 20px;
+      color: var(--text-tertiary);
+      transition: transform var(--transition);
+    }
+
+    .config-secao.aberta .config-seta {
+      transform: rotate(90deg);
+    }
+
+    .config-lista {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .config-linha {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      width: 100%;
+      min-height: 48px;
+      padding: var(--space-2);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .config-linha:hover {
+      background: var(--bg-primary);
+    }
+
+    .config-linha.inativa {
+      opacity: 0.5;
+    }
+
+    .config-linha-nome {
+      flex: 1;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .config-btn-add {
+      margin-top: var(--space-2);
+      align-self: flex-start;
+    }
+
+    .config-label-cor {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 44px;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .config-label-cor input {
+      width: 60px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      cursor: pointer;
+    }
+
     /* ---------- Agenda (4.C.2) — calendário mensal + lista do dia ---------- */
 
     .agenda-conteudo {
@@ -2213,9 +2296,10 @@
           </div>
         </section>
 
+        <!-- 4.C.3 — Configurações (REGRA 12): empresas, personas, agente
+             e ajustes editáveis por tela; todo save bumpa cache_version. -->
         <section class="page" id="page-config" hidden>
-          <h1>Configurações</h1>
-          <p class="page-placeholder">Aqui vão aparecer suas preferências. Em breve.</p>
+          <div id="config-conteudo" class="config-conteudo"></div>
         </section>
       </div>
     </main>
