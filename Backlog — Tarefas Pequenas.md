@@ -866,7 +866,7 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 Cada módulo = 3-5 sub-tarefas (listar → criar → editar → arquivar → [kanban/extras]).
 Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 - [x] **4.C.1** ✅ — Tarefas, completa 2026-07-13 (`dff5a04`): kanban 4 colunas + filtro empresa + CRUD + drag&drop (long-press touch, auto-scroll borda). Lembrete FICOU DE FORA (depende de decidir push/agenda/Marcela — anotado no STATUS).
-- [ ] **4.C.2** — Agenda/Eventos (lista + criação; recorrência depois)
+- [x] **4.C.2** ✅ — Agenda, completa 2026-07-13 (`75bd0b3`): calendário mensal (dots por empresa, ‹ › + Hoje), lista do dia + Próximos eventos, editor com seletor de data que fecha no toque e horas hh/mm com auto-avanço. Recorrência e lembretes DEPOIS (canal de notificação indefinido).
 - [ ] **4.C.3** — Config: personas, entidades, configs de IA, labels (REGRA 12; depende de 4.0)
 - [ ] **4.C.4** — Documentos (biblioteca + upload Storage)
 - [ ] **4.C.5** — Dashboard (visão geral; por último, consome os outros)
