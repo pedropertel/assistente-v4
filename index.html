@@ -952,6 +952,99 @@
       }
     }
 
+    /* ---------- Sítio: evolução + projeção (4.B.3e) ---------- */
+
+    .sitio-evolucao {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--space-1);
+      height: 140px;
+    }
+
+    .sitio-evolucao-mes {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+
+    .sitio-evolucao-mes small {
+      font-size: 9px;
+      color: var(--text-tertiary);
+      text-align: center;
+      text-transform: capitalize;
+    }
+
+    .sitio-evolucao-barras {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 2px; /* spacer entre séries (spec de marks) */
+    }
+
+    .sitio-evolucao-barra {
+      width: 6px;
+      border-radius: 3px 3px 0 0;
+    }
+
+    .sitio-evolucao-barra.entrada,
+    .sitio-serie-entrada { background: #199e70; }
+    .sitio-evolucao-barra.saida,
+    .sitio-serie-saida   { background: #e66767; }
+
+    .sitio-evolucao-legenda {
+      display: flex;
+      gap: var(--space-4);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .sitio-evolucao-legenda .sitio-swatch {
+      display: inline-block;
+      vertical-align: -1px;
+    }
+
+    .sitio-projecao {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-4);
+    }
+
+    .sitio-projecao-linha {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-2) 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .sitio-projecao-linha + .sitio-projecao-linha {
+      border-top: 1px solid var(--border);
+    }
+
+    .sitio-projecao-linha.forte {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+
+    .sitio-projecao-linha span:last-child {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .sitio-projecao-linha .negativo {
+      color: var(--danger);
+    }
+
     /* ---------- Sítio: Contas a pagar/receber (4.B.3d) ---------- */
 
     .nota-card.conta-vencida {

@@ -164,11 +164,11 @@ async function carregarResumo() {
 
   const categorias = await getCategorias();
 
+  // 4.B.3e: previstos entram junto (projeção + próximos 30 dias).
   const { data, error } = await supabase
     .from('sitio_lancamentos')
-    .select('tipo, valor_centavos, data_lancamento, categoria_id')
-    .eq('arquivado', false)
-    .eq('status', 'realizado');
+    .select('tipo, valor_centavos, data_lancamento, categoria_id, status')
+    .eq('arquivado', false);
 
   if (error) {
     console.error('[sitio] erro no SELECT do resumo', error);
@@ -176,10 +176,11 @@ async function carregarResumo() {
     return;
   }
 
-  const todos = data || [];
+  const todos = (data || []).filter((l) => l.status === 'realizado');
+  const previstos = (data || []).filter((l) => l.status === 'previsto');
   el.innerHTML = '';
 
-  if (!todos.length) {
+  if (!todos.length && !previstos.length) {
     const vazio = document.createElement('div');
     vazio.className = 'notas-vazio';
     vazio.textContent = 'Nenhum lançamento realizado ainda. Os números ' +
@@ -215,11 +216,15 @@ async function carregarResumo() {
     .reduce((acc, l) => acc + Number(l.valor_centavos), 0);
 
   // Burn médio mensal: total de saídas all-time / meses desde o 1º lançamento.
+  // (todos pode estar vazio se só existem previstos — burn vira 0.)
   const datas = todos.map((l) => l.data_lancamento).sort();
-  const [a0, m0] = datas[0].split('-').map(Number);
   const agora = new Date();
-  const meses = Math.max(1, (agora.getFullYear() - a0) * 12 + (agora.getMonth() + 1 - m0) + 1);
-  const burnMensal = Math.round(soma(todos, 'saida') / meses);
+  let burnMensal = 0;
+  if (datas.length) {
+    const [a0, m0] = datas[0].split('-').map(Number);
+    const meses = Math.max(1, (agora.getFullYear() - a0) * 12 + (agora.getMonth() + 1 - m0) + 1);
+    burnMensal = Math.round(soma(todos, 'saida') / meses);
+  }
 
   // ── KPIs ──
   const kpis = document.createElement('div');
@@ -234,6 +239,168 @@ async function carregarResumo() {
   // ── Donuts por categoria (gastos e receitas) ──
   el.appendChild(blocoDonut('Gastos por categoria', doPeriodo, 'saida', categorias));
   el.appendChild(blocoDonut('Receitas por categoria', doPeriodo, 'entrada', categorias));
+
+  // ── 4.B.3e: evolução, contas próximas e projeção ──
+  el.appendChild(blocoEvolucao(todos));
+  el.appendChild(blocoProximos30(previstos));
+  el.appendChild(blocoProjecao(todos, previstos));
+}
+
+/**
+ * blocoEvolucao — colunas entrada × saída dos últimos 12 meses (sempre
+ * all-time-relativo a hoje, independe do período — é a régua de longo
+ * prazo). Duas séries com legenda; altura proporcional ao maior mês.
+ */
+function blocoEvolucao(realizados) {
+  const bloco = document.createElement('section');
+  bloco.className = 'sitio-bloco';
+
+  const h = document.createElement('h2');
+  h.className = 'sitio-bloco-titulo';
+  h.textContent = 'Evolução — últimos 12 meses';
+  bloco.appendChild(h);
+
+  // Buckets YYYY-MM dos últimos 12 meses (mais antigo → mais novo).
+  const agora = new Date();
+  const buckets = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    buckets.push({
+      chave: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      rotulo: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
+      entrada: 0,
+      saida: 0,
+    });
+  }
+  const porChave = new Map(buckets.map((b) => [b.chave, b]));
+  for (const l of realizados) {
+    const b = porChave.get(l.data_lancamento.slice(0, 7));
+    if (b) b[l.tipo] += Number(l.valor_centavos);
+  }
+  const maior = Math.max(1, ...buckets.map((b) => Math.max(b.entrada, b.saida)));
+
+  const grafico = document.createElement('div');
+  grafico.className = 'sitio-evolucao';
+  for (const b of buckets) {
+    const col = document.createElement('div');
+    col.className = 'sitio-evolucao-mes';
+    // Toque no mês mostra os valores (tooltip barato via toast).
+    col.addEventListener('click', () => {
+      showToast(`${b.rotulo}: +${fmtMoney(b.entrada)} · −${fmtMoney(b.saida)}`);
+    });
+
+    const barras = document.createElement('div');
+    barras.className = 'sitio-evolucao-barras';
+    for (const [serie, valor] of [['entrada', b.entrada], ['saida', b.saida]]) {
+      const barra = document.createElement('div');
+      barra.className = `sitio-evolucao-barra ${serie}`;
+      barra.style.height = `${valor > 0 ? Math.max(3, (valor / maior) * 100) : 0}%`;
+      barras.appendChild(barra);
+    }
+
+    const rotulo = document.createElement('small');
+    rotulo.textContent = b.rotulo;
+
+    col.appendChild(barras);
+    col.appendChild(rotulo);
+    grafico.appendChild(col);
+  }
+  bloco.appendChild(grafico);
+
+  const legenda = document.createElement('div');
+  legenda.className = 'sitio-evolucao-legenda';
+  for (const [classe, label] of [['entrada', 'Entradas'], ['saida', 'Saídas']]) {
+    const item = document.createElement('span');
+    const swatch = document.createElement('span');
+    swatch.className = `sitio-swatch sitio-serie-${classe}`;
+    item.appendChild(swatch);
+    item.appendChild(document.createTextNode(' ' + label));
+    legenda.appendChild(item);
+  }
+  bloco.appendChild(legenda);
+
+  return bloco;
+}
+
+/**
+ * blocoProximos30 — total a pagar e a receber nos próximos 30 dias
+ * (inclui vencidas não pagas — dinheiro que ainda vai sair). Toque
+ * leva pra aba Contas.
+ */
+function blocoProximos30(previstos) {
+  const bloco = document.createElement('section');
+  bloco.className = 'sitio-bloco';
+
+  const h = document.createElement('h2');
+  h.className = 'sitio-bloco-titulo';
+  h.textContent = 'Próximos 30 dias';
+  bloco.appendChild(h);
+
+  const hoje = new Date();
+  const limite = ymd(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 30));
+  const janela = previstos.filter((l) => l.data_lancamento <= limite);
+  const pagar = janela.filter((l) => l.tipo === 'saida')
+    .reduce((acc, l) => acc + Number(l.valor_centavos), 0);
+  const receber = janela.filter((l) => l.tipo === 'entrada')
+    .reduce((acc, l) => acc + Number(l.valor_centavos), 0);
+
+  const kpis = document.createElement('div');
+  kpis.className = 'sitio-kpis';
+  kpis.appendChild(kpiCard('A pagar', pagar, null));
+  kpis.appendChild(kpiCard('A receber', receber, null));
+  kpis.addEventListener('click', () => {
+    document.querySelector('#sitio-abas button[data-aba="contas"]')?.click();
+  });
+  bloco.appendChild(kpis);
+
+  return bloco;
+}
+
+/**
+ * blocoProjecao — saldo realizado acumulado (all-time) ± previstos dos
+ * próximos 90 dias (vencidas incluídas: vão sair de qualquer jeito).
+ */
+function blocoProjecao(realizados, previstos) {
+  const bloco = document.createElement('section');
+  bloco.className = 'sitio-bloco';
+
+  const h = document.createElement('h2');
+  h.className = 'sitio-bloco-titulo';
+  h.textContent = 'Projeção — 90 dias';
+  bloco.appendChild(h);
+
+  const saldoAtual = realizados.reduce((acc, l) =>
+    acc + Number(l.valor_centavos) * (l.tipo === 'entrada' ? 1 : -1), 0);
+
+  const hoje = new Date();
+  const limite = ymd(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 90));
+  const futuro = previstos
+    .filter((l) => l.data_lancamento <= limite)
+    .reduce((acc, l) =>
+      acc + Number(l.valor_centavos) * (l.tipo === 'entrada' ? 1 : -1), 0);
+
+  const linhas = document.createElement('div');
+  linhas.className = 'sitio-projecao';
+  const fmtComSinal = (v) => (v < 0 ? '− ' : '') + fmtMoney(Math.abs(v));
+  for (const [label, valor, forte] of [
+    ['Saldo realizado (desde o início)', saldoAtual, false],
+    ['Previstos nos próximos 90 dias', futuro, false],
+    ['Saldo projetado', saldoAtual + futuro, true],
+  ]) {
+    const linha = document.createElement('div');
+    linha.className = 'sitio-projecao-linha' + (forte ? ' forte' : '');
+    const nome = document.createElement('span');
+    nome.textContent = label;
+    const val = document.createElement('span');
+    val.textContent = fmtComSinal(valor);
+    if (valor < 0) val.classList.add('negativo');
+    linha.appendChild(nome);
+    linha.appendChild(val);
+    linhas.appendChild(linha);
+  }
+  bloco.appendChild(linhas);
+
+  return bloco;
 }
 
 /**
