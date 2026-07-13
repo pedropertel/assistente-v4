@@ -1,22 +1,22 @@
-// Módulo Agenda (4.C.2a) — lista dos próximos eventos agrupada por dia.
+// Módulo Agenda (4.C.2, reprojetada) — calendário mensal + dia + editor.
 //
-// Fontes: criação manual aqui (4.C.2b) e, no futuro, tool da Marcela +
-// sync Google (coluna google_event_id já reservada). Recorrência e
-// lembretes ficaram FORA desta série (Backlog: "recorrência depois";
-// lembrete depende do canal de notificação — mesma pendência do kanban).
+// Feedback do Pedro no 1º teste: lista simples "muito básica, não
+// atende". Redesign: vista de CALENDÁRIO (estilo Google Calendar) —
+// grade do mês com bolinhas coloridas por empresa, ‹ › navega, "Hoje"
+// volta, toque no dia lista os eventos dele embaixo. Editor com:
+//   - seletor de data PRÓPRIO (grade que seleciona e FECHA no toque —
+//     o input date nativo do iOS não fecha sozinho);
+//   - horas em campos HH/MM com AUTO-AVANÇO (digitou 2 dígitos → pula
+//     pro minuto → pula pra hora final; fim auto-preenche +1h).
 //
-// Fuso: inicio/fim são timestamptz (UTC no banco, convenção do projeto);
-// agrupamento por dia e horas exibidas SEMPRE em America/Sao_Paulo.
-// Brasília não tem mais horário de verão → offset fixo -03:00 na escrita.
-//
-// Recarrega via `page:change`; listeners internos (sem window bridge).
+// Fuso: timestamptz UTC no banco; exibição/agrupamento SEMPRE em
+// America/Sao_Paulo; escrita com offset -03:00 explícito (sem DST no BR).
+// Recorrência e lembretes continuam fora (Backlog: depois).
 
 import { supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
 import { show as showModal } from '../core/modal.js';
 
-// Labels de tipo customizáveis via configuracoes (REGRA 12); emoji é
-// vestimenta visual fixa do código.
 const LABELS_TIPO_FALLBACK = {
   reuniao: 'Reunião',
   tarefa: 'Tarefa',
@@ -31,20 +31,73 @@ const EMOJI_TIPO = {
   lembrete: '🔔',
   bloqueio: '🚫',
 };
-let labelsTipo = null; // 1x por sessão
+let labelsTipo = null;
 
-// Filtro de empresa (null = todas), memória de sessão.
 let entidadeFiltro = null;
 let entidadesCache = null;
 
 const TZ = 'America/Sao_Paulo';
 
+// Estado da vista: mês exibido (1º dia) e dia selecionado ('YYYY-MM-DD').
+let mesExibido = null; // Date (dia 1 do mês)
+let diaSelecionado = null;
+
 document.addEventListener('page:change', (ev) => {
   if (ev.detail !== 'agenda') return;
+  if (!mesExibido) {
+    const hoje = hojeYmd();
+    diaSelecionado = hoje;
+    const [a, m] = hoje.split('-').map(Number);
+    mesExibido = new Date(a, m - 1, 1);
+  }
   carregarAgenda().catch((err) => {
     console.error('[agenda] erro ao carregar', err);
   });
 });
+
+// ──────────── Helpers de data/fuso ────────────
+
+function hojeYmd() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+}
+
+function ymdLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function diaBrasilia(timestamp) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ })
+    .format(new Date(timestamp));
+}
+
+function horaBrasilia(timestamp) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp));
+}
+
+function partesBrasilia(timestamp) {
+  return {
+    data: diaBrasilia(timestamp),
+    hora: horaBrasilia(timestamp),
+  };
+}
+
+/** "Hoje · sex, 18 de jul" / "seg, 20 de jul". */
+function rotuloDia(ymd) {
+  const d = new Date(`${ymd}T12:00:00-03:00`);
+  const texto = d.toLocaleDateString('pt-BR', {
+    timeZone: TZ,
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+  }).replace(/\./g, '');
+  return ymd === hojeYmd() ? `Hoje · ${texto}` : texto;
+}
+
+// ──────────── Dados ────────────
 
 async function getLabelsTipo() {
   if (labelsTipo) return labelsTipo;
@@ -77,52 +130,12 @@ async function getEntidades() {
   return entidadesCache;
 }
 
-/** 'YYYY-MM-DD' de um timestamp, no fuso de Brasília. */
-function diaBrasilia(timestamp) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ })
-    .format(new Date(timestamp));
-}
+/** Eventos do mês exibido (passado visível — navegar mostra história). */
+async function buscarEventosDoMes() {
+  const ini = ymdLocal(mesExibido);
+  const proximoMes = new Date(mesExibido.getFullYear(), mesExibido.getMonth() + 1, 1);
+  const fim = ymdLocal(proximoMes);
 
-function horaBrasilia(timestamp) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: TZ,
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
-}
-
-/** "Hoje" / "Amanhã" / "seg, 20 de jul". */
-function rotuloDia(ymdDia) {
-  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
-  const amanha = new Intl.DateTimeFormat('en-CA', { timeZone: TZ })
-    .format(new Date(Date.now() + 24 * 60 * 60 * 1000));
-  if (ymdDia === hoje) return 'Hoje';
-  if (ymdDia === amanha) return 'Amanhã';
-  // Meio-dia evita o dia "andar" na conversão de fuso.
-  const d = new Date(`${ymdDia}T12:00:00-03:00`);
-  return d.toLocaleDateString('pt-BR', {
-    timeZone: TZ,
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-  }).replace(/\./g, '');
-}
-
-export async function carregarAgenda() {
-  const listaEl = document.getElementById('agenda-lista');
-  if (!listaEl) return;
-
-  const labels = await getLabelsTipo();
-  await montarFiltroEntidades();
-
-  // + Novo (4.C.2b) — liga 1x.
-  const btnNovo = document.getElementById('btn-novo-evento');
-  if (btnNovo && !btnNovo.dataset.ligado) {
-    btnNovo.dataset.ligado = '1';
-    btnNovo.addEventListener('click', () => abrirEditorEvento(null));
-  }
-
-  // Próximos eventos: tudo que ainda não TERMINOU (em andamento conta).
   let q = supabase
     .from('eventos')
     .select(`
@@ -130,76 +143,194 @@ export async function carregarAgenda() {
       entidade_id, entidades(nome, icone, cor_hex)
     `)
     .eq('arquivado', false)
-    .gte('fim', new Date().toISOString())
-    .order('inicio')
-    .limit(100);
+    .gte('inicio', `${ini}T00:00:00-03:00`)
+    .lt('inicio', `${fim}T00:00:00-03:00`)
+    .order('inicio');
 
   if (entidadeFiltro) q = q.eq('entidade_id', entidadeFiltro);
 
   const { data, error } = await q;
-
   if (error) {
     console.error('[agenda] erro no SELECT', error);
     showToast('Erro ao carregar agenda', 'error');
-    return;
+    return [];
   }
-
-  renderAgenda(listaEl, data || [], labels);
+  return data || [];
 }
 
-async function montarFiltroEntidades() {
-  const el = document.getElementById('agenda-entidades');
-  if (!el || el.dataset.ligado) return;
-  el.dataset.ligado = '1';
+// ──────────── Vista principal ────────────
 
-  const entidades = await getEntidades();
-  const opcoes = [
-    { id: null, nome: 'Todas', icone: '🗂', cor_hex: '6B7280' },
-    ...entidades,
-  ];
-  for (const ent of opcoes) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chat-entidade-chip' +
-      (ent.id === entidadeFiltro ? ' ativa' : '');
-    btn.style.setProperty('--chip-cor', '#' + (ent.cor_hex || '6B7280'));
-    btn.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
-    btn.addEventListener('click', () => {
-      if (ent.id === entidadeFiltro) return;
-      entidadeFiltro = ent.id;
-      el.querySelectorAll('button').forEach((b, i) => {
-        b.classList.toggle('ativa', opcoes[i].id === entidadeFiltro);
-      });
+export async function carregarAgenda() {
+  const raiz = document.getElementById('agenda-conteudo');
+  if (!raiz) return;
+
+  const labels = await getLabelsTipo();
+  await montarFiltroEntidades();
+
+  const btnNovo = document.getElementById('btn-novo-evento');
+  if (btnNovo && !btnNovo.dataset.ligado) {
+    btnNovo.dataset.ligado = '1';
+    btnNovo.addEventListener('click', () => abrirEditorEvento(null));
+  }
+
+  const eventos = await buscarEventosDoMes();
+
+  // Índice dia → eventos (pros dots e pra lista do dia).
+  const porDia = new Map();
+  for (const ev of eventos) {
+    const dia = diaBrasilia(ev.inicio);
+    if (!porDia.has(dia)) porDia.set(dia, []);
+    porDia.get(dia).push(ev);
+  }
+
+  raiz.innerHTML = '';
+  raiz.appendChild(criarCabecalhoMes());
+  raiz.appendChild(criarGradeMes(mesExibido, {
+    porDia,
+    selecionado: diaSelecionado,
+    aoTocarDia: (ymd) => {
+      diaSelecionado = ymd;
       carregarAgenda().catch(() => {});
-    });
-    el.appendChild(btn);
-  }
+    },
+  }));
+  raiz.appendChild(criarListaDoDia(porDia.get(diaSelecionado) ?? [], labels));
 }
 
-function renderAgenda(listaEl, eventos, labels) {
-  listaEl.innerHTML = '';
+function criarCabecalhoMes() {
+  const header = document.createElement('div');
+  header.className = 'agenda-mes-header';
+
+  const btnAnt = document.createElement('button');
+  btnAnt.type = 'button';
+  btnAnt.className = 'agenda-nav';
+  btnAnt.textContent = '‹';
+  btnAnt.setAttribute('aria-label', 'Mês anterior');
+  btnAnt.addEventListener('click', () => mudarMes(-1));
+
+  const titulo = document.createElement('strong');
+  titulo.className = 'agenda-mes-titulo';
+  titulo.textContent = mesExibido.toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const btnProx = document.createElement('button');
+  btnProx.type = 'button';
+  btnProx.className = 'agenda-nav';
+  btnProx.textContent = '›';
+  btnProx.setAttribute('aria-label', 'Próximo mês');
+  btnProx.addEventListener('click', () => mudarMes(1));
+
+  const btnHoje = document.createElement('button');
+  btnHoje.type = 'button';
+  btnHoje.className = 'agenda-hoje';
+  btnHoje.textContent = 'Hoje';
+  btnHoje.addEventListener('click', () => {
+    const hoje = hojeYmd();
+    diaSelecionado = hoje;
+    const [a, m] = hoje.split('-').map(Number);
+    mesExibido = new Date(a, m - 1, 1);
+    carregarAgenda().catch(() => {});
+  });
+
+  header.appendChild(btnAnt);
+  header.appendChild(titulo);
+  header.appendChild(btnProx);
+  header.appendChild(btnHoje);
+  return header;
+}
+
+function mudarMes(delta) {
+  mesExibido = new Date(mesExibido.getFullYear(), mesExibido.getMonth() + delta, 1);
+  // Seleção acompanha: dia 1 do mês novo (ou hoje, se for o mês atual).
+  const hoje = hojeYmd();
+  diaSelecionado = hoje.startsWith(ymdLocal(mesExibido).slice(0, 7))
+    ? hoje
+    : ymdLocal(mesExibido);
+  carregarAgenda().catch(() => {});
+}
+
+/**
+ * criarGradeMes — grade 7×N do mês. Usada na vista principal (com dots
+ * por empresa + seleção) e no seletor de data do editor (aoTocarDia
+ * seleciona e FECHA — o pedido do Pedro).
+ */
+function criarGradeMes(mes, { porDia = new Map(), selecionado = null, aoTocarDia }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'agenda-grade';
+
+  for (const dia of ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']) {
+    const cab = document.createElement('span');
+    cab.className = 'agenda-grade-semana';
+    cab.textContent = dia;
+    wrap.appendChild(cab);
+  }
+
+  const primeiroDia = new Date(mes.getFullYear(), mes.getMonth(), 1);
+  const diasNoMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate();
+  const hoje = hojeYmd();
+
+  // Células vazias até o dia da semana do dia 1 (domingo = 0).
+  for (let i = 0; i < primeiroDia.getDay(); i++) {
+    wrap.appendChild(document.createElement('span'));
+  }
+
+  for (let dia = 1; dia <= diasNoMes; dia++) {
+    const ymd = ymdLocal(new Date(mes.getFullYear(), mes.getMonth(), dia));
+    const cel = document.createElement('button');
+    cel.type = 'button';
+    cel.className = 'agenda-grade-dia' +
+      (ymd === hoje ? ' hoje' : '') +
+      (ymd === selecionado ? ' selecionado' : '');
+
+    const num = document.createElement('span');
+    num.textContent = String(dia);
+    cel.appendChild(num);
+
+    // Dots: identidade = EMPRESA (cor da entidade), máx 3 por célula.
+    const eventosDoDia = porDia.get(ymd) ?? [];
+    if (eventosDoDia.length) {
+      const dots = document.createElement('span');
+      dots.className = 'agenda-dots';
+      const cores = [...new Set(
+        eventosDoDia.map((e) => e.entidades?.cor_hex || '6B7280'),
+      )].slice(0, 3);
+      for (const cor of cores) {
+        const dot = document.createElement('i');
+        dot.style.backgroundColor = '#' + cor;
+        dots.appendChild(dot);
+      }
+      cel.appendChild(dots);
+    }
+
+    cel.addEventListener('click', () => aoTocarDia(ymd));
+    wrap.appendChild(cel);
+  }
+
+  return wrap;
+}
+
+function criarListaDoDia(eventos, labels) {
+  const secao = document.createElement('div');
+  secao.className = 'agenda-dia-secao';
+
+  const titulo = document.createElement('h2');
+  titulo.className = 'agenda-dia';
+  titulo.textContent = rotuloDia(diaSelecionado);
+  secao.appendChild(titulo);
 
   if (!eventos.length) {
-    const vazio = document.createElement('div');
-    vazio.className = 'notas-vazio';
-    vazio.textContent = 'Agenda livre daqui pra frente. Cria um evento no "+ Novo".';
-    listaEl.appendChild(vazio);
-    return;
+    const vazio = document.createElement('p');
+    vazio.className = 'sitio-bloco-vazio';
+    vazio.textContent = 'Sem eventos neste dia.';
+    secao.appendChild(vazio);
+    return secao;
   }
 
-  // Agrupa por dia de INÍCIO (Brasília), preservando a ordem cronológica.
-  let diaAtual = null;
   for (const evento of eventos) {
-    const dia = diaBrasilia(evento.inicio);
-    if (dia !== diaAtual) {
-      diaAtual = dia;
-      const header = document.createElement('h2');
-      header.className = 'agenda-dia';
-      header.textContent = rotuloDia(dia);
-      listaEl.appendChild(header);
-    }
-    listaEl.appendChild(criarCardEvento(evento, labels));
+    secao.appendChild(criarCardEvento(evento, labels));
   }
+  return secao;
 }
 
 function criarCardEvento(evento, labels) {
@@ -239,7 +370,6 @@ function criarCardEvento(evento, labels) {
   header.appendChild(corpo);
   card.appendChild(header);
 
-  // Detalhe expande no toque (descrição + ações — editor na 4.C.2b).
   const detalhe = document.createElement('div');
   detalhe.className = 'nota-corpo';
   detalhe.hidden = true;
@@ -296,26 +426,205 @@ function criarCardEvento(evento, labels) {
   return card;
 }
 
-/** Componentes de data/hora de um timestamp, no fuso de Brasília. */
-function partesBrasilia(timestamp) {
-  const d = new Date(timestamp);
-  return {
-    data: new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d),
-    hora: new Intl.DateTimeFormat('pt-BR', {
+async function montarFiltroEntidades() {
+  const el = document.getElementById('agenda-entidades');
+  if (!el || el.dataset.ligado) return;
+  el.dataset.ligado = '1';
+
+  const entidades = await getEntidades();
+  const opcoes = [
+    { id: null, nome: 'Todas', icone: '🗂', cor_hex: '6B7280' },
+    ...entidades,
+  ];
+  for (const ent of opcoes) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-entidade-chip' +
+      (ent.id === entidadeFiltro ? ' ativa' : '');
+    btn.style.setProperty('--chip-cor', '#' + (ent.cor_hex || '6B7280'));
+    btn.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    btn.addEventListener('click', () => {
+      if (ent.id === entidadeFiltro) return;
+      entidadeFiltro = ent.id;
+      el.querySelectorAll('button').forEach((b, i) => {
+        b.classList.toggle('ativa', opcoes[i].id === entidadeFiltro);
+      });
+      carregarAgenda().catch(() => {});
+    });
+    el.appendChild(btn);
+  }
+}
+
+// ──────────── Editor (data que fecha no toque + horas com auto-avanço) ────────────
+
+/**
+ * criarSeletorData — botão com a data por extenso; toque abre a MESMA
+ * grade do calendário logo abaixo; tocar num dia seleciona e FECHA.
+ */
+function criarSeletorData(ymdInicial) {
+  let valor = ymdInicial || hojeYmd();
+  let aberto = false;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'agenda-seletor-data';
+
+  const botao = document.createElement('button');
+  botao.type = 'button';
+  botao.className = 'nota-editor-titulo agenda-seletor-data-btn';
+
+  const areaGrade = document.createElement('div');
+  areaGrade.className = 'agenda-seletor-grade';
+  areaGrade.hidden = true;
+
+  let mesPicker = null;
+  const atualizarBotao = () => {
+    const d = new Date(`${valor}T12:00:00-03:00`);
+    botao.textContent = '📅 ' + d.toLocaleDateString('pt-BR', {
       timeZone: TZ,
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(d),
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).replace(/\./g, '');
   };
+
+  const renderGrade = () => {
+    areaGrade.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'agenda-mes-header compacto';
+    const btnAnt = document.createElement('button');
+    btnAnt.type = 'button';
+    btnAnt.className = 'agenda-nav';
+    btnAnt.textContent = '‹';
+    btnAnt.addEventListener('click', () => {
+      mesPicker = new Date(mesPicker.getFullYear(), mesPicker.getMonth() - 1, 1);
+      renderGrade();
+    });
+    const titulo = document.createElement('strong');
+    titulo.className = 'agenda-mes-titulo';
+    titulo.textContent = mesPicker.toLocaleDateString('pt-BR', {
+      month: 'long',
+      year: 'numeric',
+    });
+    const btnProx = document.createElement('button');
+    btnProx.type = 'button';
+    btnProx.className = 'agenda-nav';
+    btnProx.textContent = '›';
+    btnProx.addEventListener('click', () => {
+      mesPicker = new Date(mesPicker.getFullYear(), mesPicker.getMonth() + 1, 1);
+      renderGrade();
+    });
+    header.appendChild(btnAnt);
+    header.appendChild(titulo);
+    header.appendChild(btnProx);
+    areaGrade.appendChild(header);
+
+    areaGrade.appendChild(criarGradeMes(mesPicker, {
+      selecionado: valor,
+      aoTocarDia: (ymd) => {
+        valor = ymd; // seleciona…
+        aberto = false; // …e FECHA (pedido do Pedro)
+        areaGrade.hidden = true;
+        atualizarBotao();
+      },
+    }));
+  };
+
+  botao.addEventListener('click', () => {
+    aberto = !aberto;
+    if (aberto) {
+      const [a, m] = valor.split('-').map(Number);
+      mesPicker = new Date(a, m - 1, 1);
+      renderGrade();
+    }
+    areaGrade.hidden = !aberto;
+  });
+
+  atualizarBotao();
+  wrap.appendChild(botao);
+  wrap.appendChild(areaGrade);
+
+  return { el: wrap, getValor: () => valor };
 }
 
 /**
- * abrirEditorEvento (4.C.2b) — criar/editar evento.
- * evento=null → criar (origem 'manual', tipo default reunião).
- * Escrita sempre com offset -03:00 explícito (UTC no banco, convenção).
- * Dia inteiro = 00:00 → 23:59 de Brasília; desabilita as horas no form.
- * Fim vazio = início + 1h. Recorrência/lembretes fora desta série.
+ * criarCampoHora — HH e MM separados, inputmode numérico, AUTO-AVANÇO:
+ * 2 dígitos na hora → pula pro minuto; 2 dígitos no minuto → aoCompletar
+ * (o editor encadeia: fim do minuto inicial → hora final).
  */
+function criarCampoHora(rotulo, aoCompletar) {
+  const wrap = document.createElement('div');
+  wrap.className = 'agenda-campo-hora';
+
+  const label = document.createElement('small');
+  label.textContent = rotulo;
+  wrap.appendChild(label);
+
+  const caixa = document.createElement('div');
+  caixa.className = 'agenda-campo-hora-caixa';
+
+  const fazerInput = (placeholder, max) => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.maxLength = 2;
+    input.placeholder = placeholder;
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '').slice(0, 2);
+      if (input.value.length === 2 && Number(input.value) > max) {
+        input.value = String(max);
+      }
+    });
+    // Toque seleciona o conteúdo — digitar substitui em vez de emendar.
+    input.addEventListener('focus', () => input.select());
+    return input;
+  };
+
+  const hh = fazerInput('hh', 23);
+  const mm = fazerInput('mm', 59);
+
+  hh.addEventListener('input', () => {
+    // 2 dígitos, ou 1 dígito impossível de virar hora válida (3-9) →
+    // completa e pula pro minuto.
+    if (hh.value.length === 2) mm.focus();
+    else if (hh.value.length === 1 && Number(hh.value) >= 3) {
+      hh.value = '0' + hh.value;
+      mm.focus();
+    }
+  });
+  mm.addEventListener('input', () => {
+    if (mm.value.length === 2) aoCompletar?.();
+  });
+
+  const sep = document.createElement('span');
+  sep.textContent = ':';
+
+  caixa.appendChild(hh);
+  caixa.appendChild(sep);
+  caixa.appendChild(mm);
+  wrap.appendChild(caixa);
+
+  return {
+    el: wrap,
+    hh,
+    mm,
+    getValor: () => {
+      if (!hh.value) return null;
+      return `${hh.value.padStart(2, '0')}:${(mm.value || '0').padStart(2, '0')}`;
+    },
+    setValor: (hhmm) => {
+      const [h, m] = (hhmm ?? '').split(':');
+      hh.value = h ?? '';
+      mm.value = m ?? '';
+    },
+    setDisabled: (v) => {
+      hh.disabled = v;
+      mm.disabled = v;
+    },
+  };
+}
+
 async function abrirEditorEvento(evento) {
   const entidades = await getEntidades();
   if (!entidades.length) {
@@ -356,10 +665,8 @@ async function abrirEditorEvento(evento) {
   const ini = evento ? partesBrasilia(evento.inicio) : null;
   const fimP = evento ? partesBrasilia(evento.fim) : null;
 
-  const inputData = document.createElement('input');
-  inputData.type = 'date';
-  inputData.className = 'nota-editor-titulo';
-  inputData.value = ini?.data ?? '';
+  // Novo evento nasce no DIA SELECIONADO do calendário.
+  const seletorData = criarSeletorData(ini?.data ?? diaSelecionado);
 
   const chkDiaInteiro = document.createElement('input');
   chkDiaInteiro.type = 'checkbox';
@@ -371,20 +678,27 @@ async function abrirEditorEvento(evento) {
 
   const horas = document.createElement('div');
   horas.className = 'agenda-horas';
-  const inputHoraIni = document.createElement('input');
-  inputHoraIni.type = 'time';
-  inputHoraIni.className = 'nota-editor-titulo';
-  inputHoraIni.value = evento?.dia_inteiro ? '' : (ini?.hora ?? '');
-  const inputHoraFim = document.createElement('input');
-  inputHoraFim.type = 'time';
-  inputHoraFim.className = 'nota-editor-titulo';
-  inputHoraFim.value = evento?.dia_inteiro ? '' : (fimP?.hora ?? '');
-  horas.appendChild(inputHoraIni);
-  horas.appendChild(inputHoraFim);
+  let campoFim; // referência pro encadeamento abaixo
+  const campoIni = criarCampoHora('Início', () => {
+    // Minuto inicial completo → auto-preenche fim (+1h) e pula pra lá.
+    const v = campoIni.getValor();
+    if (v && !campoFim.getValor()) {
+      const [h, m] = v.split(':').map(Number);
+      campoFim.setValor(`${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+    campoFim.hh.focus();
+  });
+  campoFim = criarCampoHora('Fim', null);
+  if (evento && !evento.dia_inteiro) {
+    campoIni.setValor(ini?.hora);
+    campoFim.setValor(fimP?.hora);
+  }
+  horas.appendChild(campoIni.el);
+  horas.appendChild(campoFim.el);
 
   const sincronizarHoras = () => {
-    inputHoraIni.disabled = chkDiaInteiro.checked;
-    inputHoraFim.disabled = chkDiaInteiro.checked;
+    campoIni.setDisabled(chkDiaInteiro.checked);
+    campoFim.setDisabled(chkDiaInteiro.checked);
   };
   chkDiaInteiro.addEventListener('change', sincronizarHoras);
   sincronizarHoras();
@@ -398,7 +712,7 @@ async function abrirEditorEvento(evento) {
   form.appendChild(inputTitulo);
   form.appendChild(selEntidade);
   form.appendChild(selTipo);
-  form.appendChild(inputData);
+  form.appendChild(seletorData.el);
   form.appendChild(labelDia);
   form.appendChild(horas);
   form.appendChild(inputLocal);
@@ -413,7 +727,7 @@ async function abrirEditorEvento(evento) {
         type: 'primary',
         onClick: async () => {
           const titulo = inputTitulo.value.trim();
-          const data = inputData.value;
+          const data = seletorData.getValor();
           const diaInteiro = chkDiaInteiro.checked;
           if (!titulo || !data) {
             showToast('Título e data são obrigatórios', 'error');
@@ -426,20 +740,20 @@ async function abrirEditorEvento(evento) {
             inicio = `${data}T00:00:00-03:00`;
             fim = `${data}T23:59:59-03:00`;
           } else {
-            const horaIni = inputHoraIni.value;
+            const horaIni = campoIni.getValor();
             if (!horaIni) {
               showToast('Hora de início é obrigatória (ou marca dia inteiro)', 'error');
               return false;
             }
             inicio = `${data}T${horaIni}:00-03:00`;
-            if (inputHoraFim.value) {
-              if (inputHoraFim.value <= horaIni) {
+            const horaFim = campoFim.getValor();
+            if (horaFim) {
+              if (horaFim <= horaIni) {
                 showToast('Hora final tem que ser depois do início', 'error');
                 return false;
               }
-              fim = `${data}T${inputHoraFim.value}:00-03:00`;
+              fim = `${data}T${horaFim}:00-03:00`;
             } else {
-              // Sem hora final → 1h de duração (default de reunião).
               fim = new Date(new Date(inicio).getTime() + 60 * 60 * 1000)
                 .toISOString();
             }
@@ -463,6 +777,10 @@ async function abrirEditorEvento(evento) {
             return false;
           }
           showToast('Evento salvo');
+          // Traz a vista pro dia do evento salvo.
+          diaSelecionado = data;
+          const [a, m] = data.split('-').map(Number);
+          mesExibido = new Date(a, m - 1, 1);
           carregarAgenda().catch(() => {});
         },
       },

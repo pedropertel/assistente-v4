@@ -961,7 +961,187 @@
       }
     }
 
-    /* ---------- Agenda (4.C.2) — cards reusam nota-* ---------- */
+    /* ---------- Agenda (4.C.2) — calendário mensal + lista do dia ---------- */
+
+    .agenda-conteudo {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .agenda-mes-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .agenda-mes-titulo {
+      flex: 1;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-transform: capitalize;
+    }
+
+    .agenda-nav {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 20px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .agenda-hoje {
+      min-height: 44px;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .agenda-grade {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+
+    .agenda-grade-semana {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      padding-bottom: var(--space-1);
+    }
+
+    .agenda-grade-dia {
+      position: relative;
+      aspect-ratio: 1;
+      min-height: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border: none;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .agenda-grade-dia:hover {
+      background: var(--bg-secondary);
+    }
+
+    .agenda-grade-dia.hoje {
+      box-shadow: inset 0 0 0 1.5px var(--accent);
+    }
+
+    .agenda-grade-dia.selecionado {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .agenda-dots {
+      display: flex;
+      gap: 3px;
+      height: 5px;
+    }
+
+    .agenda-dots i {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+
+    .agenda-grade-dia.selecionado .agenda-dots i {
+      background: #fff !important;
+    }
+
+    .agenda-dia-secao {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      border-top: 1px solid var(--border);
+      padding-top: var(--space-3);
+    }
+
+    /* Seletor de data do editor (grade que fecha no toque) */
+
+    .agenda-seletor-data {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .agenda-seletor-data-btn {
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .agenda-seletor-grade {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    /* Campos de hora com auto-avanço */
+
+    .agenda-campo-hora {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .agenda-campo-hora small {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .agenda-campo-hora-caixa {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .agenda-campo-hora-caixa input {
+      width: 34px;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: inherit;
+      /* 16px evita zoom do iOS no focus */
+      font-size: 16px;
+      text-align: center;
+      outline: none;
+    }
+
+    .agenda-campo-hora-caixa span {
+      color: var(--text-tertiary);
+    }
 
     .agenda-dia {
       margin: var(--space-2) 0 0 0;
@@ -1950,8 +2130,8 @@
           <div class="tasks-board" id="tasks-board"></div>
         </section>
 
-        <!-- 4.C.2 — Agenda: lista agrupada por dia renderizada pelo
-             agenda.js (page:change). Cards reusam as classes nota-*. -->
+        <!-- 4.C.2 — Agenda: calendário mensal + lista do dia, renderizados
+             pelo agenda.js (page:change). Cards reusam as classes nota-*. -->
         <section class="page" id="page-agenda" hidden>
           <div class="tasks-toolbar">
             <div class="tasks-filtros" id="agenda-entidades"></div>
@@ -1959,7 +2139,7 @@
               + Novo
             </button>
           </div>
-          <div id="agenda-lista" class="notas-lista"></div>
+          <div id="agenda-conteudo" class="agenda-conteudo"></div>
         </section>
 
         <section class="page" id="page-docs" hidden>
