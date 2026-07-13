@@ -64,7 +64,7 @@ export async function carregarConfig() {
   raiz.appendChild(await secaoEmpresas());
   raiz.appendChild(await secaoPersonas());
   raiz.appendChild(await secaoAgente());
-  // 4.C.3c: Ajustes (configuracoes) entra na próxima sub-tarefa.
+  raiz.appendChild(await secaoAjustes());
 }
 
 /** Seção acordeão: cabeçalho que expande/recolhe o corpo. */
@@ -531,4 +531,158 @@ async function secaoAgente() {
   corpo.appendChild(form);
 
   return secao;
+}
+
+// ──────────── ⚙️ Ajustes (4.C.3c) ────────────
+//
+// Chaves de `configuracoes` com editavel_por_usuario=true, agrupadas por
+// categoria (ai_defaults, ai_limites, ai_tools, ui_labels). Valor jsonb:
+// string/número editam em input simples; objeto/array em textarea JSON
+// com validação no save (JSON inválido não grava — a Edge tem o C4 de
+// defesa, mas melhor nem deixar entrar). Categoria 'sistema' fica fora
+// (cache_version e afins são mecânica interna, não preferência).
+
+const NOMES_CATEGORIA = {
+  ai_defaults: '🧠 IA — comportamento',
+  ai_limites: '🚦 IA — limites',
+  ai_tools: '🔧 IA — tools ativas',
+  ui_labels: '🏷 Rótulos das telas',
+};
+
+async function secaoAjustes() {
+  const { secao, corpo } = criarSecao('⚙️ Ajustes');
+
+  const { data, error } = await supabase
+    .from('configuracoes')
+    .select('chave, valor, categoria, descricao')
+    .eq('editavel_por_usuario', true)
+    .order('categoria')
+    .order('chave');
+
+  if (error) {
+    console.error('[config] erro ao carregar ajustes', error);
+    corpo.textContent = 'Erro ao carregar ajustes.';
+    return secao;
+  }
+
+  let categoriaAtual = null;
+  for (const cfg of data || []) {
+    if (cfg.categoria !== categoriaAtual) {
+      categoriaAtual = cfg.categoria;
+      const titulo = document.createElement('small');
+      titulo.className = 'config-rotulo config-categoria';
+      titulo.textContent = NOMES_CATEGORIA[cfg.categoria] ?? cfg.categoria;
+      corpo.appendChild(titulo);
+    }
+
+    const linha = document.createElement('button');
+    linha.type = 'button';
+    linha.className = 'config-linha';
+
+    const nome = document.createElement('span');
+    nome.className = 'config-linha-nome';
+    // 'ui_labels.tarefa.status.feito' → 'tarefa.status.feito' (o grupo
+    // já está no cabeçalho da categoria).
+    nome.textContent = cfg.chave.replace(`${cfg.categoria}.`, '');
+
+    const valor = document.createElement('span');
+    valor.className = 'config-linha-valor';
+    valor.textContent = typeof cfg.valor === 'string'
+      ? cfg.valor
+      : JSON.stringify(cfg.valor);
+
+    linha.appendChild(nome);
+    linha.appendChild(valor);
+    linha.addEventListener('click', () => abrirEditorAjuste(cfg));
+    corpo.appendChild(linha);
+  }
+
+  return secao;
+}
+
+function abrirEditorAjuste(cfg) {
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  if (cfg.descricao) {
+    const desc = document.createElement('small');
+    desc.className = 'config-rotulo';
+    desc.style.textTransform = 'none';
+    desc.textContent = cfg.descricao;
+    form.appendChild(desc);
+  }
+
+  const tipoSimples = typeof cfg.valor === 'string' || typeof cfg.valor === 'number';
+  let campo;
+  if (tipoSimples) {
+    campo = document.createElement('input');
+    campo.type = 'text';
+    campo.className = 'nota-editor-titulo';
+    if (typeof cfg.valor === 'number') campo.inputMode = 'decimal';
+    campo.value = String(cfg.valor);
+  } else {
+    campo = document.createElement('textarea');
+    campo.className = 'nota-editor-conteudo config-prompt';
+    campo.rows = 10;
+    campo.value = JSON.stringify(cfg.valor, null, 2);
+  }
+  form.appendChild(campo);
+
+  showModal({
+    title: cfg.chave,
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          let novoValor;
+          if (typeof cfg.valor === 'number') {
+            novoValor = Number(campo.value.replace(',', '.'));
+            if (!Number.isFinite(novoValor)) {
+              showToast('Valor precisa ser um número', 'error');
+              return false; // segura o modal
+            }
+          } else if (typeof cfg.valor === 'string') {
+            novoValor = campo.value.trim();
+            if (!novoValor) {
+              showToast('Valor não pode ser vazio', 'error');
+              return false;
+            }
+          } else {
+            // Objeto/array: valida o JSON e o TIPO (mesmo shape de antes —
+            // trocar array por objeto quebraria o lerConfig da Edge).
+            try {
+              novoValor = JSON.parse(campo.value);
+            } catch {
+              showToast('JSON inválido — confere vírgulas e aspas', 'error');
+              return false;
+            }
+            if (Array.isArray(cfg.valor) !== Array.isArray(novoValor)) {
+              showToast(
+                Array.isArray(cfg.valor)
+                  ? 'Este ajuste precisa ser uma lista [...]'
+                  : 'Este ajuste precisa ser um objeto {...}',
+                'error',
+              );
+              return false;
+            }
+          }
+
+          const { error } = await supabase
+            .from('configuracoes')
+            .update({ valor: novoValor })
+            .eq('chave', cfg.chave);
+          if (error) {
+            console.error('[config] erro ao salvar ajuste', error);
+            showToast('Erro ao salvar ajuste', 'error');
+            return false;
+          }
+          await salvoComBump();
+          carregarConfig().catch(() => {});
+        },
+      },
+    ],
+  });
 }
