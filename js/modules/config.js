@@ -62,7 +62,9 @@ export async function carregarConfig() {
 
   raiz.innerHTML = '';
   raiz.appendChild(await secaoEmpresas());
-  // 4.C.3b/c: Personas, Agente e Ajustes entram nas próximas sub-tarefas.
+  raiz.appendChild(await secaoPersonas());
+  raiz.appendChild(await secaoAgente());
+  // 4.C.3c: Ajustes (configuracoes) entra na próxima sub-tarefa.
 }
 
 /** Seção acordeão: cabeçalho que expande/recolhe o corpo. */
@@ -229,4 +231,304 @@ function abrirEditorEmpresa(ent) {
       },
     ],
   });
+}
+
+// ──────────── 🎭 Personas (4.C.3b) ────────────
+//
+// O `contexto` é o "código" mais sensível do sistema — define o
+// comportamento da persona. A tela edita com aviso; snapshot em
+// `040 - IA e Agentes/prompts/` continua sendo o backup versionado.
+// Roteador (interno=true) aparece com badge — editar afeta TODO o
+// roteamento; o modal avisa mais alto.
+
+const NIVEIS = ['simples', 'medio', 'complexo'];
+
+async function secaoPersonas() {
+  const { secao, corpo } = criarSecao('🎭 Personas');
+
+  const { data, error } = await supabase
+    .from('personas')
+    .select('id, slug, nome, icone, cor_hex, contexto, nivel_complexidade, modelo_override, entidades_alvo, interno, ativa, ordem')
+    .order('interno')
+    .order('ordem');
+
+  if (error) {
+    console.error('[config] erro ao carregar personas', error);
+    corpo.textContent = 'Erro ao carregar personas.';
+    return secao;
+  }
+
+  const lista = document.createElement('div');
+  lista.className = 'config-lista';
+  for (const p of data || []) {
+    const linha = document.createElement('button');
+    linha.type = 'button';
+    linha.className = 'config-linha' + (p.ativa ? '' : ' inativa');
+
+    const swatch = document.createElement('span');
+    swatch.className = 'sitio-swatch';
+    swatch.style.backgroundColor = '#' + (p.cor_hex || '6B7280');
+
+    const nome = document.createElement('span');
+    nome.className = 'config-linha-nome';
+    nome.textContent = `${p.icone ?? ''} ${p.nome}`.trim() +
+      (p.interno ? ' · interna (Roteador)' : '') +
+      (p.ativa ? '' : ' (inativa)');
+
+    linha.appendChild(swatch);
+    linha.appendChild(nome);
+    linha.addEventListener('click', () => abrirEditorPersona(p));
+    lista.appendChild(linha);
+  }
+  corpo.appendChild(lista);
+
+  return secao;
+}
+
+async function abrirEditorPersona(p) {
+  const { data: entidades } = await supabase
+    .from('entidades')
+    .select('slug, nome, icone')
+    .eq('ativa', true)
+    .order('ordem');
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  if (p.interno) {
+    const aviso = document.createElement('p');
+    aviso.className = 'config-aviso';
+    aviso.textContent = '⚠️ Persona INTERNA: o contexto abaixo é o prompt ' +
+      'do Roteador — controla pra qual persona cada mensagem vai. ' +
+      'Mexer errado quebra o roteamento inteiro.';
+    form.appendChild(aviso);
+  }
+
+  const inputNome = document.createElement('input');
+  inputNome.type = 'text';
+  inputNome.className = 'nota-editor-titulo';
+  inputNome.placeholder = 'Nome';
+  inputNome.value = p.nome ?? '';
+
+  const inputIcone = document.createElement('input');
+  inputIcone.type = 'text';
+  inputIcone.className = 'nota-editor-titulo';
+  inputIcone.placeholder = 'Ícone (emoji)';
+  inputIcone.value = p.icone ?? '';
+
+  const labelCor = document.createElement('label');
+  labelCor.className = 'config-label-cor';
+  labelCor.textContent = 'Cor: ';
+  const inputCor = document.createElement('input');
+  inputCor.type = 'color';
+  inputCor.value = '#' + (p.cor_hex || '6B7280');
+  labelCor.appendChild(inputCor);
+
+  const selNivel = document.createElement('select');
+  selNivel.className = 'nota-editor-titulo';
+  for (const n of NIVEIS) {
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = 'Complexidade default: ' + n +
+      (n === 'simples' ? ' (Haiku)' : n === 'medio' ? ' (Sonnet)' : ' (Opus)');
+    if (n === p.nivel_complexidade) opt.selected = true;
+    selNivel.appendChild(opt);
+  }
+
+  // Empresas-alvo: vazio = transversal (vale pra tudo).
+  const grupoAlvo = document.createElement('div');
+  grupoAlvo.className = 'config-grupo-alvo';
+  const tituloAlvo = document.createElement('small');
+  tituloAlvo.textContent = 'Empresas-alvo (nenhuma marcada = transversal):';
+  grupoAlvo.appendChild(tituloAlvo);
+  const checksAlvo = [];
+  for (const ent of entidades || []) {
+    const label = document.createElement('label');
+    label.className = 'agenda-check-dia';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.value = ent.slug;
+    chk.checked = (p.entidades_alvo ?? []).includes(ent.slug);
+    checksAlvo.push(chk);
+    label.appendChild(chk);
+    label.appendChild(document.createTextNode(
+      ` ${ent.icone ?? ''} ${ent.nome}`.trimEnd(),
+    ));
+    grupoAlvo.appendChild(label);
+  }
+
+  const labelAtiva = document.createElement('label');
+  labelAtiva.className = 'agenda-check-dia';
+  const chkAtiva = document.createElement('input');
+  chkAtiva.type = 'checkbox';
+  chkAtiva.checked = p.ativa;
+  labelAtiva.appendChild(chkAtiva);
+  labelAtiva.appendChild(document.createTextNode(
+    ' Ativa (inativa sai do Roteador e do chat)',
+  ));
+
+  const tituloPrompt = document.createElement('small');
+  tituloPrompt.className = 'config-rotulo';
+  tituloPrompt.textContent = 'Contexto (prompt da persona — o comportamento dela):';
+
+  const taContexto = document.createElement('textarea');
+  taContexto.className = 'nota-editor-conteudo config-prompt';
+  taContexto.rows = 14;
+  taContexto.value = p.contexto ?? '';
+
+  form.appendChild(inputNome);
+  form.appendChild(inputIcone);
+  form.appendChild(labelCor);
+  if (!p.interno) {
+    form.appendChild(selNivel);
+    form.appendChild(grupoAlvo);
+  }
+  form.appendChild(labelAtiva);
+  form.appendChild(tituloPrompt);
+  form.appendChild(taContexto);
+
+  showModal({
+    title: `Editar persona ${p.nome}`,
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          const nome = inputNome.value.trim();
+          const contexto = taContexto.value.trim();
+          if (!nome || !contexto) {
+            showToast('Nome e contexto são obrigatórios', 'error');
+            return false; // segura o modal
+          }
+          const payload = {
+            nome,
+            icone: inputIcone.value.trim() || null,
+            cor_hex: inputCor.value.replace('#', '').toUpperCase(),
+            contexto,
+            ativa: chkAtiva.checked,
+          };
+          if (!p.interno) {
+            payload.nivel_complexidade = selNivel.value;
+            payload.entidades_alvo = checksAlvo
+              .filter((c) => c.checked)
+              .map((c) => c.value);
+          }
+          const { error } = await supabase
+            .from('personas')
+            .update(payload)
+            .eq('id', p.id);
+          if (error) {
+            console.error('[config] erro ao salvar persona', error);
+            showToast('Erro ao salvar persona', 'error');
+            return false;
+          }
+          await salvoComBump();
+          carregarConfig().catch(() => {});
+        },
+      },
+    ],
+  });
+}
+
+// ──────────── 🤖 Agente (4.C.3b) ────────────
+//
+// O agente único: prompt_base (identidade do Assistente), modelo default
+// (fallback quando o Roteador não escolhe persona), temperatura e
+// max_tokens. Edita inline na própria seção (é UM registro só).
+
+async function secaoAgente() {
+  const { secao, corpo } = criarSecao('🤖 Agente (IA)');
+
+  const { data: agente, error } = await supabase
+    .from('agentes')
+    .select('id, nome, prompt_base, modelo, temperatura, max_tokens')
+    .eq('slug', 'assistente')
+    .single();
+
+  if (error || !agente) {
+    console.error('[config] erro ao carregar agente', error);
+    corpo.textContent = 'Erro ao carregar o agente.';
+    return secao;
+  }
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const rotuloModelo = document.createElement('small');
+  rotuloModelo.className = 'config-rotulo';
+  rotuloModelo.textContent = 'Modelo default (fallback sem persona):';
+  const inputModelo = document.createElement('input');
+  inputModelo.type = 'text';
+  inputModelo.className = 'nota-editor-titulo';
+  inputModelo.value = agente.modelo ?? '';
+
+  const linhaNums = document.createElement('div');
+  linhaNums.className = 'agenda-horas';
+  const inputTemp = document.createElement('input');
+  inputTemp.type = 'number';
+  inputTemp.step = '0.1';
+  inputTemp.min = '0';
+  inputTemp.max = '1';
+  inputTemp.className = 'nota-editor-titulo';
+  inputTemp.title = 'Temperatura (0-1)';
+  inputTemp.value = agente.temperatura ?? '';
+  const inputMax = document.createElement('input');
+  inputMax.type = 'number';
+  inputMax.min = '256';
+  inputMax.max = '8192';
+  inputMax.className = 'nota-editor-titulo';
+  inputMax.title = 'Máx. tokens da resposta';
+  inputMax.value = agente.max_tokens ?? '';
+  linhaNums.appendChild(inputTemp);
+  linhaNums.appendChild(inputMax);
+
+  const rotuloPrompt = document.createElement('small');
+  rotuloPrompt.className = 'config-rotulo';
+  rotuloPrompt.textContent = 'Prompt base (identidade do Assistente — vale pra TODAS as personas):';
+  const taPrompt = document.createElement('textarea');
+  taPrompt.className = 'nota-editor-conteudo config-prompt';
+  taPrompt.rows = 14;
+  taPrompt.value = agente.prompt_base ?? '';
+
+  const btnSalvar = document.createElement('button');
+  btnSalvar.type = 'button';
+  btnSalvar.className = 'btn btn-primary config-btn-add';
+  btnSalvar.textContent = 'Salvar agente';
+  btnSalvar.addEventListener('click', async () => {
+    const prompt_base = taPrompt.value.trim();
+    const modelo = inputModelo.value.trim();
+    const temperatura = Number(inputTemp.value);
+    const max_tokens = Number(inputMax.value);
+    if (!prompt_base || !modelo) {
+      showToast('Prompt base e modelo são obrigatórios', 'error');
+      return;
+    }
+    if (!Number.isFinite(temperatura) || temperatura < 0 || temperatura > 1 ||
+        !Number.isInteger(max_tokens) || max_tokens < 256) {
+      showToast('Temperatura (0-1) ou max_tokens (≥256) inválidos', 'error');
+      return;
+    }
+    const { error: errUpd } = await supabase
+      .from('agentes')
+      .update({ prompt_base, modelo, temperatura, max_tokens })
+      .eq('id', agente.id);
+    if (errUpd) {
+      console.error('[config] erro ao salvar agente', errUpd);
+      showToast('Erro ao salvar agente', 'error');
+      return;
+    }
+    await salvoComBump();
+  });
+
+  form.appendChild(rotuloModelo);
+  form.appendChild(inputModelo);
+  form.appendChild(linhaNums);
+  form.appendChild(rotuloPrompt);
+  form.appendChild(taPrompt);
+  form.appendChild(btnSalvar);
+  corpo.appendChild(form);
+
+  return secao;
 }
