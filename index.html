@@ -961,6 +961,47 @@
       }
     }
 
+    /* ---------- Agenda (4.C.2) — cards reusam nota-* ---------- */
+
+    .agenda-dia {
+      margin: var(--space-2) 0 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .agenda-card-header {
+      flex-direction: row;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .agenda-hora {
+      flex-shrink: 0;
+      min-width: 84px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .agenda-card-corpo {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .agenda-link {
+      display: block;
+      margin-top: var(--space-2);
+      color: var(--accent);
+      font-size: 13px;
+      word-break: break-all;
+    }
+
     /* ---------- Tarefas: kanban (4.C.1) ---------- */
 
     .tasks-toolbar {
@@ -1884,9 +1925,16 @@
           <div class="tasks-board" id="tasks-board"></div>
         </section>
 
+        <!-- 4.C.2 — Agenda: lista agrupada por dia renderizada pelo
+             agenda.js (page:change). Cards reusam as classes nota-*. -->
         <section class="page" id="page-agenda" hidden>
-          <h1>Agenda</h1>
-          <p class="page-placeholder">Aqui vai aparecer sua agenda. Em breve.</p>
+          <div class="tasks-toolbar">
+            <div class="tasks-filtros" id="agenda-entidades"></div>
+            <button type="button" id="btn-novo-evento" class="btn btn-primary">
+              + Novo
+            </button>
+          </div>
+          <div id="agenda-lista" class="notas-lista"></div>
         </section>
 
         <section class="page" id="page-docs" hidden>
