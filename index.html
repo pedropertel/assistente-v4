@@ -702,12 +702,21 @@
     .sitio-abas {
       display: flex;
       gap: var(--space-2);
+      /* Rótulo maior ("A pagar/receber") não pode estourar os 375px —
+         abas dimensionam pelo conteúdo e a linha rola se precisar. */
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .sitio-abas::-webkit-scrollbar {
+      display: none;
     }
 
     .sitio-abas button {
-      flex: 1;
-      min-width: 0;
+      flex: 1 0 auto;
       min-height: 44px;
+      padding: 0 var(--space-3);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       background: var(--bg-secondary);
@@ -1715,8 +1724,8 @@
         <section class="page" id="page-sitio" hidden>
           <div class="sitio-abas" id="sitio-abas">
             <button type="button" data-aba="resumo" class="ativa">📊 Resumo</button>
-            <button type="button" data-aba="lancamentos">📋 Lançamentos</button>
-            <button type="button" data-aba="contas">📅 Contas</button>
+            <button type="button" data-aba="lancamentos">📋 Realizados</button>
+            <button type="button" data-aba="contas">📅 A pagar/receber</button>
           </div>
 
           <div id="sitio-aba-resumo">
