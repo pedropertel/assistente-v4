@@ -285,6 +285,9 @@ function habilitarDrag(card, tarefa, labels) {
     const comecarDrag = () => {
       arrastando = true;
       dragAconteceu = true;
+      // Desliga o scroll-snap enquanto arrasta — com snap ativo o browser
+      // "devolve" cada incremento de scrollLeft e a borda não rola.
+      boardEl.classList.add('drag-ativo');
       document.querySelectorAll('.tasks-card-acoes').forEach((m) => m.remove());
 
       const rect = card.getBoundingClientRect();
@@ -295,13 +298,17 @@ function habilitarDrag(card, tarefa, labels) {
       posicionarGhost(ultimoX, ultimoY);
       card.classList.add('arrastando');
 
-      // Auto-scroll contínuo enquanto o dedo está na borda do board.
+      // Auto-scroll contínuo enquanto o dedo está perto da borda —
+      // velocidade cresce conforme encosta mais na borda.
       const passo = () => {
         if (!arrastando) return;
-        const MARGEM = 48;
+        const MARGEM = 64;
         const LARGURA = window.innerWidth;
-        if (ultimoX > LARGURA - MARGEM) boardEl.scrollLeft += 10;
-        else if (ultimoX < MARGEM) boardEl.scrollLeft -= 10;
+        if (ultimoX > LARGURA - MARGEM) {
+          boardEl.scrollLeft += 6 + (ultimoX - (LARGURA - MARGEM)) / 4;
+        } else if (ultimoX < MARGEM) {
+          boardEl.scrollLeft -= 6 + (MARGEM - ultimoX) / 4;
+        }
         atualizarAlvo(ultimoX, ultimoY);
         rafAutoScroll = requestAnimationFrame(passo);
       };
@@ -375,6 +382,7 @@ function habilitarDrag(card, tarefa, labels) {
     const limpar = () => {
       clearTimeout(timerLongPress);
       if (rafAutoScroll) cancelAnimationFrame(rafAutoScroll);
+      boardEl.classList.remove('drag-ativo');
       arrastando = false;
       ghost?.remove();
       ghost = null;
