@@ -697,6 +697,26 @@
       line-height: 1.5;
     }
 
+    /* ---------- Sítio (4.B.2b) — filtros; cards reusam nota-* ---------- */
+
+    .sitio-filtros {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .sitio-filtros select {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+    }
+
     /* ---------- Ideias (4.B.1a) — cards reusam as classes nota-* ---------- */
 
     .ideia-proxima-acao {
@@ -1328,9 +1348,15 @@
           <p class="page-placeholder">Aqui vai aparecer o painel do CEDTEC — Meta Ads, leads, funil. Em breve.</p>
         </section>
 
+        <!-- 4.B.2b — Lançamentos do Sítio: lista renderizada pelo sitio.js
+             (recarrega via page:change; cards reusam as classes nota-*).
+             Sem "+ Novo": entrada é pelo chat/voz (Alemão). -->
         <section class="page" id="page-sitio" hidden>
-          <h1>Sítio</h1>
-          <p class="page-placeholder">Aqui vai aparecer o controle financeiro do Sítio Monte da Vitória. Em breve.</p>
+          <div class="sitio-filtros">
+            <select id="sitio-filtro-categoria" aria-label="Filtrar por categoria"></select>
+            <select id="sitio-filtro-mes" aria-label="Filtrar por mês"></select>
+          </div>
+          <div id="sitio-lista" class="notas-lista"></div>
         </section>
 
         <section class="page" id="page-config" hidden>
