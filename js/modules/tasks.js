@@ -245,7 +245,7 @@ function criarCardTarefa(tarefa, labels) {
   return card;
 }
 
-/** Toque no card abre/fecha menu ✏️/🗑 (4.C.1c adiciona mover). */
+/** Toque no card abre/fecha menu: mover (4.C.1c) + ✏️/🗑. */
 function toggleAcoesTarefa(card, tarefa, labels) {
   const existente = card.querySelector('.tasks-card-acoes');
   document.querySelectorAll('.tasks-card-acoes').forEach((m) => m.remove());
@@ -253,6 +253,33 @@ function toggleAcoesTarefa(card, tarefa, labels) {
 
   const menu = document.createElement('div');
   menu.className = 'nota-acoes tasks-card-acoes';
+
+  // 4.C.1c — mover pra outra coluna (decisão do plano: menu no toque em
+  // vez de drag&drop — arrastar no touch briga com o scroll do board).
+  // Virar 'feito' carimba concluida_em; sair de 'feito' limpa.
+  for (const status of COLUNAS) {
+    if (status === tarefa.status) continue;
+    const btnMover = document.createElement('button');
+    btnMover.type = 'button';
+    btnMover.textContent = '→ ' + (labels[`status.${status}`] ?? status);
+    btnMover.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const { error } = await supabase
+        .from('tarefas')
+        .update({
+          status,
+          concluida_em: status === 'feito' ? new Date().toISOString() : null,
+        })
+        .eq('id', tarefa.id);
+      if (error) {
+        showToast('Erro ao mover', 'error');
+        return;
+      }
+      showToast(`Movida pra ${labels[`status.${status}`] ?? status}`);
+      carregarBoard().catch(() => {});
+    });
+    menu.appendChild(btnMover);
+  }
 
   const btnEditar = document.createElement('button');
   btnEditar.type = 'button';
