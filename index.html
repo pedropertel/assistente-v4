@@ -1093,6 +1093,26 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .config-campo {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .config-label-linha {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .config-label-slot {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      text-transform: capitalize;
+      word-break: break-word;
+    }
+
     /* ---------- Agenda (4.C.2) — calendário mensal + lista do dia ---------- */
 
     .agenda-conteudo {

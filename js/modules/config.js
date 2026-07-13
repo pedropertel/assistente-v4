@@ -65,6 +65,8 @@ export async function carregarConfig() {
   raiz.appendChild(await secaoPersonas());
   raiz.appendChild(await secaoAgente());
   raiz.appendChild(await secaoAjustes());
+  raiz.appendChild(await secaoLabels());
+  raiz.appendChild(await secaoAvancado());
 }
 
 /** Seção acordeão: cabeçalho que expande/recolhe o corpo. */
@@ -533,31 +535,70 @@ async function secaoAgente() {
   return secao;
 }
 
-// ──────────── ⚙️ Ajustes (4.C.3c) ────────────
+// ──────────── ⚙️ Ajustes (4.C.3c, humanizada) ────────────
 //
-// Chaves de `configuracoes` com editavel_por_usuario=true, agrupadas por
-// categoria (ai_defaults, ai_limites, ai_tools, ui_labels). Valor jsonb:
-// string/número editam em input simples; objeto/array em textarea JSON
-// com validação no save (JSON inválido não grava — a Edge tem o C4 de
-// defesa, mas melhor nem deixar entrar). Categoria 'sistema' fica fora
-// (cache_version e afins são mecânica interna, não preferência).
+// Feedback do Pedro (1º teste): chave técnica e JSON cru na tela não
+// servem. Cada ajuste ganha NOME EM PORTUGUÊS e editor estruturado
+// (número, selects de modelo, checkboxes de tools); os rótulos das
+// telas viram grupos de inputs com um salvar só. Manutenção técnica
+// (preços por modelo, lista sem-temperature, tools por persona) vive
+// na seção "Avançado", colapsada e com aviso — lá o JSON é aceitável.
 
-const NOMES_CATEGORIA = {
-  ai_defaults: '🧠 IA — comportamento',
-  ai_limites: '🚦 IA — limites',
-  ai_tools: '🔧 IA — tools ativas',
-  ui_labels: '🏷 Rótulos das telas',
+/** 'claude-sonnet-4-6' → 'Sonnet 4.6' (nome amigável nos selects). */
+function nomeModelo(id) {
+  const m = String(id).match(/claude-([a-z]+)-(\d+)-(\d+)/);
+  if (!m) return id;
+  return `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}.${m[3]}`;
+}
+
+const NOMES_TOOLS = {
+  salvar_ideia: '💡 Salvar ideia (Marina)',
+  lancar_custo_sitio: '🌱 Lançar custo do sítio (Alemão)',
+  salvar_anotacao: '📝 Salvar anotação (bloco de notas)',
 };
 
+const GRUPOS_LABELS = [
+  { prefixo: 'ui_labels.tarefa.status.', titulo: 'Colunas do kanban' },
+  { prefixo: 'ui_labels.tarefa.prioridade.', titulo: 'Prioridades de tarefa' },
+  { prefixo: 'ui_labels.evento.tipo.', titulo: 'Tipos de evento' },
+  { prefixo: 'ui_labels.ideia.status.', titulo: 'Status de ideia' },
+  { prefixo: 'ui_labels.ideia.origem.', titulo: 'Origens de ideia' },
+];
+
+const CHAVES_AVANCADO = new Set([
+  'ai_defaults.precos_modelos',
+  'ai_defaults.modelos_sem_temperature',
+  'ai_tools.por_persona',
+]);
+
+/** Salva só o que mudou (lista de {chave, valor}) + 1 bump no final. */
+async function salvarMudancas(mudancas) {
+  if (!mudancas.length) {
+    showToast('Nada mudou');
+    return true;
+  }
+  for (const m of mudancas) {
+    const { error } = await supabase
+      .from('configuracoes')
+      .update({ valor: m.valor })
+      .eq('chave', m.chave);
+    if (error) {
+      console.error('[config] erro ao salvar', m.chave, error);
+      showToast('Erro ao salvar ajustes', 'error');
+      return false;
+    }
+  }
+  await salvoComBump();
+  return true;
+}
+
 async function secaoAjustes() {
-  const { secao, corpo } = criarSecao('⚙️ Ajustes');
+  const { secao, corpo } = criarSecao('⚙️ Ajustes da IA');
 
   const { data, error } = await supabase
     .from('configuracoes')
-    .select('chave, valor, categoria, descricao')
-    .eq('editavel_por_usuario', true)
-    .order('categoria')
-    .order('chave');
+    .select('chave, valor, descricao')
+    .eq('editavel_por_usuario', true);
 
   if (error) {
     console.error('[config] erro ao carregar ajustes', error);
@@ -565,42 +606,246 @@ async function secaoAjustes() {
     return secao;
   }
 
-  let categoriaAtual = null;
-  for (const cfg of data || []) {
-    if (cfg.categoria !== categoriaAtual) {
-      categoriaAtual = cfg.categoria;
-      const titulo = document.createElement('small');
-      titulo.className = 'config-rotulo config-categoria';
-      titulo.textContent = NOMES_CATEGORIA[cfg.categoria] ?? cfg.categoria;
-      corpo.appendChild(titulo);
+  const cfg = new Map((data || []).map((r) => [r.chave, r.valor]));
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  // ── Números simples, com nome humano ──
+  const campoNum = (rotulo, valorAtual) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'config-campo';
+    const label = document.createElement('small');
+    label.className = 'config-rotulo';
+    label.textContent = rotulo;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'nota-editor-titulo';
+    input.value = valorAtual ?? '';
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+    form.appendChild(wrap);
+    return input;
+  };
+
+  const inputHistorico = campoNum(
+    'Memória da conversa (últimas N mensagens que a IA lembra)',
+    cfg.get('ai_defaults.historico_max_mensagens'),
+  );
+  const inputLimite = campoNum(
+    'Limite de mensagens por minuto (proteção de custo)',
+    cfg.get('ai_limites.msgs_por_minuto'),
+  );
+
+  // ── Modelo por complexidade: 3 selects com nome amigável ──
+  // Opções vêm das chaves de precos_modelos (dinâmico) + valores atuais.
+  const mapa = cfg.get('ai_defaults.mapeamento_complexidade') ?? {};
+  const precos = cfg.get('ai_defaults.precos_modelos') ?? {};
+  const modelosDisponiveis = [...new Set([
+    ...Object.keys(precos),
+    ...Object.values(mapa),
+  ])];
+
+  const tituloMapa = document.createElement('small');
+  tituloMapa.className = 'config-rotulo config-categoria';
+  tituloMapa.textContent = 'Qual modelo responde cada nível de conversa';
+  form.appendChild(tituloMapa);
+
+  const selectsMapa = {};
+  for (const [nivel, rotulo] of [
+    ['simples', 'Conversa simples (rápida e barata)'],
+    ['medio', 'Conversa média (análise do dia a dia)'],
+    ['complexo', 'Conversa complexa (estratégia, redação importante)'],
+  ]) {
+    const wrap = document.createElement('div');
+    wrap.className = 'config-campo';
+    const label = document.createElement('small');
+    label.className = 'config-rotulo';
+    label.textContent = rotulo;
+    const sel = document.createElement('select');
+    sel.className = 'nota-editor-titulo';
+    for (const modelo of modelosDisponiveis) {
+      const opt = document.createElement('option');
+      opt.value = modelo;
+      opt.textContent = nomeModelo(modelo);
+      if (modelo === mapa[nivel]) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    selectsMapa[nivel] = sel;
+    wrap.appendChild(label);
+    wrap.appendChild(sel);
+    form.appendChild(wrap);
+  }
+
+  // ── Tools ativas: checkboxes com nome humano ──
+  const tituloTools = document.createElement('small');
+  tituloTools.className = 'config-rotulo config-categoria';
+  tituloTools.textContent = 'O que a IA pode fazer sozinha (ações no banco)';
+  form.appendChild(tituloTools);
+
+  const transversais = cfg.get('ai_tools.transversais') ?? [];
+  const nomesTools = [...new Set([
+    ...Object.keys(NOMES_TOOLS),
+    ...transversais,
+  ])];
+  const checksTools = [];
+  for (const tool of nomesTools) {
+    const label = document.createElement('label');
+    label.className = 'agenda-check-dia';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.value = tool;
+    chk.checked = transversais.includes(tool);
+    checksTools.push(chk);
+    label.appendChild(chk);
+    label.appendChild(document.createTextNode(' ' + (NOMES_TOOLS[tool] ?? tool)));
+    form.appendChild(label);
+  }
+
+  // ── Salvar (só o que mudou; 1 bump) ──
+  const btnSalvar = document.createElement('button');
+  btnSalvar.type = 'button';
+  btnSalvar.className = 'btn btn-primary config-btn-add';
+  btnSalvar.textContent = 'Salvar ajustes';
+  btnSalvar.addEventListener('click', async () => {
+    const mudancas = [];
+
+    const historico = Number(inputHistorico.value);
+    if (Number.isInteger(historico) && historico >= 1 && historico <= 100 &&
+        historico !== cfg.get('ai_defaults.historico_max_mensagens')) {
+      mudancas.push({ chave: 'ai_defaults.historico_max_mensagens', valor: historico });
+    }
+    const limite = Number(inputLimite.value);
+    if (Number.isInteger(limite) && limite >= 1 && limite <= 120 &&
+        limite !== cfg.get('ai_limites.msgs_por_minuto')) {
+      mudancas.push({ chave: 'ai_limites.msgs_por_minuto', valor: limite });
     }
 
+    const novoMapa = {
+      simples: selectsMapa.simples.value,
+      medio: selectsMapa.medio.value,
+      complexo: selectsMapa.complexo.value,
+    };
+    if (JSON.stringify(novoMapa) !== JSON.stringify(mapa)) {
+      mudancas.push({ chave: 'ai_defaults.mapeamento_complexidade', valor: novoMapa });
+    }
+
+    const novasTools = checksTools.filter((c) => c.checked).map((c) => c.value);
+    if (JSON.stringify([...novasTools].sort()) !== JSON.stringify([...transversais].sort())) {
+      mudancas.push({ chave: 'ai_tools.transversais', valor: novasTools });
+    }
+
+    if (await salvarMudancas(mudancas)) carregarConfig().catch(() => {});
+  });
+  form.appendChild(btnSalvar);
+
+  corpo.appendChild(form);
+  return secao;
+}
+
+// ──────────── 🏷 Nomes nas telas (labels em grupos) ────────────
+
+async function secaoLabels() {
+  const { secao, corpo } = criarSecao('🏷 Nomes nas telas');
+
+  const { data, error } = await supabase
+    .from('configuracoes')
+    .select('chave, valor')
+    .like('chave', 'ui_labels.%')
+    .eq('editavel_por_usuario', true)
+    .order('chave');
+
+  if (error) {
+    console.error('[config] erro ao carregar labels', error);
+    corpo.textContent = 'Erro ao carregar rótulos.';
+    return secao;
+  }
+
+  const rows = data || [];
+  const inputs = []; // {chave, input, original}
+
+  for (const grupo of GRUPOS_LABELS) {
+    const doGrupo = rows.filter((r) => r.chave.startsWith(grupo.prefixo));
+    if (!doGrupo.length) continue;
+
+    const titulo = document.createElement('small');
+    titulo.className = 'config-rotulo config-categoria';
+    titulo.textContent = grupo.titulo;
+    corpo.appendChild(titulo);
+
+    for (const r of doGrupo) {
+      const linha = document.createElement('div');
+      linha.className = 'config-label-linha';
+      // Identifica o slot sem jargão: 'a_fazer' → "a fazer".
+      const slot = document.createElement('small');
+      slot.className = 'config-label-slot';
+      slot.textContent = r.chave.split('.').pop().replace(/_/g, ' ');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'nota-editor-titulo';
+      input.value = typeof r.valor === 'string' ? r.valor : '';
+      inputs.push({ chave: r.chave, input, original: r.valor });
+      linha.appendChild(slot);
+      linha.appendChild(input);
+      corpo.appendChild(linha);
+    }
+  }
+
+  const btnSalvar = document.createElement('button');
+  btnSalvar.type = 'button';
+  btnSalvar.className = 'btn btn-primary config-btn-add';
+  btnSalvar.textContent = 'Salvar nomes';
+  btnSalvar.addEventListener('click', async () => {
+    const mudancas = [];
+    for (const { chave, input, original } of inputs) {
+      const novo = input.value.trim();
+      if (novo && novo !== original) mudancas.push({ chave, valor: novo });
+    }
+    if (await salvarMudancas(mudancas)) carregarConfig().catch(() => {});
+  });
+  corpo.appendChild(btnSalvar);
+
+  return secao;
+}
+
+// ──────────── 🔬 Avançado (JSON, com aviso — manutenção técnica) ────────────
+
+async function secaoAvancado() {
+  const { secao, corpo } = criarSecao('🔬 Avançado');
+
+  const aviso = document.createElement('p');
+  aviso.className = 'config-aviso';
+  aviso.textContent = '⚠️ Manutenção técnica (preços por modelo, lista de ' +
+    'modelos sem temperature, tools por persona). Só mexe aqui se souber ' +
+    'exatamente o que está fazendo — valor errado degrada a IA em silêncio.';
+  corpo.appendChild(aviso);
+
+  const { data, error } = await supabase
+    .from('configuracoes')
+    .select('chave, valor, descricao')
+    .eq('editavel_por_usuario', true)
+    .order('chave');
+
+  if (error) {
+    corpo.textContent = 'Erro ao carregar.';
+    return secao;
+  }
+
+  for (const cfg of (data || []).filter((r) => CHAVES_AVANCADO.has(r.chave))) {
     const linha = document.createElement('button');
     linha.type = 'button';
     linha.className = 'config-linha';
-
     const nome = document.createElement('span');
     nome.className = 'config-linha-nome';
-    // 'ui_labels.tarefa.status.feito' → 'tarefa.status.feito' (o grupo
-    // já está no cabeçalho da categoria).
-    nome.textContent = cfg.chave.replace(`${cfg.categoria}.`, '');
-
-    const valor = document.createElement('span');
-    valor.className = 'config-linha-valor';
-    valor.textContent = typeof cfg.valor === 'string'
-      ? cfg.valor
-      : JSON.stringify(cfg.valor);
-
+    nome.textContent = cfg.chave;
     linha.appendChild(nome);
-    linha.appendChild(valor);
-    linha.addEventListener('click', () => abrirEditorAjuste(cfg));
+    linha.addEventListener('click', () => abrirEditorJson(cfg));
     corpo.appendChild(linha);
   }
 
   return secao;
 }
 
-function abrirEditorAjuste(cfg) {
+function abrirEditorJson(cfg) {
   const form = document.createElement('div');
   form.className = 'nota-editor';
 
@@ -612,20 +857,10 @@ function abrirEditorAjuste(cfg) {
     form.appendChild(desc);
   }
 
-  const tipoSimples = typeof cfg.valor === 'string' || typeof cfg.valor === 'number';
-  let campo;
-  if (tipoSimples) {
-    campo = document.createElement('input');
-    campo.type = 'text';
-    campo.className = 'nota-editor-titulo';
-    if (typeof cfg.valor === 'number') campo.inputMode = 'decimal';
-    campo.value = String(cfg.valor);
-  } else {
-    campo = document.createElement('textarea');
-    campo.className = 'nota-editor-conteudo config-prompt';
-    campo.rows = 10;
-    campo.value = JSON.stringify(cfg.valor, null, 2);
-  }
+  const campo = document.createElement('textarea');
+  campo.className = 'nota-editor-conteudo config-prompt';
+  campo.rows = 10;
+  campo.value = JSON.stringify(cfg.valor, null, 2);
   form.appendChild(campo);
 
   showModal({
@@ -638,49 +873,24 @@ function abrirEditorAjuste(cfg) {
         type: 'primary',
         onClick: async () => {
           let novoValor;
-          if (typeof cfg.valor === 'number') {
-            novoValor = Number(campo.value.replace(',', '.'));
-            if (!Number.isFinite(novoValor)) {
-              showToast('Valor precisa ser um número', 'error');
-              return false; // segura o modal
-            }
-          } else if (typeof cfg.valor === 'string') {
-            novoValor = campo.value.trim();
-            if (!novoValor) {
-              showToast('Valor não pode ser vazio', 'error');
-              return false;
-            }
-          } else {
-            // Objeto/array: valida o JSON e o TIPO (mesmo shape de antes —
-            // trocar array por objeto quebraria o lerConfig da Edge).
-            try {
-              novoValor = JSON.parse(campo.value);
-            } catch {
-              showToast('JSON inválido — confere vírgulas e aspas', 'error');
-              return false;
-            }
-            if (Array.isArray(cfg.valor) !== Array.isArray(novoValor)) {
-              showToast(
-                Array.isArray(cfg.valor)
-                  ? 'Este ajuste precisa ser uma lista [...]'
-                  : 'Este ajuste precisa ser um objeto {...}',
-                'error',
-              );
-              return false;
-            }
+          try {
+            novoValor = JSON.parse(campo.value);
+          } catch {
+            showToast('JSON inválido — confere vírgulas e aspas', 'error');
+            return false; // segura o modal
           }
-
-          const { error } = await supabase
-            .from('configuracoes')
-            .update({ valor: novoValor })
-            .eq('chave', cfg.chave);
-          if (error) {
-            console.error('[config] erro ao salvar ajuste', error);
-            showToast('Erro ao salvar ajuste', 'error');
+          if (Array.isArray(cfg.valor) !== Array.isArray(novoValor)) {
+            showToast(
+              Array.isArray(cfg.valor)
+                ? 'Este ajuste precisa ser uma lista [...]'
+                : 'Este ajuste precisa ser um objeto {...}',
+              'error',
+            );
             return false;
           }
-          await salvoComBump();
-          carregarConfig().catch(() => {});
+          if (await salvarMudancas([{ chave: cfg.chave, valor: novoValor }])) {
+            carregarConfig().catch(() => {});
+          }
         },
       },
     ],
