@@ -1,4 +1,4 @@
-// Módulo Ideias (4.B.1a) — tela de correção das ideias da Marina.
+// Módulo Ideias (4.B.1a + 4.B.1b) — tela de correção das ideias da Marina.
 //
 // Fontes: tool `salvar_ideia` no chat (Marina captura/refina) ou criação
 // manual aqui (+ Nova). A tool já grava desde a 3.I.2; esta tela fecha o
@@ -70,7 +70,7 @@ export async function carregarIdeias() {
     .select(`
       id, titulo, conteudo, tags, status, favorita,
       proxima_acao_sugerida, origem, created_at, updated_at,
-      entidades(nome, icone, cor_hex)
+      entidade_id, entidades(nome, icone, cor_hex)
     `)
     .neq('status', 'arquivada')
     .order('favorita', { ascending: false })
@@ -190,6 +190,17 @@ function criarCard(ideia, labels) {
 
   acoes.appendChild(btnEditar);
   acoes.appendChild(btnFav);
+
+  // 4.B.1b — converter em tarefa. Convertida não converte de novo
+  // (duplicaria a tarefa); o chip de status já conta a história.
+  if (ideia.status !== 'convertida') {
+    const btnConv = document.createElement('button');
+    btnConv.type = 'button';
+    btnConv.textContent = '📌 Virar tarefa';
+    btnConv.addEventListener('click', () => abrirConversao(ideia));
+    acoes.appendChild(btnConv);
+  }
+
   acoes.appendChild(btnArq);
   corpo.appendChild(acoes);
   card.appendChild(corpo);
@@ -199,6 +210,122 @@ function criarCard(ideia, labels) {
   });
 
   return card;
+}
+
+/**
+ * abrirConversao (4.B.1b) — modal que transforma a ideia em tarefa.
+ *
+ * `tarefas.entidade_id` é NOT NULL mas a ideia pode ser transversal
+ * (entidade_id null) → o modal exige escolher a empresa (pré-seleciona a
+ * da ideia quando houver). Descrição da tarefa = conteúdo da ideia +
+ * próxima ação sugerida. origem='sistema' (nasceu de uma ideia, não foi
+ * digitada do zero). A tela de tarefas é a 4.C.1 — até lá a tarefa
+ * criada vive só no banco, e o status 'convertida' aqui é o recibo.
+ *
+ * Ordem das operações: INSERT tarefa → UPDATE ideia. Se o UPDATE falhar
+ * a tarefa JÁ existe — avisa em vez de re-tentar (re-converter duplicaria).
+ */
+async function abrirConversao(ideia) {
+  const { data: entidades, error: errEnt } = await supabase
+    .from('entidades')
+    .select('id, nome, icone')
+    .eq('ativa', true)
+    .order('ordem');
+
+  if (errEnt || !entidades?.length) {
+    showToast('Erro ao carregar empresas', 'error');
+    return;
+  }
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const inputTitulo = document.createElement('input');
+  inputTitulo.type = 'text';
+  inputTitulo.className = 'nota-editor-titulo';
+  inputTitulo.placeholder = 'Título da tarefa';
+  inputTitulo.value = ideia.titulo;
+
+  const selEntidade = document.createElement('select');
+  selEntidade.className = 'nota-editor-titulo';
+  for (const ent of entidades) {
+    const opt = document.createElement('option');
+    opt.value = ent.id;
+    opt.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    if (ent.id === ideia.entidade_id) opt.selected = true;
+    selEntidade.appendChild(opt);
+  }
+
+  const selPrioridade = document.createElement('select');
+  selPrioridade.className = 'nota-editor-titulo';
+  for (const [valor, label] of [
+    ['baixa', 'Prioridade: baixa'],
+    ['media', 'Prioridade: média'],
+    ['alta', 'Prioridade: alta'],
+    ['urgente', 'Prioridade: urgente'],
+  ]) {
+    const opt = document.createElement('option');
+    opt.value = valor;
+    opt.textContent = label;
+    if (valor === 'media') opt.selected = true;
+    selPrioridade.appendChild(opt);
+  }
+
+  form.appendChild(inputTitulo);
+  form.appendChild(selEntidade);
+  form.appendChild(selPrioridade);
+
+  showModal({
+    title: 'Converter em tarefa',
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Converter',
+        type: 'primary',
+        onClick: async () => {
+          const titulo = inputTitulo.value.trim();
+          if (!titulo) {
+            showToast('Título é obrigatório', 'error');
+            return false; // segura o modal
+          }
+
+          const descricao = [
+            ideia.conteudo,
+            ideia.proxima_acao_sugerida
+              ? `Próxima ação sugerida: ${ideia.proxima_acao_sugerida}`
+              : null,
+          ].filter(Boolean).join('\n\n');
+
+          const { error: errIns } = await supabase.from('tarefas').insert({
+            entidade_id: selEntidade.value,
+            titulo,
+            descricao,
+            status: 'a_fazer',
+            prioridade: selPrioridade.value,
+            origem: 'sistema',
+          });
+          if (errIns) {
+            showToast('Erro ao criar tarefa', 'error');
+            return false; // nada mudou — pode tentar de novo
+          }
+
+          const { error: errUpd } = await supabase
+            .from('ideias')
+            .update({ status: 'convertida' })
+            .eq('id', ideia.id);
+          if (errUpd) {
+            // Tarefa já criada — só o recibo falhou. NÃO re-tentar a
+            // conversão (duplicaria); Pedro marca o status na edição.
+            showToast('Tarefa criada, mas a ideia não marcou como convertida', 'warning');
+          } else {
+            showToast('Tarefa criada ✓');
+          }
+          carregarIdeias().catch(() => {});
+        },
+      },
+    ],
+  });
 }
 
 /**
