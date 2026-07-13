@@ -697,6 +697,386 @@
       line-height: 1.5;
     }
 
+    /* ---------- Sítio (4.B.2b + 4.B.3) — abas, períodos, filtros ---------- */
+
+    .sitio-abas {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .sitio-abas button {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .sitio-abas button.ativa {
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Sub-abas empilham conteúdo no fluxo da .page (gap herdado). */
+    #sitio-aba-resumo,
+    #sitio-aba-lancamentos,
+    #sitio-aba-contas {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+
+    #sitio-aba-resumo[hidden],
+    #sitio-aba-lancamentos[hidden],
+    #sitio-aba-contas[hidden] {
+      display: none;
+    }
+
+    .sitio-periodos {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .sitio-periodos::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* ---------- Sítio: Resumo BI (4.B.3c) ---------- */
+
+    .sitio-kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2);
+    }
+
+    .kpi-card {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      min-width: 0;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .kpi-valor {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .kpi-valor.negativo {
+      color: var(--danger);
+    }
+
+    .kpi-tendencia {
+      font-size: 11px;
+    }
+
+    .kpi-tendencia.boa  { color: var(--success); }
+    .kpi-tendencia.ruim { color: var(--danger); }
+
+    .sitio-bloco {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .sitio-bloco-titulo {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .sitio-bloco-vazio {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .sitio-donut-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .sitio-donut {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .sitio-donut-furo {
+      position: absolute;
+      inset: 22%;
+      border-radius: 50%;
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      text-align: center;
+    }
+
+    .sitio-donut-furo small {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .sitio-donut-furo strong {
+      font-size: 14px;
+      color: var(--text-primary);
+      padding: 0 var(--space-2);
+      word-break: break-word;
+    }
+
+    .sitio-legenda {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .sitio-legenda-linha {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      width: 100%;
+      min-height: 44px;
+      padding: var(--space-1) var(--space-2);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .sitio-legenda-linha:hover {
+      background: var(--bg-secondary);
+    }
+
+    .sitio-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .sitio-legenda-nome {
+      flex: 1;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .sitio-legenda-valor {
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .sitio-subbarras {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-1) var(--space-2) var(--space-2) calc(12px + var(--space-2) + var(--space-2));
+    }
+
+    .sitio-subbarra {
+      display: grid;
+      grid-template-columns: minmax(72px, auto) 1fr auto;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 12px;
+    }
+
+    .sitio-subbarra-rotulo {
+      color: var(--text-secondary);
+      word-break: break-word;
+    }
+
+    .sitio-subbarra-trilho {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .sitio-subbarra-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+
+    .sitio-subbarra-valor {
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    @media (min-width: 480px) {
+      .sitio-donut-wrap {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+
+    /* ---------- Sítio: evolução + projeção (4.B.3e) ---------- */
+
+    .sitio-evolucao {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--space-1);
+      height: 140px;
+    }
+
+    .sitio-evolucao-mes {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+
+    .sitio-evolucao-mes small {
+      font-size: 9px;
+      color: var(--text-tertiary);
+      text-align: center;
+      text-transform: capitalize;
+    }
+
+    .sitio-evolucao-barras {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 2px; /* spacer entre séries (spec de marks) */
+    }
+
+    .sitio-evolucao-barra {
+      width: 6px;
+      border-radius: 3px 3px 0 0;
+    }
+
+    .sitio-evolucao-barra.entrada,
+    .sitio-serie-entrada { background: #199e70; }
+    .sitio-evolucao-barra.saida,
+    .sitio-serie-saida   { background: #e66767; }
+
+    .sitio-evolucao-legenda {
+      display: flex;
+      gap: var(--space-4);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .sitio-evolucao-legenda .sitio-swatch {
+      display: inline-block;
+      vertical-align: -1px;
+    }
+
+    .sitio-projecao {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-4);
+    }
+
+    .sitio-projecao-linha {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-2) 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .sitio-projecao-linha + .sitio-projecao-linha {
+      border-top: 1px solid var(--border);
+    }
+
+    .sitio-projecao-linha.forte {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+
+    .sitio-projecao-linha span:last-child {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .sitio-projecao-linha .negativo {
+      color: var(--danger);
+    }
+
+    /* ---------- Sítio: Contas a pagar/receber (4.B.3d) ---------- */
+
+    .nota-card.conta-vencida {
+      border-color: var(--danger);
+    }
+
+    .sitio-label-repetir {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .sitio-filtros {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .sitio-filtros select {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+    }
+
     /* ---------- Ideias (4.B.1a) — cards reusam as classes nota-* ---------- */
 
     .ideia-proxima-acao {
@@ -1328,9 +1708,38 @@
           <p class="page-placeholder">Aqui vai aparecer o painel do CEDTEC — Meta Ads, leads, funil. Em breve.</p>
         </section>
 
+        <!-- 4.B.2b + 4.B.3 — Gestão do Sítio: 3 sub-abas (Resumo BI /
+             Lançamentos / Contas a pagar-receber) renderizadas pelo
+             sitio.js via page:change. Cards reusam as classes nota-*.
+             Sem "+ Novo" em Lançamentos: entrada é pelo chat/voz. -->
         <section class="page" id="page-sitio" hidden>
-          <h1>Sítio</h1>
-          <p class="page-placeholder">Aqui vai aparecer o controle financeiro do Sítio Monte da Vitória. Em breve.</p>
+          <div class="sitio-abas" id="sitio-abas">
+            <button type="button" data-aba="resumo" class="ativa">📊 Resumo</button>
+            <button type="button" data-aba="lancamentos">📋 Lançamentos</button>
+            <button type="button" data-aba="contas">📅 Contas</button>
+          </div>
+
+          <div id="sitio-aba-resumo">
+            <div class="sitio-periodos" id="sitio-periodos"></div>
+            <div id="sitio-resumo-conteudo" class="notas-lista"></div>
+          </div>
+
+          <div id="sitio-aba-lancamentos" hidden>
+            <div class="sitio-filtros">
+              <select id="sitio-filtro-categoria" aria-label="Filtrar por categoria"></select>
+              <select id="sitio-filtro-mes" aria-label="Filtrar por mês"></select>
+            </div>
+            <div id="sitio-lista" class="notas-lista"></div>
+          </div>
+
+          <div id="sitio-aba-contas" hidden>
+            <div class="notas-toolbar">
+              <button type="button" id="btn-nova-conta" class="btn btn-primary">
+                + Nova conta
+              </button>
+            </div>
+            <div id="sitio-contas-lista" class="notas-lista"></div>
+          </div>
         </section>
 
         <section class="page" id="page-config" hidden>

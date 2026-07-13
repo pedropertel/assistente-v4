@@ -15,6 +15,8 @@ import {
 import './modules/notas.js';
 // 4.B.1a — Ideias: mesmo padrão (listener de page:change).
 import './modules/ideias.js';
+// 4.B.2b — Lançamentos do Sítio: mesmo padrão.
+import './modules/sitio.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

@@ -67,6 +67,7 @@ CREATE TABLE public.sitio_lancamentos (
 | `agente_id` | `uuid` | FK opcional. SET NULL. NULL pra criação manual via UI. |
 | `persona_id` | `uuid` | FK opcional. SET NULL. Geralmente Alemão. |
 | `origem` | `text` | 5 valores via CHECK. `'importacao'` reservado pra extrato bancário futuro. |
+| `status` | `text` | **4.B.3a:** `realizado` (default — aconteceu, conta nos totais) ou `previsto` (conta a pagar/receber; `data_lancamento` = vencimento). Marcar como pago/recebido = UPDATE pra `realizado`. Índice parcial `idx_sitio_lancamentos_previstos`. |
 | `arquivado` | `boolean` | Soft-delete REGRA 12. |
 | `created_at` | `timestamptz` | Criação. |
 | `updated_at` | `timestamptz` | Trigger. |

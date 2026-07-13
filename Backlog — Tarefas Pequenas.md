@@ -851,8 +851,16 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 - [x] **4.A.3** ✅ — **Feita 2026-07-08:** arquivar (soft-delete, migration `arquivada`, some da UI e da memória da IA) + favoritar (coluna já existia; badge ⭐) via menu no toque da bolha + 🧹 limpar conversa com modal. EDITAR CORTADO (decisão Pedro: corrigir = reenviar). E2E Playwright validado. Pendente futuro: toggle 'mostrar arquivadas' + desarquivar (hoje recuperação só via banco).
 
 ### 4.B — Telas de correção (as tools já criam dados sem conserto — D2)
-- [~] **4.B.1** — Tela de Ideias (Marina). **4.B.1a feita 2026-07-13** (`e6b4a85`): aba 💡 com listar/editar/favoritar/arquivar + Nova manual (espelho da notas.js; labels de status do banco — REGRA 12). Falta **4.B.1b**: converter em tarefa (INSERT em `tarefas` + status='convertida').
-- [ ] **4.B.2** — Tela de Lançamentos do Sítio (Alemão): listar, editar, arquivar, filtrar por categoria/período; corrigir transcrição de voz errada. A tool `lancar_custo_sitio` já grava. **Também limpar a categoria "Outros" duplicada** (achado dados). Esforço L.
+- [x] **4.B.1** ✅ — Tela de Ideias (Marina), completa 2026-07-13. **a** (`e6b4a85`): aba 💡 com listar/editar/favoritar/arquivar + Nova manual (espelho da notas.js; labels do banco — REGRA 12). **b** (`023bea4`): converter em tarefa — modal com empresa obrigatória (tarefas.entidade_id NOT NULL vs ideia transversal), tarefa a_fazer origem='sistema', ideia vira 'convertida'; re-converter bloqueado.
+- [~] **4.B.2** — Tela de Lançamentos do Sítio (Alemão). **Feita 2026-07-13, aguarda aprovado.** **a** (`824c990`): "Outros" desduplicada por RENAME das filhas (padrão "Outros tributos": outros-operacional→"Outros operacionais", outros-receita→"Outras receitas"; zero DELETE, migration aplicada). **b** (`ad7b1ab`): página Sítio com lista (valor/data/categoria/🎤 transcrição original), filtros categoria+mês, corrigir (descrição/valor/data/categoria, tipo segue a categoria), arquivar. Sem + Novo (entrada é pelo chat/voz).
+
+### 4.B.3 — Dash de gestão do Sítio (plano aprovado 2026-07-13; detalhe em ~/.claude/plans/wobbly-drifting-hamming.md, resumo abaixo)
+> Contas a pagar/receber = lançamentos `status='previsto'` na MESMA tabela (sem tabela nova). Números do dash usam só `realizado`. Gráficos CSS/SVG puro (donut conic-gradient + barras + colunas), cores de sitio_categorias.cor_hex. Agregação no front. Tool do Alemão inalterada. Melhoria anotada: tool lançar previsto por voz + registrar caches das tools no reset do cache_version (4.0).
+- [ ] **4.B.3a** — migration `status` previsto/realizado (backfill explícito) + doc tabela + tela filtra realizado
+- [ ] **4.B.3b** — chips Resumo/Lançamentos/Contas + seletor de período (Este mês default · Mês passado · Este ano · Ano-safra jul–jun · Tudo)
+- [ ] **4.B.3c** — Resumo: KPIs com ▲▼% vs período anterior (Entradas/Saídas/Saldo) + Investimento acumulado + Burn médio mensal + donuts de gastos/receitas por grupo raiz (toque expande subcategorias em barras)
+- [ ] **4.B.3d** — aba Contas: previstos por vencimento (vencidas em destaque), + Nova com repetir N meses, ✓ Pago/Recebido (vira realizado), editar, arquivar
+- [ ] **4.B.3e** — Resumo: evolução 12 meses (colunas entrada×saída) + a pagar/receber 30 dias + projeção (saldo ± previstos 90 dias)
 
 ### 4.C — Módulos CRUD (ordem por uso real — triagem, NÃO fazer todos; E5)
 Cada módulo = 3-5 sub-tarefas (listar → criar → editar → arquivar → [kanban/extras]).
