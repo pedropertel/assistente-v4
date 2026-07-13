@@ -852,15 +852,15 @@ anti-fingir). Deploy via CLI + fumaça 🟢 + guardrail verificado.
 
 ### 4.B — Telas de correção (as tools já criam dados sem conserto — D2)
 - [x] **4.B.1** ✅ — Tela de Ideias (Marina), completa 2026-07-13. **a** (`e6b4a85`): aba 💡 com listar/editar/favoritar/arquivar + Nova manual (espelho da notas.js; labels do banco — REGRA 12). **b** (`023bea4`): converter em tarefa — modal com empresa obrigatória (tarefas.entidade_id NOT NULL vs ideia transversal), tarefa a_fazer origem='sistema', ideia vira 'convertida'; re-converter bloqueado.
-- [~] **4.B.2** — Tela de Lançamentos do Sítio (Alemão). **Feita 2026-07-13, aguarda aprovado.** **a** (`824c990`): "Outros" desduplicada por RENAME das filhas (padrão "Outros tributos": outros-operacional→"Outros operacionais", outros-receita→"Outras receitas"; zero DELETE, migration aplicada). **b** (`ad7b1ab`): página Sítio com lista (valor/data/categoria/🎤 transcrição original), filtros categoria+mês, corrigir (descrição/valor/data/categoria, tipo segue a categoria), arquivar. Sem + Novo (entrada é pelo chat/voz).
+- [x] **4.B.2** ✅ — Tela de Lançamentos do Sítio (Alemão). **Feita e promovida 2026-07-13** (`e8e2d5a`). **a** (`824c990`): "Outros" desduplicada por RENAME das filhas (padrão "Outros tributos": outros-operacional→"Outros operacionais", outros-receita→"Outras receitas"; zero DELETE, migration aplicada). **b** (`ad7b1ab`): página Sítio com lista (valor/data/categoria/🎤 transcrição original), filtros categoria+mês, corrigir (descrição/valor/data/categoria, tipo segue a categoria), arquivar. Sem + Novo (entrada é pelo chat/voz).
 
-### 4.B.3 — Dash de gestão do Sítio (plano aprovado 2026-07-13; detalhe em ~/.claude/plans/wobbly-drifting-hamming.md, resumo abaixo)
+### ✅ 4.B.3 — Dash de gestão do Sítio (plano aprovado E COMPLETO 2026-07-13, promovido `e8e2d5a`)
 > Contas a pagar/receber = lançamentos `status='previsto'` na MESMA tabela (sem tabela nova). Números do dash usam só `realizado`. Gráficos CSS/SVG puro (donut conic-gradient + barras + colunas), cores de sitio_categorias.cor_hex. Agregação no front. Tool do Alemão inalterada. Melhoria anotada: tool lançar previsto por voz + registrar caches das tools no reset do cache_version (4.0).
-- [ ] **4.B.3a** — migration `status` previsto/realizado (backfill explícito) + doc tabela + tela filtra realizado
-- [ ] **4.B.3b** — chips Resumo/Lançamentos/Contas + seletor de período (Este mês default · Mês passado · Este ano · Ano-safra jul–jun · Tudo)
-- [ ] **4.B.3c** — Resumo: KPIs com ▲▼% vs período anterior (Entradas/Saídas/Saldo) + Investimento acumulado + Burn médio mensal + donuts de gastos/receitas por grupo raiz (toque expande subcategorias em barras)
-- [ ] **4.B.3d** — aba Contas: previstos por vencimento (vencidas em destaque), + Nova com repetir N meses, ✓ Pago/Recebido (vira realizado), editar, arquivar
-- [ ] **4.B.3e** — Resumo: evolução 12 meses (colunas entrada×saída) + a pagar/receber 30 dias + projeção (saldo ± previstos 90 dias)
+- [x] **4.B.3a** ✅ (`4bad818`) — migration `status` previsto/realizado (backfill explícito) + doc tabela + tela filtra realizado
+- [x] **4.B.3b** ✅ (`589a2b5`) — chips Resumo/Lançamentos/Contas + seletor de período (Este mês default · Mês passado · Este ano · Ano-safra jul–jun · Tudo)
+- [x] **4.B.3c** ✅ (`995857a`) — Resumo: KPIs com ▲▼% vs período anterior (Entradas/Saídas/Saldo) + Investimento acumulado + Burn médio mensal + donuts de gastos/receitas por grupo raiz (toque expande subcategorias em barras)
+- [x] **4.B.3d** ✅ (`cd39c53`) — aba Contas: previstos por vencimento (vencidas em destaque), + Nova com repetir N meses, ✓ Pago/Recebido (vira realizado), editar, arquivar
+- [x] **4.B.3e** ✅ (`aaa802b`) — Resumo: evolução 12 meses (colunas entrada×saída) + a pagar/receber 30 dias + projeção (saldo ± previstos 90 dias)
 
 ### 4.C — Módulos CRUD (ordem por uso real — triagem, NÃO fazer todos; E5)
 Cada módulo = 3-5 sub-tarefas (listar → criar → editar → arquivar → [kanban/extras]).
