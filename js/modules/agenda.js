@@ -13,6 +13,7 @@
 
 import { supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
+import { show as showModal } from '../core/modal.js';
 
 // Labels de tipo customizáveis via configuracoes (REGRA 12); emoji é
 // vestimenta visual fixa do código.
@@ -113,6 +114,13 @@ export async function carregarAgenda() {
 
   const labels = await getLabelsTipo();
   await montarFiltroEntidades();
+
+  // + Novo (4.C.2b) — liga 1x.
+  const btnNovo = document.getElementById('btn-novo-evento');
+  if (btnNovo && !btnNovo.dataset.ligado) {
+    btnNovo.dataset.ligado = '1';
+    btnNovo.addEventListener('click', () => abrirEditorEvento(null));
+  }
 
   // Próximos eventos: tudo que ainda não TERMINOU (em andamento conta).
   let q = supabase
@@ -288,7 +296,176 @@ function criarCardEvento(evento, labels) {
   return card;
 }
 
-// abrirEditorEvento chega na 4.C.2b.
-function abrirEditorEvento(_evento) {
-  showToast('Editor chega na próxima sub-tarefa (4.C.2b)');
+/** Componentes de data/hora de um timestamp, no fuso de Brasília. */
+function partesBrasilia(timestamp) {
+  const d = new Date(timestamp);
+  return {
+    data: new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d),
+    hora: new Intl.DateTimeFormat('pt-BR', {
+      timeZone: TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d),
+  };
+}
+
+/**
+ * abrirEditorEvento (4.C.2b) — criar/editar evento.
+ * evento=null → criar (origem 'manual', tipo default reunião).
+ * Escrita sempre com offset -03:00 explícito (UTC no banco, convenção).
+ * Dia inteiro = 00:00 → 23:59 de Brasília; desabilita as horas no form.
+ * Fim vazio = início + 1h. Recorrência/lembretes fora desta série.
+ */
+async function abrirEditorEvento(evento) {
+  const entidades = await getEntidades();
+  if (!entidades.length) {
+    showToast('Nenhuma empresa ativa encontrada', 'error');
+    return;
+  }
+  const labels = await getLabelsTipo();
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const inputTitulo = document.createElement('input');
+  inputTitulo.type = 'text';
+  inputTitulo.className = 'nota-editor-titulo';
+  inputTitulo.placeholder = 'Título do evento';
+  inputTitulo.value = evento?.titulo ?? '';
+
+  const selEntidade = document.createElement('select');
+  selEntidade.className = 'nota-editor-titulo';
+  for (const ent of entidades) {
+    const opt = document.createElement('option');
+    opt.value = ent.id;
+    opt.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    if (ent.id === (evento?.entidade_id ?? entidadeFiltro)) opt.selected = true;
+    selEntidade.appendChild(opt);
+  }
+
+  const selTipo = document.createElement('select');
+  selTipo.className = 'nota-editor-titulo';
+  for (const tipo of Object.keys(LABELS_TIPO_FALLBACK)) {
+    const opt = document.createElement('option');
+    opt.value = tipo;
+    opt.textContent = `${EMOJI_TIPO[tipo]} ${labels[tipo] ?? tipo}`;
+    if (tipo === (evento?.tipo ?? 'reuniao')) opt.selected = true;
+    selTipo.appendChild(opt);
+  }
+
+  const ini = evento ? partesBrasilia(evento.inicio) : null;
+  const fimP = evento ? partesBrasilia(evento.fim) : null;
+
+  const inputData = document.createElement('input');
+  inputData.type = 'date';
+  inputData.className = 'nota-editor-titulo';
+  inputData.value = ini?.data ?? '';
+
+  const chkDiaInteiro = document.createElement('input');
+  chkDiaInteiro.type = 'checkbox';
+  chkDiaInteiro.checked = evento?.dia_inteiro ?? false;
+  const labelDia = document.createElement('label');
+  labelDia.className = 'agenda-check-dia';
+  labelDia.appendChild(chkDiaInteiro);
+  labelDia.appendChild(document.createTextNode(' Dia inteiro'));
+
+  const horas = document.createElement('div');
+  horas.className = 'agenda-horas';
+  const inputHoraIni = document.createElement('input');
+  inputHoraIni.type = 'time';
+  inputHoraIni.className = 'nota-editor-titulo';
+  inputHoraIni.value = evento?.dia_inteiro ? '' : (ini?.hora ?? '');
+  const inputHoraFim = document.createElement('input');
+  inputHoraFim.type = 'time';
+  inputHoraFim.className = 'nota-editor-titulo';
+  inputHoraFim.value = evento?.dia_inteiro ? '' : (fimP?.hora ?? '');
+  horas.appendChild(inputHoraIni);
+  horas.appendChild(inputHoraFim);
+
+  const sincronizarHoras = () => {
+    inputHoraIni.disabled = chkDiaInteiro.checked;
+    inputHoraFim.disabled = chkDiaInteiro.checked;
+  };
+  chkDiaInteiro.addEventListener('change', sincronizarHoras);
+  sincronizarHoras();
+
+  const inputLocal = document.createElement('input');
+  inputLocal.type = 'text';
+  inputLocal.className = 'nota-editor-titulo';
+  inputLocal.placeholder = 'Local (opcional)';
+  inputLocal.value = evento?.local ?? '';
+
+  form.appendChild(inputTitulo);
+  form.appendChild(selEntidade);
+  form.appendChild(selTipo);
+  form.appendChild(inputData);
+  form.appendChild(labelDia);
+  form.appendChild(horas);
+  form.appendChild(inputLocal);
+
+  showModal({
+    title: evento ? 'Editar evento' : 'Novo evento',
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          const titulo = inputTitulo.value.trim();
+          const data = inputData.value;
+          const diaInteiro = chkDiaInteiro.checked;
+          if (!titulo || !data) {
+            showToast('Título e data são obrigatórios', 'error');
+            return false; // segura o modal
+          }
+
+          let inicio;
+          let fim;
+          if (diaInteiro) {
+            inicio = `${data}T00:00:00-03:00`;
+            fim = `${data}T23:59:59-03:00`;
+          } else {
+            const horaIni = inputHoraIni.value;
+            if (!horaIni) {
+              showToast('Hora de início é obrigatória (ou marca dia inteiro)', 'error');
+              return false;
+            }
+            inicio = `${data}T${horaIni}:00-03:00`;
+            if (inputHoraFim.value) {
+              if (inputHoraFim.value <= horaIni) {
+                showToast('Hora final tem que ser depois do início', 'error');
+                return false;
+              }
+              fim = `${data}T${inputHoraFim.value}:00-03:00`;
+            } else {
+              // Sem hora final → 1h de duração (default de reunião).
+              fim = new Date(new Date(inicio).getTime() + 60 * 60 * 1000)
+                .toISOString();
+            }
+          }
+
+          const payload = {
+            titulo,
+            entidade_id: selEntidade.value,
+            tipo: selTipo.value,
+            inicio,
+            fim,
+            dia_inteiro: diaInteiro,
+            local: inputLocal.value.trim() || null,
+          };
+          const op = evento
+            ? supabase.from('eventos').update(payload).eq('id', evento.id)
+            : supabase.from('eventos').insert({ ...payload, origem: 'manual' });
+          const { error } = await op;
+          if (error) {
+            showToast('Erro ao salvar evento', 'error');
+            return false;
+          }
+          showToast('Evento salvo');
+          carregarAgenda().catch(() => {});
+        },
+      },
+    ],
+  });
 }

@@ -1002,6 +1002,31 @@
       word-break: break-all;
     }
 
+    .agenda-check-dia {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 44px;
+      font-size: 14px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .agenda-check-dia input {
+      width: 20px;
+      height: 20px;
+    }
+
+    .agenda-horas {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .agenda-horas input {
+      flex: 1;
+      min-width: 0;
+    }
+
     /* ---------- Tarefas: kanban (4.C.1) ---------- */
 
     .tasks-toolbar {
