@@ -13,6 +13,7 @@
 
 import { supabase } from '../core/supabase.js';
 import { show as showToast } from '../core/toast.js';
+import { show as showModal } from '../core/modal.js';
 
 // Ordem estrutural das colunas (CHECK da tabela — kanban tem 4 colunas
 // por design; o NOME de cada uma é customizável via configuracoes).
@@ -32,6 +33,42 @@ let labelsCache = null; // 1x por sessão
 
 // Filtro de empresa do board (null = todas). Só memória de sessão.
 let entidadeFiltro = null;
+
+// Entidades ativas (id, nome, icone, cor_hex) — 1x por sessão; alimenta
+// os chips do filtro e o select do editor (4.C.1b).
+let entidadesCache = null;
+
+async function getEntidades() {
+  if (entidadesCache) return entidadesCache;
+  const { data, error } = await supabase
+    .from('entidades')
+    .select('id, nome, icone, cor_hex')
+    .eq('ativa', true)
+    .order('ordem');
+  if (error || !data) {
+    console.error('[tasks] erro ao carregar entidades', error);
+    return [];
+  }
+  entidadesCache = data;
+  return entidadesCache;
+}
+
+/**
+ * Prazo: coluna é timestamptz mas a UI trabalha com DIA. Convenção:
+ * deadline = fim do dia em Brasília ("até sexta" = sexta 23:59 BRT).
+ * Gravar só 'YYYY-MM-DD' viraria meia-noite UTC = 21h do dia ANTERIOR
+ * em Brasília — o prazo apareceria um dia antes do combinado.
+ */
+function prazoParaTimestamp(dataYmd) {
+  return `${dataYmd}T23:59:59-03:00`;
+}
+
+function prazoParaYmd(timestamp) {
+  if (!timestamp) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(timestamp));
+}
 
 document.addEventListener('page:change', (ev) => {
   if (ev.detail !== 'tasks') return;
@@ -64,6 +101,13 @@ export async function carregarBoard() {
   const labels = await getLabels();
   await montarFiltroEntidades();
 
+  // + Nova (4.C.1b) — liga 1x.
+  const btnNova = document.getElementById('btn-nova-tarefa');
+  if (btnNova && !btnNova.dataset.ligado) {
+    btnNova.dataset.ligado = '1';
+    btnNova.addEventListener('click', () => abrirEditorTarefa(null));
+  }
+
   let q = supabase
     .from('tarefas')
     .select(`
@@ -93,20 +137,10 @@ async function montarFiltroEntidades() {
   if (!el || el.dataset.ligado) return;
   el.dataset.ligado = '1';
 
-  const { data, error } = await supabase
-    .from('entidades')
-    .select('id, nome, icone, cor_hex')
-    .eq('ativa', true)
-    .order('ordem');
-
-  if (error) {
-    console.error('[tasks] erro ao carregar entidades', error);
-    return;
-  }
-
+  const entidades = await getEntidades();
   const opcoes = [
     { id: null, nome: 'Todas', icone: '🗂', cor_hex: '6B7280' },
-    ...(data || []),
+    ...entidades,
   ];
   for (const ent of opcoes) {
     const btn = document.createElement('button');
@@ -204,5 +238,145 @@ function criarCardTarefa(tarefa, labels) {
   }
 
   card.appendChild(meta);
+
+  // 4.C.1b — toque abre menu de ações (um por vez no board).
+  card.addEventListener('click', () => toggleAcoesTarefa(card, tarefa, labels));
+
   return card;
+}
+
+/** Toque no card abre/fecha menu ✏️/🗑 (4.C.1c adiciona mover). */
+function toggleAcoesTarefa(card, tarefa, labels) {
+  const existente = card.querySelector('.tasks-card-acoes');
+  document.querySelectorAll('.tasks-card-acoes').forEach((m) => m.remove());
+  if (existente) return; // já estava aberto neste card → só fecha
+
+  const menu = document.createElement('div');
+  menu.className = 'nota-acoes tasks-card-acoes';
+
+  const btnEditar = document.createElement('button');
+  btnEditar.type = 'button';
+  btnEditar.textContent = '✏️ Editar';
+  btnEditar.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    abrirEditorTarefa(tarefa);
+  });
+
+  const btnArq = document.createElement('button');
+  btnArq.type = 'button';
+  btnArq.textContent = '🗑 Arquivar';
+  btnArq.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    const { error } = await supabase
+      .from('tarefas')
+      .update({ arquivada: true })
+      .eq('id', tarefa.id);
+    if (error) {
+      showToast('Erro ao arquivar', 'error');
+      return;
+    }
+    showToast('Tarefa arquivada');
+    carregarBoard().catch(() => {});
+  });
+
+  menu.appendChild(btnEditar);
+  menu.appendChild(btnArq);
+  card.appendChild(menu);
+}
+
+/**
+ * abrirEditorTarefa (4.C.1b) — modal de criar/editar.
+ * tarefa=null → criar (nasce em 'a_fazer', origem 'manual').
+ * Empresa é obrigatória (NOT NULL na tabela). Prazo é opcional e vira
+ * fim do dia em Brasília (ver prazoParaTimestamp).
+ */
+async function abrirEditorTarefa(tarefa) {
+  const entidades = await getEntidades();
+  if (!entidades.length) {
+    showToast('Nenhuma empresa ativa encontrada', 'error');
+    return;
+  }
+  const labels = await getLabels();
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const inputTitulo = document.createElement('input');
+  inputTitulo.type = 'text';
+  inputTitulo.className = 'nota-editor-titulo';
+  inputTitulo.placeholder = 'Título da tarefa';
+  inputTitulo.value = tarefa?.titulo ?? '';
+
+  const taDesc = document.createElement('textarea');
+  taDesc.className = 'nota-editor-conteudo';
+  taDesc.placeholder = 'Descrição (opcional)';
+  taDesc.rows = 4;
+  taDesc.value = tarefa?.descricao ?? '';
+
+  const selEntidade = document.createElement('select');
+  selEntidade.className = 'nota-editor-titulo';
+  for (const ent of entidades) {
+    const opt = document.createElement('option');
+    opt.value = ent.id;
+    opt.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
+    if (ent.id === (tarefa?.entidade_id ?? entidadeFiltro)) opt.selected = true;
+    selEntidade.appendChild(opt);
+  }
+
+  const selPrioridade = document.createElement('select');
+  selPrioridade.className = 'nota-editor-titulo';
+  for (const p of ['baixa', 'media', 'alta', 'urgente']) {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = 'Prioridade: ' + (labels[`prioridade.${p}`] ?? p);
+    if (p === (tarefa?.prioridade ?? 'media')) opt.selected = true;
+    selPrioridade.appendChild(opt);
+  }
+
+  const inputPrazo = document.createElement('input');
+  inputPrazo.type = 'date';
+  inputPrazo.className = 'nota-editor-titulo';
+  inputPrazo.value = prazoParaYmd(tarefa?.prazo);
+
+  form.appendChild(inputTitulo);
+  form.appendChild(taDesc);
+  form.appendChild(selEntidade);
+  form.appendChild(selPrioridade);
+  form.appendChild(inputPrazo);
+
+  showModal({
+    title: tarefa ? 'Editar tarefa' : 'Nova tarefa',
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          const titulo = inputTitulo.value.trim();
+          if (!titulo) {
+            showToast('Título é obrigatório', 'error');
+            return false; // segura o modal
+          }
+          const payload = {
+            titulo,
+            descricao: taDesc.value.trim() || null,
+            entidade_id: selEntidade.value,
+            prioridade: selPrioridade.value,
+            prazo: inputPrazo.value ? prazoParaTimestamp(inputPrazo.value) : null,
+          };
+          const op = tarefa
+            ? supabase.from('tarefas').update(payload).eq('id', tarefa.id)
+            : supabase.from('tarefas').insert({ ...payload, origem: 'manual' });
+          const { error } = await op;
+          if (error) {
+            showToast('Erro ao salvar tarefa', 'error');
+            return false;
+          }
+          showToast('Tarefa salva');
+          carregarBoard().catch(() => {});
+        },
+      },
+    ],
+  });
 }

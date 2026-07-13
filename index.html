@@ -963,8 +963,20 @@
 
     /* ---------- Tarefas: kanban (4.C.1) ---------- */
 
+    .tasks-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .tasks-toolbar .btn {
+      flex-shrink: 0;
+    }
+
     .tasks-filtros {
       display: flex;
+      flex: 1;
+      min-width: 0;
       gap: var(--space-2);
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -1827,7 +1839,12 @@
              (page:change). Mobile: 1 coluna por tela com scroll-snap
              horizontal; desktop: 4 lado a lado. -->
         <section class="page" id="page-tasks" hidden>
-          <div class="tasks-filtros" id="tasks-entidades"></div>
+          <div class="tasks-toolbar">
+            <div class="tasks-filtros" id="tasks-entidades"></div>
+            <button type="button" id="btn-nova-tarefa" class="btn btn-primary">
+              + Nova
+            </button>
+          </div>
           <div class="tasks-board" id="tasks-board"></div>
         </section>
 
