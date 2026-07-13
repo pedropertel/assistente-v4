@@ -969,6 +969,25 @@
       gap: var(--space-4);
     }
 
+    .agenda-col-cal,
+    .agenda-col-proximos {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+
+    /* Desktop: calendário compacto à esquerda, próximos à direita
+       (feedback do Pedro: grade ocupando a página inteira ficou grande). */
+    @media (min-width: 768px) {
+      .agenda-conteudo {
+        display: grid;
+        grid-template-columns: 440px minmax(0, 1fr);
+        align-items: start;
+        gap: var(--space-6);
+      }
+    }
+
     .agenda-mes-header {
       display: flex;
       align-items: center;
@@ -1025,8 +1044,7 @@
 
     .agenda-grade-dia {
       position: relative;
-      aspect-ratio: 1;
-      min-height: 44px;
+      height: 48px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1161,10 +1179,24 @@
     .agenda-hora {
       flex-shrink: 0;
       min-width: 84px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
       font-size: 12px;
       font-weight: 600;
       color: var(--accent);
       font-variant-numeric: tabular-nums;
+    }
+
+    .agenda-hora-data {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: capitalize;
+    }
+
+    .agenda-btn-novo {
+      min-height: 44px;
     }
 
     .agenda-card-corpo {
@@ -2130,15 +2162,10 @@
           <div class="tasks-board" id="tasks-board"></div>
         </section>
 
-        <!-- 4.C.2 — Agenda: calendário mensal + lista do dia, renderizados
-             pelo agenda.js (page:change). Cards reusam as classes nota-*. -->
+        <!-- 4.C.2 — Agenda: calendário mensal + lista do dia + próximos
+             eventos, renderizados pelo agenda.js (page:change). Sem filtro
+             de empresa (decisão do Pedro — agenda é visão unificada). -->
         <section class="page" id="page-agenda" hidden>
-          <div class="tasks-toolbar">
-            <div class="tasks-filtros" id="agenda-entidades"></div>
-            <button type="button" id="btn-novo-evento" class="btn btn-primary">
-              + Novo
-            </button>
-          </div>
           <div id="agenda-conteudo" class="agenda-conteudo"></div>
         </section>
 

@@ -33,7 +33,8 @@ const EMOJI_TIPO = {
 };
 let labelsTipo = null;
 
-let entidadeFiltro = null;
+// Sem filtro de empresa (decisão do Pedro 2026-07-13): agenda é visão
+// unificada da vida dele — a cor do dot já diz de qual empresa é.
 let entidadesCache = null;
 
 const TZ = 'America/Sao_Paulo';
@@ -147,12 +148,30 @@ async function buscarEventosDoMes() {
     .lt('inicio', `${fim}T00:00:00-03:00`)
     .order('inicio');
 
-  if (entidadeFiltro) q = q.eq('entidade_id', entidadeFiltro);
-
   const { data, error } = await q;
   if (error) {
     console.error('[agenda] erro no SELECT', error);
     showToast('Erro ao carregar agenda', 'error');
+    return [];
+  }
+  return data || [];
+}
+
+/** Próximos eventos (independente do mês exibido) — visão "o que vem aí". */
+async function buscarProximos() {
+  const { data, error } = await supabase
+    .from('eventos')
+    .select(`
+      id, titulo, descricao, tipo, inicio, fim, dia_inteiro, local, url,
+      entidade_id, entidades(nome, icone, cor_hex)
+    `)
+    .eq('arquivado', false)
+    .gte('fim', new Date().toISOString())
+    .order('inicio')
+    .limit(30);
+
+  if (error) {
+    console.error('[agenda] erro no SELECT de próximos', error);
     return [];
   }
   return data || [];
@@ -165,15 +184,10 @@ export async function carregarAgenda() {
   if (!raiz) return;
 
   const labels = await getLabelsTipo();
-  await montarFiltroEntidades();
-
-  const btnNovo = document.getElementById('btn-novo-evento');
-  if (btnNovo && !btnNovo.dataset.ligado) {
-    btnNovo.dataset.ligado = '1';
-    btnNovo.addEventListener('click', () => abrirEditorEvento(null));
-  }
-
-  const eventos = await buscarEventosDoMes();
+  const [eventos, proximos] = await Promise.all([
+    buscarEventosDoMes(),
+    buscarProximos(),
+  ]);
 
   // Índice dia → eventos (pros dots e pra lista do dia).
   const porDia = new Map();
@@ -184,8 +198,12 @@ export async function carregarAgenda() {
   }
 
   raiz.innerHTML = '';
-  raiz.appendChild(criarCabecalhoMes());
-  raiz.appendChild(criarGradeMes(mesExibido, {
+
+  // Coluna do calendário (desktop: esquerda; mobile: em cima).
+  const colCal = document.createElement('div');
+  colCal.className = 'agenda-col-cal';
+  colCal.appendChild(criarCabecalhoMes());
+  colCal.appendChild(criarGradeMes(mesExibido, {
     porDia,
     selecionado: diaSelecionado,
     aoTocarDia: (ymd) => {
@@ -193,7 +211,28 @@ export async function carregarAgenda() {
       carregarAgenda().catch(() => {});
     },
   }));
-  raiz.appendChild(criarListaDoDia(porDia.get(diaSelecionado) ?? [], labels));
+  colCal.appendChild(criarListaDoDia(porDia.get(diaSelecionado) ?? [], labels));
+  raiz.appendChild(colCal);
+
+  // Coluna dos próximos (desktop: direita; mobile: embaixo) — visão
+  // corrida de tudo que vem aí, sem clicar dia a dia.
+  const colProx = document.createElement('div');
+  colProx.className = 'agenda-col-proximos';
+  const tituloProx = document.createElement('h2');
+  tituloProx.className = 'agenda-dia';
+  tituloProx.textContent = 'Próximos eventos';
+  colProx.appendChild(tituloProx);
+  if (!proximos.length) {
+    const vazio = document.createElement('p');
+    vazio.className = 'sitio-bloco-vazio';
+    vazio.textContent = 'Nada agendado daqui pra frente.';
+    colProx.appendChild(vazio);
+  } else {
+    for (const evento of proximos) {
+      colProx.appendChild(criarCardEvento(evento, labels, { comData: true }));
+    }
+  }
+  raiz.appendChild(colProx);
 }
 
 function criarCabecalhoMes() {
@@ -233,10 +272,17 @@ function criarCabecalhoMes() {
     carregarAgenda().catch(() => {});
   });
 
+  const btnNovo = document.createElement('button');
+  btnNovo.type = 'button';
+  btnNovo.className = 'btn btn-primary agenda-btn-novo';
+  btnNovo.textContent = '+ Novo';
+  btnNovo.addEventListener('click', () => abrirEditorEvento(null));
+
   header.appendChild(btnAnt);
   header.appendChild(titulo);
   header.appendChild(btnProx);
   header.appendChild(btnHoje);
+  header.appendChild(btnNovo);
   return header;
 }
 
@@ -333,7 +379,7 @@ function criarListaDoDia(eventos, labels) {
   return secao;
 }
 
-function criarCardEvento(evento, labels) {
+function criarCardEvento(evento, labels, { comData = false } = {}) {
   const card = document.createElement('article');
   card.className = 'nota-card agenda-card';
 
@@ -343,9 +389,19 @@ function criarCardEvento(evento, labels) {
 
   const hora = document.createElement('span');
   hora.className = 'agenda-hora';
-  hora.textContent = evento.dia_inteiro
+  const textoHora = evento.dia_inteiro
     ? 'dia inteiro'
     : `${horaBrasilia(evento.inicio)}–${horaBrasilia(evento.fim)}`;
+  if (comData) {
+    // Lista de próximos: a data entra em cima da hora.
+    const dataEl = document.createElement('span');
+    dataEl.className = 'agenda-hora-data';
+    dataEl.textContent = rotuloDia(diaBrasilia(evento.inicio));
+    hora.appendChild(dataEl);
+    hora.appendChild(document.createTextNode(textoHora));
+  } else {
+    hora.textContent = textoHora;
+  }
 
   const corpo = document.createElement('span');
   corpo.className = 'agenda-card-corpo';
@@ -424,35 +480,6 @@ function criarCardEvento(evento, labels) {
   });
 
   return card;
-}
-
-async function montarFiltroEntidades() {
-  const el = document.getElementById('agenda-entidades');
-  if (!el || el.dataset.ligado) return;
-  el.dataset.ligado = '1';
-
-  const entidades = await getEntidades();
-  const opcoes = [
-    { id: null, nome: 'Todas', icone: '🗂', cor_hex: '6B7280' },
-    ...entidades,
-  ];
-  for (const ent of opcoes) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chat-entidade-chip' +
-      (ent.id === entidadeFiltro ? ' ativa' : '');
-    btn.style.setProperty('--chip-cor', '#' + (ent.cor_hex || '6B7280'));
-    btn.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
-    btn.addEventListener('click', () => {
-      if (ent.id === entidadeFiltro) return;
-      entidadeFiltro = ent.id;
-      el.querySelectorAll('button').forEach((b, i) => {
-        b.classList.toggle('ativa', opcoes[i].id === entidadeFiltro);
-      });
-      carregarAgenda().catch(() => {});
-    });
-    el.appendChild(btn);
-  }
 }
 
 // ──────────── Editor (data que fecha no toque + horas com auto-avanço) ────────────
@@ -648,7 +675,7 @@ async function abrirEditorEvento(evento) {
     const opt = document.createElement('option');
     opt.value = ent.id;
     opt.textContent = [ent.icone, ent.nome].filter(Boolean).join(' ');
-    if (ent.id === (evento?.entidade_id ?? entidadeFiltro)) opt.selected = true;
+    if (ent.id === evento?.entidade_id) opt.selected = true;
     selEntidade.appendChild(opt);
   }
 
