@@ -17,6 +17,8 @@ import './modules/notas.js';
 import './modules/ideias.js';
 // 4.B.2b — Lançamentos do Sítio: mesmo padrão.
 import './modules/sitio.js';
+// 4.C.1 — Kanban de Tarefas: mesmo padrão.
+import './modules/tasks.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

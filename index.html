@@ -961,6 +961,180 @@
       }
     }
 
+    /* ---------- Tarefas: kanban (4.C.1) ---------- */
+
+    .tasks-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .tasks-toolbar .btn {
+      flex-shrink: 0;
+    }
+
+    .tasks-filtros {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      gap: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .tasks-filtros::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tasks-board {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      /* proximity (não mandatory): snap suave que não briga com o
+         auto-scroll do drag nem com colunas estreitas */
+      scroll-snap-type: x proximity;
+      padding-bottom: var(--space-2);
+    }
+
+    /* Durante o arrasto o snap sai de cena — senão ele "puxa de volta"
+       cada ajuste programático de scrollLeft e a borda não rola. */
+    .tasks-board.drag-ativo {
+      scroll-snap-type: none;
+      scroll-behavior: auto;
+    }
+
+    .tasks-coluna {
+      /* ~2,5 colunas visíveis nos 375px — visão de board, não de lista */
+      flex: 0 0 45%;
+      max-width: 240px;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      min-width: 0;
+    }
+
+    .tasks-coluna-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .tasks-coluna-header small {
+      min-width: 22px;
+      text-align: center;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .tasks-coluna-lista {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .tasks-coluna-vazia {
+      padding: var(--space-4);
+      text-align: center;
+      color: var(--text-tertiary);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .tasks-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      /* Long-press inicia drag — sem seleção de texto nem callout do iOS. */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      cursor: grab;
+    }
+
+    /* Drag&drop (4.C.1c) */
+
+    .tasks-card.arrastando {
+      opacity: 0.35;
+    }
+
+    .tasks-ghost {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 3000;
+      pointer-events: none;
+      transform: rotate(2deg);
+      box-shadow: var(--shadow-lg);
+      opacity: 0.95;
+    }
+
+    .tasks-coluna.drop-alvo {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(91, 106, 240, 0.35);
+    }
+
+    .tasks-card-titulo {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .tasks-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .tasks-prioridade {
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .tasks-prioridade.media   { border-color: var(--accent);  color: var(--accent); }
+    .tasks-prioridade.alta    { border-color: var(--warning); color: var(--warning); }
+    .tasks-prioridade.urgente { border-color: var(--danger);  color: var(--danger); }
+
+    .tasks-prazo.vencido {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    @media (min-width: 768px) {
+      .tasks-board {
+        scroll-snap-type: none;
+      }
+
+      .tasks-coluna {
+        flex: 1;
+        max-width: none;
+      }
+    }
+
     /* ---------- Sítio: evolução + projeção (4.B.3e) ---------- */
 
     .sitio-evolucao {
@@ -1697,9 +1871,17 @@
           </div>
         </section>
 
+        <!-- 4.C.1 — Kanban de tarefas: board renderizado pelo tasks.js
+             (page:change). Mobile: 1 coluna por tela com scroll-snap
+             horizontal; desktop: 4 lado a lado. -->
         <section class="page" id="page-tasks" hidden>
-          <h1>Tarefas</h1>
-          <p class="page-placeholder">Aqui vão aparecer suas tarefas em formato kanban. Em breve.</p>
+          <div class="tasks-toolbar">
+            <div class="tasks-filtros" id="tasks-entidades"></div>
+            <button type="button" id="btn-nova-tarefa" class="btn btn-primary">
+              + Nova
+            </button>
+          </div>
+          <div class="tasks-board" id="tasks-board"></div>
         </section>
 
         <section class="page" id="page-agenda" hidden>

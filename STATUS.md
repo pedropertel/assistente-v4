@@ -37,8 +37,9 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   editou agentes/personas/configuracoes/entidades → incrementa a versão
   (SQL no CONVENÇÕES.md). Validada por comportamento (rate limit).
   **Desbloqueia 4.C.3 e as telas de edição.**
-- ✅ **Sincronizado:** última promoção 2026-07-13 (`e8e2d5a`) — 4.B.2 +
-  4.B.3 juntas. main = dev (só docs de fechamento à frente).
+- ✅ **Sincronizado:** última promoção 2026-07-13 (`ff657ce`) — rename
+  das abas do Sítio (Realizados · A pagar/receber). main = dev (só
+  docs de fechamento à frente).
 - ✅ **4.E Bloco de Notas COMPLETO** em 2026-07-08 (mesmo dia do pedido):
   tabela `anotacoes` (19ª de app) + tool `salvar_anotacao` (com
   fidelidade por código — flag copia a resposta do banco, sem resumo do
@@ -124,8 +125,8 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (main sincronizada até `e8e2d5a`, promoção de
-  2026-07-13 — 4.B.2 + 4.B.3)
+- **Branch ativa:** dev (main sincronizada até `ff657ce`, promoção de
+  2026-07-13 — rename abas Sítio)
 - **Última versão Edge `chat-claude`:** v60 ACTIVE (4.0 — Edge é
   compartilhada, já em produção). Fluxo de deploy: `checar.sh` →
   deploy → `fumaca.sh` (3.5.D.5/D.7).
