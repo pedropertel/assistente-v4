@@ -169,6 +169,7 @@ function renderBoard(boardEl, tarefas, labels) {
 
     const coluna = document.createElement('div');
     coluna.className = 'tasks-coluna';
+    coluna.dataset.status = status; // alvo do drag&drop (4.C.1c)
 
     const header = document.createElement('div');
     header.className = 'tasks-coluna-header';
@@ -239,10 +240,161 @@ function criarCardTarefa(tarefa, labels) {
 
   card.appendChild(meta);
 
-  // 4.C.1b — toque abre menu de ações (um por vez no board).
-  card.addEventListener('click', () => toggleAcoesTarefa(card, tarefa, labels));
+  // 4.C.1b — toque abre menu de ações (um por vez no board). Suprimido
+  // logo após um arrasto (o click dispara depois do pointerup do drag).
+  card.addEventListener('click', () => {
+    if (dragAconteceu) return;
+    toggleAcoesTarefa(card, tarefa, labels);
+  });
+
+  // 4.C.1c — mover é DRAG&DROP (pedido do Pedro): segurar e arrastar no
+  // touch, clicar e arrastar no mouse.
+  habilitarDrag(card, tarefa, labels);
 
   return card;
+}
+
+// ──────────── Drag & drop (4.C.1c) ────────────
+//
+// Pointer events puros (mouse + touch num código só, sem lib).
+// Touch: LONG-PRESS (~400ms parado) inicia o arrasto — mover o dedo
+// antes disso é scroll normal do board (o preventDefault no touchmove
+// só entra DEPOIS do arrasto começar, então o scroll nativo continua
+// funcionando fora do drag). Mouse: arrasta ao mover >6px com botão
+// pressionado. Ghost segue o dedo; a coluna sob o ponteiro acende;
+// soltar em coluna diferente → UPDATE status (feito ⇄ concluida_em).
+// Auto-scroll do board perto das bordas (coluna alvo fora da tela).
+
+let dragAconteceu = false; // suprime o click que dispara pós-drop
+
+function habilitarDrag(card, tarefa, labels) {
+  card.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+
+    const boardEl = document.getElementById('tasks-board');
+    const isTouch = ev.pointerType !== 'mouse';
+    const x0 = ev.clientX;
+    const y0 = ev.clientY;
+    let arrastando = false;
+    let ghost = null;
+    let ultimoX = x0;
+    let ultimoY = y0;
+    let timerLongPress = null;
+    let rafAutoScroll = null;
+
+    const comecarDrag = () => {
+      arrastando = true;
+      dragAconteceu = true;
+      document.querySelectorAll('.tasks-card-acoes').forEach((m) => m.remove());
+
+      const rect = card.getBoundingClientRect();
+      ghost = card.cloneNode(true);
+      ghost.className = 'tasks-card tasks-ghost';
+      ghost.style.width = `${rect.width}px`;
+      document.body.appendChild(ghost);
+      posicionarGhost(ultimoX, ultimoY);
+      card.classList.add('arrastando');
+
+      // Auto-scroll contínuo enquanto o dedo está na borda do board.
+      const passo = () => {
+        if (!arrastando) return;
+        const MARGEM = 48;
+        const LARGURA = window.innerWidth;
+        if (ultimoX > LARGURA - MARGEM) boardEl.scrollLeft += 10;
+        else if (ultimoX < MARGEM) boardEl.scrollLeft -= 10;
+        atualizarAlvo(ultimoX, ultimoY);
+        rafAutoScroll = requestAnimationFrame(passo);
+      };
+      rafAutoScroll = requestAnimationFrame(passo);
+    };
+
+    const posicionarGhost = (x, y) => {
+      if (!ghost) return;
+      ghost.style.left = `${x - ghost.offsetWidth / 2}px`;
+      ghost.style.top = `${y - 24}px`;
+    };
+
+    const colunaEm = (x, y) =>
+      document.elementFromPoint(x, y)?.closest?.('.tasks-coluna') ?? null;
+
+    const atualizarAlvo = (x, y) => {
+      const alvo = colunaEm(x, y);
+      document.querySelectorAll('.tasks-coluna').forEach((c) => {
+        c.classList.toggle('drop-alvo', c === alvo);
+      });
+    };
+
+    // touchmove NON-passive: o preventDefault (só com drag ativo) impede
+    // o scroll nativo de "roubar" o gesto. Antes do long-press, não
+    // previne nada — scroll do board segue normal.
+    const onTouchMove = (tv) => {
+      if (arrastando) tv.preventDefault();
+    };
+
+    const onMove = (mv) => {
+      ultimoX = mv.clientX;
+      ultimoY = mv.clientY;
+      if (!arrastando) {
+        const distancia = Math.hypot(mv.clientX - x0, mv.clientY - y0);
+        if (isTouch && distancia > 10) limpar(); // moveu cedo = scroll
+        else if (!isTouch && distancia > 6) comecarDrag();
+        return;
+      }
+      posicionarGhost(mv.clientX, mv.clientY);
+      atualizarAlvo(mv.clientX, mv.clientY);
+    };
+
+    const onUp = async (up) => {
+      const soltouEm = arrastando ? colunaEm(up.clientX, up.clientY) : null;
+      const houveDrag = arrastando;
+      limpar();
+
+      if (!houveDrag) return;
+      // Deixa o click pós-drop ser engolido e reabilita o menu depois.
+      setTimeout(() => { dragAconteceu = false; }, 150);
+
+      const novoStatus = soltouEm?.dataset.status;
+      if (!novoStatus || novoStatus === tarefa.status) return;
+
+      const { error } = await supabase
+        .from('tarefas')
+        .update({
+          status: novoStatus,
+          concluida_em: novoStatus === 'feito' ? new Date().toISOString() : null,
+        })
+        .eq('id', tarefa.id);
+      if (error) {
+        showToast('Erro ao mover', 'error');
+        carregarBoard().catch(() => {});
+        return;
+      }
+      showToast(`Movida pra ${labels[`status.${novoStatus}`] ?? novoStatus}`);
+      carregarBoard().catch(() => {});
+    };
+
+    const limpar = () => {
+      clearTimeout(timerLongPress);
+      if (rafAutoScroll) cancelAnimationFrame(rafAutoScroll);
+      arrastando = false;
+      ghost?.remove();
+      ghost = null;
+      card.classList.remove('arrastando');
+      document.querySelectorAll('.tasks-coluna').forEach((c) => {
+        c.classList.remove('drop-alvo');
+      });
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', limpar);
+      card.removeEventListener('touchmove', onTouchMove);
+    };
+
+    if (isTouch) timerLongPress = setTimeout(comecarDrag, 400);
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', limpar);
+    card.addEventListener('touchmove', onTouchMove, { passive: false });
+  });
 }
 
 /** Toque no card abre/fecha menu: mover (4.C.1c) + ✏️/🗑. */
@@ -253,33 +405,6 @@ function toggleAcoesTarefa(card, tarefa, labels) {
 
   const menu = document.createElement('div');
   menu.className = 'nota-acoes tasks-card-acoes';
-
-  // 4.C.1c — mover pra outra coluna (decisão do plano: menu no toque em
-  // vez de drag&drop — arrastar no touch briga com o scroll do board).
-  // Virar 'feito' carimba concluida_em; sair de 'feito' limpa.
-  for (const status of COLUNAS) {
-    if (status === tarefa.status) continue;
-    const btnMover = document.createElement('button');
-    btnMover.type = 'button';
-    btnMover.textContent = '→ ' + (labels[`status.${status}`] ?? status);
-    btnMover.addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      const { error } = await supabase
-        .from('tarefas')
-        .update({
-          status,
-          concluida_em: status === 'feito' ? new Date().toISOString() : null,
-        })
-        .eq('id', tarefa.id);
-      if (error) {
-        showToast('Erro ao mover', 'error');
-        return;
-      }
-      showToast(`Movida pra ${labels[`status.${status}`] ?? status}`);
-      carregarBoard().catch(() => {});
-    });
-    menu.appendChild(btnMover);
-  }
 
   const btnEditar = document.createElement('button');
   btnEditar.type = 'button';
