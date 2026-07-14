@@ -868,7 +868,7 @@ Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 - [x] **4.C.1** ✅ — Tarefas, completa 2026-07-13 (`dff5a04`): kanban 4 colunas + filtro empresa + CRUD + drag&drop (long-press touch, auto-scroll borda). Lembrete FICOU DE FORA (depende de decidir push/agenda/Marcela — anotado no STATUS).
 - [x] **4.C.2** ✅ — Agenda, completa 2026-07-13 (`75bd0b3`): calendário mensal (dots por empresa, ‹ › + Hoje), lista do dia + Próximos eventos, editor com seletor de data que fecha no toque e horas hh/mm com auto-avanço. Recorrência e lembretes DEPOIS (canal de notificação indefinido).
 - [x] **4.C.3** ✅ — Config, completa 2026-07-13 (`429a64b`): Empresas + Personas (prompts, aviso no Roteador) + Agente + Ajustes HUMANIZADOS (rework pós-feedback: português/selects/checkboxes; JSON só no Avançado) + Nomes nas telas + Centros de custo do Sítio (hierarquia, anti-duplicata). Todo save bumpa cache_version. Gap anotado: cache da tool do Alemão fora do reset (~5min).
-- [ ] **4.C.4** — Documentos (biblioteca + upload Storage)
+- [x] **4.C.4** ✅ — Documentos, completa 2026-07-14 (`e545bf5`): navegação empresa→pastas(3 níveis)→docs com breadcrumb, upload nativo (25MB, path {slug}/{uuid}, anti-órfão), URL assinada 5min, editar/mover/favoritar/arquivar.
 - [ ] **4.C.5** — Dashboard (visão geral; por último, consome os outros)
 - [ ] **4.C.6** — Sítio (relatórios além dos lançamentos), CEDTEC (quando a 3.F voltar)
 

@@ -37,6 +37,13 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   editou agentes/personas/configuracoes/entidades → incrementa a versão
   (SQL no CONVENÇÕES.md). Validada por comportamento (rate limit).
   **Desbloqueia 4.C.3 e as telas de edição.**
+- ✅ **4.C.4 (Documentos) COMPLETA em 2026-07-14:** biblioteca por
+  empresa (pastas 3 níveis, breadcrumb), upload nativo pro Storage
+  (25MB, anti-órfão), abrir via URL assinada, editar/mover/favoritar/
+  arquivar.
+- ✅ **Vault Obsidian em repo privado (2026-07-14):** `pedropertel/
+  obsidian-vault` + plugin Obsidian Git (mão dupla, validado). Tools
+  da Edge pro vault registradas na Fase 5 do Backlog.
 - ✅ **4.C.3 (Config) COMPLETA em 2026-07-13:** Empresas, Personas
   (com prompts), Agente, Ajustes humanizados (rework pós-feedback:
   português + selects/checkboxes; JSON só no Avançado), Nomes nas
@@ -51,7 +58,7 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   com labels do banco, filtro por empresa, + Nova/editar/arquivar,
   DRAG&DROP (long-press no touch, colunas 45%, auto-scroll na borda,
   snap desliga no drag). Feito carimba concluida_em.
-- ✅ **Sincronizado:** última promoção 2026-07-13 (`429a64b`) — 4.C.3.
+- ✅ **Sincronizado:** última promoção 2026-07-14 (`e545bf5`) — 4.C.4.
   main = dev (só docs de fechamento à frente).
 - ✅ **4.E Bloco de Notas COMPLETO** em 2026-07-08 (mesmo dia do pedido):
   tabela `anotacoes` (19ª de app) + tool `salvar_anotacao` (com
@@ -95,8 +102,8 @@ de 2026-07-07; relatório em `070 - Roadmap/`).
   repetição N meses; ✓ Pago vira realizado). "Outros" desduplicada
   por rename. 14 lançamentos "[TESTE dash]" no banco pra demo.
   **Gap D2 da revisão FECHADO** (ideias + lançamentos com tela).
-- 🔴 **Próxima:** 4.C.4 (Documentos) OU 4.C.5 (Dashboard) OU 4.D
-  (PWA de verdade).
+- 🔴 **Próxima:** 4.C.5 (Dashboard — por último de propósito, consome
+  os outros módulos) OU 4.D (PWA de verdade).
   Tarefinhas anotadas: caches das tools no reset do cache_version;
   Alemão lançar previsto por voz; lembrete de tarefa (depende de
   decidir push/agenda/Marcela); aplicar picker de data/hora da Agenda
@@ -140,8 +147,8 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Estado do repo
 
-- **Branch ativa:** dev (main sincronizada até `429a64b`, promoção de
-  2026-07-13 — 4.C.3 config)
+- **Branch ativa:** dev (main sincronizada até `e545bf5`, promoção de
+  2026-07-14 — 4.C.4 documentos)
 - **Última versão Edge `chat-claude`:** v60 ACTIVE (4.0 — Edge é
   compartilhada, já em produção). Fluxo de deploy: `checar.sh` →
   deploy → `fumaca.sh` (3.5.D.5/D.7).
@@ -155,6 +162,9 @@ Opus temperature, chip Assistente fallback, scroll cascata).
 
 ## Histórico de sub-tarefas (mais recentes primeiro)
 
+- 2026-07-14 — 4.C.4 ✅ Documentos (navegação + upload Storage).
+  Promovida (`e545bf5`). No mesmo dia: vault Obsidian versionado em
+  repo privado com Obsidian Git (mão dupla, validado).
 - 2026-07-13 — 4.C.3 ✅ Config completa (a empresas, b personas+agente,
   c ajustes com rework humanizado pós-feedback, d centros de custo do
   Sítio). Promovida (`429a64b`).
