@@ -23,6 +23,8 @@ import './modules/tasks.js';
 import './modules/agenda.js';
 // 4.C.3 — Configurações: mesmo padrão.
 import './modules/config.js';
+// 4.C.4 — Documentos: mesmo padrão.
+import './modules/docs.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

@@ -961,6 +961,82 @@
       }
     }
 
+    /* ---------- Documentos (4.C.4) ---------- */
+
+    .docs-trilha {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .docs-trilha button {
+      min-height: 36px;
+      padding: 0 var(--space-2);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .docs-trilha button.atual {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .docs-pasta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .docs-pasta-entrar {
+      flex: 1;
+      min-width: 0;
+      min-height: 48px;
+      padding: var(--space-2) var(--space-3);
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      word-break: break-word;
+    }
+
+    .docs-pasta-editar {
+      flex-shrink: 0;
+      min-width: 44px;
+      min-height: 44px;
+      border: none;
+      background: transparent;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    .docs-icone {
+      flex-shrink: 0;
+      font-size: 22px;
+      width: 32px;
+      text-align: center;
+    }
+
+    .docs-acoes-nivel {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
     /* ---------- Configurações (4.C.3) ---------- */
 
     .config-conteudo {
@@ -2325,9 +2401,10 @@
           <div id="agenda-conteudo" class="agenda-conteudo"></div>
         </section>
 
+        <!-- 4.C.4 — Documentos: biblioteca por empresa (pastas + Storage),
+             renderizada pelo docs.js (page:change). -->
         <section class="page" id="page-docs" hidden>
-          <h1>Documentos</h1>
-          <p class="page-placeholder">Aqui vão aparecer seus documentos organizados por pastas. Em breve.</p>
+          <div id="docs-conteudo" class="config-conteudo"></div>
         </section>
 
         <section class="page" id="page-cedtec" hidden>
