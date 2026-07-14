@@ -1064,6 +1064,21 @@
       text-align: left;
     }
 
+    /* Desktop: 2 colunas (esquerda = agora; direita = números), faixa
+       de atenção atravessa as duas. Mobile empilha na ordem do DOM. */
+    @media (min-width: 768px) {
+      .dash-conteudo {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-6);
+        align-items: start;
+      }
+
+      .dash-atencao {
+        grid-column: 1 / -1;
+      }
+    }
+
     /* ---------- Documentos (4.C.4) ---------- */
 
     .docs-trilha {

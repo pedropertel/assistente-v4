@@ -155,21 +155,34 @@ export async function carregarDashboard() {
   const faixa = blocoAtencao(tarefas, lancamentos, hoje);
   if (faixa) raiz.appendChild(faixa);
 
-  // Duas colunas no desktop (esquerda: agora; direita: números) —
-  // no mobile os wrappers empilham na ordem natural.
-  const colEsq = document.createElement('div');
-  colEsq.className = 'dash-col';
-  const colDir = document.createElement('div');
-  colDir.className = 'dash-col';
+  const bHoje = blocoHoje(eventos, hoje);
+  const bTarefas = blocoTarefas(tarefas);
+  const bDinheiro = blocoDinheiro(lancamentos, hoje, limite7);
+  const bIdeias = blocoIdeias(ideias);
+  const bIA = blocoCustoIA(custos, hoje);
 
-  colEsq.appendChild(blocoHoje(eventos, hoje));
-  colDir.appendChild(blocoTarefas(tarefas));
-  colDir.appendChild(blocoDinheiro(lancamentos, hoje, limite7));
-  colEsq.appendChild(blocoIdeias(ideias));
-  colDir.appendChild(blocoCustoIA(custos, hoje));
-
-  raiz.appendChild(colEsq);
-  raiz.appendChild(colDir);
+  // A ordem de leitura difere por dispositivo (decisão do plano):
+  // mobile = urgência decrescente numa pilha; desktop = coluna "agora"
+  // à esquerda e coluna "números" à direita. Decidido no render — o
+  // módulo recarrega a cada page:change, então rotação/resize raro
+  // se resolve revisitando a aba.
+  if (window.matchMedia('(min-width: 768px)').matches) {
+    const colEsq = document.createElement('div');
+    colEsq.className = 'dash-col';
+    const colDir = document.createElement('div');
+    colDir.className = 'dash-col';
+    colEsq.appendChild(bHoje);
+    colEsq.appendChild(bIdeias);
+    colDir.appendChild(bTarefas);
+    colDir.appendChild(bDinheiro);
+    colDir.appendChild(bIA);
+    raiz.appendChild(colEsq);
+    raiz.appendChild(colDir);
+  } else {
+    for (const bloco of [bHoje, bTarefas, bDinheiro, bIdeias, bIA]) {
+      raiz.appendChild(bloco);
+    }
+  }
 }
 
 // ──────────── ⚠️ Faixa de Atenção (condicional) ────────────
