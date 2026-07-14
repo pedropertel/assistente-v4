@@ -889,6 +889,8 @@ Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 
 ## Fase 5 — Ampliação (depois da Fase 4)
 
+- [ ] **5.x — Vault Obsidian nos agentes (decidido 2026-07-14).** Vault versionado em `github.com/pedropertel/obsidian-vault` (PRIVADO; repo na raiz `~/Documents/Obsidian Vault/`, workspace.json ignorado). Caminho (a) escolhido pelo Pedro: mão dupla via plugin Obsidian Git. Tools da Edge: `consultar_vault` (ler nota via GitHub API, token fine-grained read no Vault do Supabase) e depois escrita (Marcela lançando notas — commit via API; plugin puxa pro Mac). NUNCA expor token no front; repo do vault jamais público.
+
 - **3.F — Marcos + Meta Ads** (PAUSADA por bloqueio externo: Meta Business
   em nome da esposa). Quando o acesso existir: reconstruir o plano detalhado
   (o arquivo `.claude/plans/temporal-tinkering-castle.md` com as 16 decisões
