@@ -182,9 +182,33 @@ async function criarLista() {
     wrap.appendChild(vazio);
   }
 
-  // Ações do nível: nova pasta (até nível 3) + upload (4.C.4b).
+  // Ações do nível: upload + nova pasta (até nível 3).
   const acoes = document.createElement('div');
   acoes.className = 'docs-acoes-nivel';
+
+  // 4.C.4b — upload: input file escondido; no celular o botão abre o
+  // seletor nativo (Fototeca / Câmera / Arquivos).
+  const inputFile = document.createElement('input');
+  inputFile.type = 'file';
+  inputFile.hidden = true;
+  inputFile.addEventListener('change', () => {
+    const arquivo = inputFile.files?.[0];
+    if (arquivo) {
+      enviarArquivo(arquivo).catch((err) => {
+        console.error('[docs] erro no upload', err);
+        showToast('Erro ao enviar o arquivo', 'error');
+      });
+    }
+    inputFile.value = ''; // permite reenviar o mesmo arquivo
+  });
+  const btnUpload = document.createElement('button');
+  btnUpload.type = 'button';
+  btnUpload.className = 'btn btn-primary';
+  btnUpload.textContent = '📤 Enviar arquivo';
+  btnUpload.addEventListener('click', () => inputFile.click());
+  acoes.appendChild(btnUpload);
+  acoes.appendChild(inputFile);
+
   const nivelAtual = pastaAtual?.nivel ?? 0;
   if (nivelAtual < NIVEL_MAX) {
     const btnPasta = document.createElement('button');
@@ -197,6 +221,56 @@ async function criarLista() {
   wrap.appendChild(acoes);
 
   return wrap;
+}
+
+/**
+ * enviarArquivo (4.C.4b) — sobe pro Storage e cria a row.
+ * Path: {slug-da-empresa}/{uuid}.{ext} — nome ORIGINAL fica na row
+ * (o path nunca colide nem vaza acento/espaço pro Storage).
+ * Ordem: upload primeiro; se a row falhar, remove o objeto órfão.
+ */
+async function enviarArquivo(arquivo) {
+  const LIMITE = 25 * 1024 * 1024; // 25 MB — acima disso o 4G do campo sofre
+  if (arquivo.size > LIMITE) {
+    showToast('Arquivo acima de 25 MB — envia um menor', 'error');
+    return;
+  }
+
+  showToast('Enviando…');
+  const extensao = (arquivo.name.split('.').pop() || 'bin').toLowerCase();
+  const path = `${entidadeAtiva.slug}/${crypto.randomUUID()}.${extensao}`;
+
+  const { error: errUp } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, arquivo, {
+      contentType: arquivo.type || 'application/octet-stream',
+    });
+  if (errUp) {
+    console.error('[docs] erro no upload pro Storage', errUp);
+    showToast('Erro ao enviar o arquivo', 'error');
+    return;
+  }
+
+  const { error: errRow } = await supabase.from('documentos').insert({
+    entidade_id: entidadeAtiva.id,
+    pasta_id: pastaAtual?.id ?? null,
+    nome: arquivo.name,
+    tipo_mime: arquivo.type || 'application/octet-stream',
+    extensao,
+    tamanho_bytes: arquivo.size,
+    storage_path: path,
+    origem: 'manual',
+  });
+  if (errRow) {
+    console.error('[docs] erro ao criar row do documento', errRow);
+    // Sem a row o arquivo é invisível pra UI — limpa o órfão do Storage.
+    await supabase.storage.from(BUCKET).remove([path]);
+    showToast('Erro ao registrar o documento', 'error');
+    return;
+  }
+
+  showToast('Arquivo enviado ✓');
+  carregarDocs().catch(() => {});
 }
 
 function criarLinhaPasta(pasta) {
@@ -319,7 +393,13 @@ function criarCardDocumento(doc) {
     carregarDocs().catch(() => {});
   });
 
+  const btnEditar = document.createElement('button');
+  btnEditar.type = 'button';
+  btnEditar.textContent = '✏️ Editar';
+  btnEditar.addEventListener('click', () => abrirEditorDocumento(doc));
+
   acoes.appendChild(btnAbrir);
+  acoes.appendChild(btnEditar);
   acoes.appendChild(btnFav);
   acoes.appendChild(btnArq);
   detalhe.appendChild(acoes);
@@ -330,6 +410,87 @@ function criarCardDocumento(doc) {
   });
 
   return card;
+}
+
+/**
+ * abrirEditorDocumento (4.C.4b) — renomear, descrever e mover de pasta.
+ * O arquivo no Storage NÃO se move (path é imutável) — só a row muda.
+ */
+async function abrirEditorDocumento(doc) {
+  const { data: pastas } = await supabase
+    .from('pastas')
+    .select('id, nome, nivel, pasta_pai_id')
+    .eq('entidade_id', entidadeAtiva.id)
+    .eq('arquivada', false)
+    .order('nivel')
+    .order('nome');
+
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const inputNome = document.createElement('input');
+  inputNome.type = 'text';
+  inputNome.className = 'nota-editor-titulo';
+  inputNome.placeholder = 'Nome do documento';
+  inputNome.value = doc.nome;
+
+  const inputDesc = document.createElement('input');
+  inputDesc.type = 'text';
+  inputDesc.className = 'nota-editor-titulo';
+  inputDesc.placeholder = 'Descrição (opcional)';
+  inputDesc.value = doc.descricao ?? '';
+
+  const selPasta = document.createElement('select');
+  selPasta.className = 'nota-editor-titulo';
+  const optRaiz = document.createElement('option');
+  optRaiz.value = '';
+  optRaiz.textContent = '🏠 Raiz (sem pasta)';
+  selPasta.appendChild(optRaiz);
+  for (const pasta of pastas || []) {
+    const opt = document.createElement('option');
+    opt.value = pasta.id;
+    opt.textContent = `${'— '.repeat(Math.max(0, pasta.nivel - 1))}📁 ${pasta.nome}`;
+    if (pasta.id === doc.pasta_id) opt.selected = true;
+    selPasta.appendChild(opt);
+  }
+
+  form.appendChild(inputNome);
+  form.appendChild(inputDesc);
+  form.appendChild(selPasta);
+
+  showModal({
+    title: 'Editar documento',
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          const nome = inputNome.value.trim();
+          if (!nome) {
+            showToast('Nome é obrigatório', 'error');
+            return false; // segura o modal
+          }
+          const { error } = await supabase
+            .from('documentos')
+            .update({
+              nome,
+              descricao: inputDesc.value.trim() || null,
+              pasta_id: selPasta.value || null,
+            })
+            .eq('id', doc.id);
+          if (error) {
+            console.error('[docs] erro ao editar documento', error);
+            showToast('Erro ao salvar', 'error');
+            return false;
+          }
+          showToast('Documento salvo');
+          carregarDocs().catch(() => {});
+        },
+      },
+    ],
+  });
 }
 
 /**
