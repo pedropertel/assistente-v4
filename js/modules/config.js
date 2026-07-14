@@ -64,6 +64,7 @@ export async function carregarConfig() {
   raiz.appendChild(await secaoEmpresas());
   raiz.appendChild(await secaoPersonas());
   raiz.appendChild(await secaoAgente());
+  raiz.appendChild(await secaoCentrosCusto());
   raiz.appendChild(await secaoAjustes());
   raiz.appendChild(await secaoLabels());
   raiz.appendChild(await secaoAvancado());
@@ -891,6 +892,196 @@ function abrirEditorJson(cfg) {
           if (await salvarMudancas([{ chave: cfg.chave, valor: novoValor }])) {
             carregarConfig().catch(() => {});
           }
+        },
+      },
+    ],
+  });
+}
+
+// ──────────── 🌱 Centros de custo do Sítio (pedido do Pedro 2026-07-13) ────────────
+//
+// Categorias de sitio_lancamentos — a lista oficial que o Alemão usa no
+// enum da tool e o dash usa nos donuts. Hierarquia de 2 níveis: grupo
+// raiz (sem pai) → subcategoria. Soft-delete (desativar).
+// NOTA: o cache da tool do Alemão na Edge ainda NÃO entra no reset do
+// cache_version (gap conhecido da 4.0) — categoria nova chega no chat
+// quando o isolate recicla (~5min). A tela e o dash veem na hora.
+
+async function secaoCentrosCusto() {
+  const { secao, corpo } = criarSecao('🌱 Centros de custo do Sítio');
+
+  const { data, error } = await supabase
+    .from('sitio_categorias')
+    .select('id, slug, nome, tipo, categoria_pai_id, cor_hex, ordem, ativa')
+    .order('tipo')
+    .order('ordem');
+
+  if (error) {
+    console.error('[config] erro ao carregar categorias do sítio', error);
+    corpo.textContent = 'Erro ao carregar centros de custo.';
+    return secao;
+  }
+
+  const categorias = data || [];
+  const raizes = categorias.filter((c) => !c.categoria_pai_id);
+
+  for (const [tipo, titulo] of [['saida', '↓ Saídas'], ['entrada', '↑ Entradas']]) {
+    const cab = document.createElement('small');
+    cab.className = 'config-rotulo config-categoria';
+    cab.textContent = titulo;
+    corpo.appendChild(cab);
+
+    for (const raiz of raizes.filter((r) => r.tipo === tipo)) {
+      corpo.appendChild(linhaCategoria(raiz, categorias, false));
+      for (const filha of categorias.filter((c) => c.categoria_pai_id === raiz.id)) {
+        corpo.appendChild(linhaCategoria(filha, categorias, true));
+      }
+    }
+  }
+
+  const btnNova = document.createElement('button');
+  btnNova.type = 'button';
+  btnNova.className = 'btn btn-secondary config-btn-add';
+  btnNova.textContent = '+ Novo centro de custo';
+  btnNova.addEventListener('click', () => abrirEditorCategoria(null, categorias));
+  corpo.appendChild(btnNova);
+
+  return secao;
+}
+
+function linhaCategoria(cat, categorias, filha) {
+  const linha = document.createElement('button');
+  linha.type = 'button';
+  linha.className = 'config-linha' + (cat.ativa ? '' : ' inativa') +
+    (filha ? ' config-linha-filha' : '');
+
+  const swatch = document.createElement('span');
+  swatch.className = 'sitio-swatch';
+  swatch.style.backgroundColor = '#' + (cat.cor_hex || '6B7280');
+
+  const nome = document.createElement('span');
+  nome.className = 'config-linha-nome';
+  nome.textContent = cat.nome + (cat.ativa ? '' : ' (inativo)');
+
+  linha.appendChild(swatch);
+  linha.appendChild(nome);
+  linha.addEventListener('click', () => abrirEditorCategoria(cat, categorias));
+  return linha;
+}
+
+function abrirEditorCategoria(cat, categorias) {
+  const form = document.createElement('div');
+  form.className = 'nota-editor';
+
+  const inputNome = document.createElement('input');
+  inputNome.type = 'text';
+  inputNome.className = 'nota-editor-titulo';
+  inputNome.placeholder = 'Nome (ex: Irrigação)';
+  inputNome.value = cat?.nome ?? '';
+
+  const selTipo = document.createElement('select');
+  selTipo.className = 'nota-editor-titulo';
+  for (const [valor, label] of [['saida', '↓ Saída (gasto)'], ['entrada', '↑ Entrada (receita)']]) {
+    const opt = document.createElement('option');
+    opt.value = valor;
+    opt.textContent = label;
+    if (valor === (cat?.tipo ?? 'saida')) opt.selected = true;
+    selTipo.appendChild(opt);
+  }
+
+  // Grupo pai: raízes do MESMO tipo (repopula quando o tipo muda).
+  // Uma raiz com filhas não pode virar filha (só 2 níveis).
+  const temFilhas = cat
+    ? categorias.some((c) => c.categoria_pai_id === cat.id)
+    : false;
+  const selPai = document.createElement('select');
+  selPai.className = 'nota-editor-titulo';
+  const popularPais = () => {
+    selPai.innerHTML = '';
+    const optRaiz = document.createElement('option');
+    optRaiz.value = '';
+    optRaiz.textContent = '— é um grupo (sem pai)';
+    selPai.appendChild(optRaiz);
+    if (temFilhas) return; // grupo com filhas fica raiz
+    for (const raiz of categorias.filter((c) =>
+      !c.categoria_pai_id && c.tipo === selTipo.value && c.id !== cat?.id)) {
+      const opt = document.createElement('option');
+      opt.value = raiz.id;
+      opt.textContent = 'Dentro de: ' + raiz.nome;
+      if (raiz.id === cat?.categoria_pai_id) opt.selected = true;
+      selPai.appendChild(opt);
+    }
+  };
+  popularPais();
+  selTipo.addEventListener('change', popularPais);
+
+  const labelCor = document.createElement('label');
+  labelCor.className = 'config-label-cor';
+  labelCor.textContent = 'Cor (aparece no dash): ';
+  const inputCor = document.createElement('input');
+  inputCor.type = 'color';
+  inputCor.value = '#' + (cat?.cor_hex || '6B7280');
+  labelCor.appendChild(inputCor);
+
+  const labelAtiva = document.createElement('label');
+  labelAtiva.className = 'agenda-check-dia';
+  const chkAtiva = document.createElement('input');
+  chkAtiva.type = 'checkbox';
+  chkAtiva.checked = cat?.ativa ?? true;
+  labelAtiva.appendChild(chkAtiva);
+  labelAtiva.appendChild(document.createTextNode(
+    ' Ativo (inativo sai da lista do Alemão e dos filtros)',
+  ));
+
+  form.appendChild(inputNome);
+  form.appendChild(selTipo);
+  form.appendChild(selPai);
+  form.appendChild(labelCor);
+  form.appendChild(labelAtiva);
+
+  showModal({
+    title: cat ? `Editar ${cat.nome}` : 'Novo centro de custo',
+    body: form,
+    actions: [
+      { label: 'Cancelar', type: 'secondary' },
+      {
+        label: 'Salvar',
+        type: 'primary',
+        onClick: async () => {
+          const nome = inputNome.value.trim();
+          if (!nome) {
+            showToast('Nome é obrigatório', 'error');
+            return false; // segura o modal
+          }
+          // Nome duplicado no mesmo tipo confunde a resolução da tool
+          // (foi a duplicata "Outros" da 4.B.2a) — barra na origem.
+          const duplicado = categorias.some((c) =>
+            c.id !== cat?.id && c.tipo === selTipo.value &&
+            c.nome.toLowerCase() === nome.toLowerCase());
+          if (duplicado) {
+            showToast(`Já existe "${nome}" nesse tipo — usa um nome único`, 'error');
+            return false;
+          }
+          const payload = {
+            nome,
+            tipo: selTipo.value,
+            categoria_pai_id: selPai.value || null,
+            cor_hex: inputCor.value.replace('#', '').toUpperCase(),
+            ativa: chkAtiva.checked,
+          };
+          const op = cat
+            ? supabase.from('sitio_categorias').update(payload).eq('id', cat.id)
+            : supabase.from('sitio_categorias')
+              .insert({ ...payload, slug: slugify(nome), ordem: 50 });
+          const { error } = await op;
+          if (error) {
+            console.error('[config] erro ao salvar categoria', error);
+            showToast('Erro ao salvar centro de custo', 'error');
+            return false;
+          }
+          await bumpCacheVersion();
+          showToast('Salvo ✓ — o Alemão vê em ~5min; telas veem na hora');
+          carregarConfig().catch(() => {});
         },
       },
     ],
