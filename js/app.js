@@ -25,6 +25,8 @@ import './modules/agenda.js';
 import './modules/config.js';
 // 4.C.4 — Documentos: mesmo padrão.
 import './modules/docs.js';
+// 4.C.5 — Dashboard: mesmo padrão.
+import './modules/dashboard.js';
 
 // Flag pra evitar dupla inicialização (REGRA 6 do CLAUDE.md).
 let appInitialized = false;

@@ -961,6 +961,109 @@
       }
     }
 
+    /* ---------- Dashboard (4.C.5) ---------- */
+
+    .dash-conteudo {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .dash-col {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+
+    /* Faixa de Atenção: só existe quando algo estourou. Cor num canal
+       só (borda), texto carrega a urgência — sem árvore de natal. */
+    .dash-atencao {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      width: 100%;
+      min-height: 52px;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-secondary);
+      border: 1px solid var(--danger);
+      border-left-width: 4px;
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .dash-atencao strong {
+      font-size: 14px;
+    }
+
+    .dash-atencao small {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .dash-kpis-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .kpi-valor.dash-warning {
+      color: var(--warning);
+    }
+
+    .dash-kpi-largo {
+      grid-column: span 2;
+    }
+
+    .dash-evento,
+    .dash-ideia {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .dash-ideia {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-3) var(--space-4);
+    }
+
+    .dash-truncar {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dash-mais {
+      min-height: 44px;
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      padding: 0 var(--space-2);
+    }
+
+    .dash-linha-ia {
+      width: 100%;
+      border: 1px solid var(--border);
+      font-family: inherit;
+      cursor: pointer;
+      color: var(--text-secondary);
+      text-align: left;
+    }
+
     /* ---------- Documentos (4.C.4) ---------- */
 
     .docs-trilha {
@@ -2301,9 +2404,10 @@
         <h2 id="page-title">Dashboard</h2>
       </header>
       <div id="page-container">
+        <!-- 4.C.5 — Dashboard: visão geral em 5s, renderizada pelo
+             dashboard.js (page:change). Leitura + navegação, zero edição. -->
         <section class="page" id="page-dashboard">
-          <h1>Dashboard</h1>
-          <p class="page-placeholder">Aqui vai aparecer o resumo do seu dia. Em breve.</p>
+          <div id="dash-conteudo" class="dash-conteudo"></div>
         </section>
 
         <!-- 4.B.1a — Ideias (Marina): lista renderizada pelo ideias.js
