@@ -867,7 +867,7 @@ Cada módulo = 3-5 sub-tarefas (listar → criar → editar → arquivar → [ka
 Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 - [x] **4.C.1** ✅ — Tarefas, completa 2026-07-13 (`dff5a04`): kanban 4 colunas + filtro empresa + CRUD + drag&drop (long-press touch, auto-scroll borda). Lembrete FICOU DE FORA (depende de decidir push/agenda/Marcela — anotado no STATUS).
 - [x] **4.C.2** ✅ — Agenda, completa 2026-07-13 (`75bd0b3`): calendário mensal (dots por empresa, ‹ › + Hoje), lista do dia + Próximos eventos, editor com seletor de data que fecha no toque e horas hh/mm com auto-avanço. Recorrência e lembretes DEPOIS (canal de notificação indefinido).
-- [ ] **4.C.3** — Config: personas, entidades, configs de IA, labels (REGRA 12; depende de 4.0)
+- [x] **4.C.3** ✅ — Config, completa 2026-07-13 (`429a64b`): Empresas + Personas (prompts, aviso no Roteador) + Agente + Ajustes HUMANIZADOS (rework pós-feedback: português/selects/checkboxes; JSON só no Avançado) + Nomes nas telas + Centros de custo do Sítio (hierarquia, anti-duplicata). Todo save bumpa cache_version. Gap anotado: cache da tool do Alemão fora do reset (~5min).
 - [ ] **4.C.4** — Documentos (biblioteca + upload Storage)
 - [ ] **4.C.5** — Dashboard (visão geral; por último, consome os outros)
 - [ ] **4.C.6** — Sítio (relatórios além dos lançamentos), CEDTEC (quando a 3.F voltar)
@@ -888,6 +888,8 @@ Priorizar pelo que o Pedro usa; deixar o resto pra quando pedir.
 ---
 
 ## Fase 5 — Ampliação (depois da Fase 4)
+
+- [ ] **5.x — Vault Obsidian nos agentes (decidido 2026-07-14).** Vault versionado em `github.com/pedropertel/obsidian-vault` (PRIVADO; repo na raiz `~/Documents/Obsidian Vault/`, workspace.json ignorado). Caminho (a) escolhido pelo Pedro: mão dupla via plugin Obsidian Git. Tools da Edge: `consultar_vault` (ler nota via GitHub API, token fine-grained read no Vault do Supabase) e depois escrita (Marcela lançando notas — commit via API; plugin puxa pro Mac). NUNCA expor token no front; repo do vault jamais público.
 
 - **3.F — Marcos + Meta Ads** (PAUSADA por bloqueio externo: Meta Business
   em nome da esposa). Quando o acesso existir: reconstruir o plano detalhado
