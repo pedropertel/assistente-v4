@@ -99,7 +99,12 @@
  *
  * Rate limit (3.G.3): máx `ai_limites.msgs_por_minuto` mensagens
  * user/minuto → 429 ANTES de gastar Anthropic (proteção de custo).
- * Fail-open se a contagem falhar.
+ * Fail-open se a contagem falhar. SEC-1: roda antes do INSERT user.
+ *
+ * Autenticação (SEC-1): gate obrigatório logo após o preflight CORS —
+ * Bearer estrito → /auth/v1/user → user.id === AUTHORIZED_USER_ID
+ * (secret). Anon JWT ou outro usuário → 401/403 antes de qualquer
+ * acesso a banco/Anthropic. Fail-closed se o secret faltar.
  *
  * Voz + sítio (3.H.1): flag `origem_voz` no body → tools de write
  * gravam origem='voz' + transcricao_original. Tool `lancar_custo_sitio`
@@ -928,6 +933,81 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const request_id = generateRequestId();
 
+  // ───────────────────────── SEC-1: gate de autenticação ─────────────────────────
+  // Roda DEPOIS do preflight CORS e ANTES de parse do body, admin client,
+  // qualquer leitura/escrita no banco e Anthropic. A anon JWT (pública no
+  // bundle) não é sessão de usuário — o endpoint /auth/v1/user rejeita.
+  // Fail-closed: secret ausente ou Auth API fora → nega, nunca deixa passar.
+  const authorizedUserId = Deno.env.get('AUTHORIZED_USER_ID') ?? '';
+  if (!authorizedUserId) {
+    logError(
+      'chat-claude.auth_config_ausente',
+      { request_id },
+      new Error('Secret AUTHORIZED_USER_ID não configurado na Edge'),
+    );
+    return jsonResponse(req, 500, {
+      ok: false,
+      error: 'auth_config',
+      message: 'Erro de configuração interna.',
+      request_id,
+    });
+  }
+
+  // Parsing estrito: só "Bearer <token>" (case-insensitive). Token NUNCA logado.
+  const matchBearer = (req.headers.get('Authorization') ?? '')
+    .match(/^Bearer\s+(\S+)$/i);
+  if (!matchBearer) {
+    return jsonResponse(req, 401, {
+      ok: false,
+      error: 'unauthorized',
+      message: 'Autenticação obrigatória.',
+      request_id,
+    });
+  }
+
+  // Valida o token direto na Auth API (sem criar client — o admin client só
+  // nasce depois do gate). 200 = sessão de usuário válida; anon JWT/expirado/
+  // lixo caem no 401.
+  let userId: string | null = null;
+  let authStatus = 0; // 0 = fetch nem completou (Auth API fora)
+  try {
+    const authResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${matchBearer[1]}`,
+        apikey: Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      },
+    });
+    authStatus = authResp.status;
+    if (authResp.ok) {
+      const user = await authResp.json();
+      userId = typeof user?.id === 'string' ? user.id : null;
+    }
+  } catch (err) {
+    logError('chat-claude.auth_api_fail', { request_id }, err);
+    userId = null;
+  }
+  if (!userId) {
+    // auth_status distingue token inválido (401 da Auth) de Auth API
+    // degradada (5xx/0) — os dois viram 401 aqui (fail-closed), mas o
+    // log conta a diferença.
+    logWarn('chat-claude.auth_rejeitada', { request_id, auth_status: authStatus });
+    return jsonResponse(req, 401, {
+      ok: false,
+      error: 'unauthorized',
+      message: 'Sessão inválida ou expirada. Entra de novo.',
+      request_id,
+    });
+  }
+  if (userId !== authorizedUserId) {
+    logWarn('chat-claude.usuario_nao_autorizado', { request_id, user_id: userId });
+    return jsonResponse(req, 403, {
+      ok: false,
+      error: 'forbidden',
+      message: 'Usuário não autorizado.',
+      request_id,
+    });
+  }
+
   // ───────────────────────── parse + validate ─────────────────────────
   // Erros de input respondem JSON normal SEMPRE (mesmo com stream: true) —
   // acontecem antes do stream abrir; o front checa Content-Type do response.
@@ -986,12 +1066,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
   // NOTA: NÃO loga texto — pode conter dados sensíveis.
 
-  // ──────────── Setup + INSERT user (pré-stream nos 2 modos) ────────────
+  // ──────────── Setup (pré-stream nos 2 modos) ────────────
   // Falha aqui é JSON de erro mesmo com stream: true — o stream ainda
   // não abriu, então o front recebe status HTTP de verdade.
+  // SEC-1: o INSERT user desceu pra DEPOIS do rate limit (mais abaixo).
   let supabase: SupabaseClient;
   let agente: AgenteRow;
-  let userMsgId: string;
   try {
     supabase = getSupabaseAdmin();
     // 4.0: checa cache_version ANTES de qualquer leitura cacheada — se
@@ -999,7 +1079,58 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // responde com o dado fresco (getAgenteAssistente abaixo é cacheado).
     await verificarVersaoCache(supabase, request_id);
     agente = await getAgenteAssistente(supabase);
+  } catch (err) {
+    logError('chat-claude.fail', { request_id }, err);
+    const mapped = corpoErro(err, request_id);
+    return jsonResponse(req, mapped.status, mapped.body);
+  }
 
+  // ──────────── Configs do banco + rate limit (3.G.2/3.G.3, SEC-1) ────────────
+  // Configs: 1 SELECT por isolate (cache). Rate limit: conta mensagens
+  // user do último minuto ANTES de gastar Anthropic — proteção de custo
+  // contra loop/bug de front. Roda pré-stream: 429 é JSON nos 2 modos.
+  // SEC-1: a contagem roda ANTES do INSERT user — mensagem rate-limited
+  // não é mais persistida (por isso `>=`: a atual ainda não foi contada).
+  // Com o gate por UUID acima, só o usuário autorizado chega aqui — a
+  // contagem global É a contagem por usuário. Risco remanescente
+  // registrado: COUNT→INSERT não é atômico (concorrência pode furar o
+  // teto) e falha na contagem NÃO bloqueia (fail-open: proteção de
+  // custo, não de acesso — acesso já foi barrado pelo gate).
+  const configs = await getConfigs(supabase, request_id);
+
+  const limitePorMinuto = lerConfig<number>(
+    configs,
+    'ai_limites.msgs_por_minuto',
+    10,
+    request_id,
+  );
+  const { count: msgsUltimoMinuto, error: errRate } = await supabase
+    .from('chat_mensagens')
+    .select('id', { count: 'exact', head: true })
+    .eq('papel', 'user')
+    .gte('created_at', new Date(Date.now() - 60_000).toISOString());
+
+  if (errRate) {
+    logWarn('chat-claude.rate_limit_check_fail', { request_id });
+  } else if ((msgsUltimoMinuto ?? 0) >= limitePorMinuto) {
+    logWarn('chat-claude.rate_limit_hit', {
+      request_id,
+      msgs_ultimo_minuto: msgsUltimoMinuto,
+      limite: limitePorMinuto,
+    });
+    return jsonResponse(req, 429, {
+      ok: false,
+      error: 'rate_limit',
+      message:
+        `Limite de ${limitePorMinuto} mensagens por minuto atingido. ` +
+        'Espera alguns segundos.',
+      request_id,
+    });
+  }
+
+  // ──────────── INSERT user (pré-stream nos 2 modos) ────────────
+  let userMsgId: string;
+  {
     const { data: userMsg, error: errUser } = await supabase
       .from('chat_mensagens')
       .insert({
@@ -1021,50 +1152,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
     userMsgId = userMsg.id as string;
-  } catch (err) {
-    logError('chat-claude.fail', { request_id }, err);
-    const mapped = corpoErro(err, request_id);
-    return jsonResponse(req, mapped.status, mapped.body);
-  }
-
-  // ──────────── Configs do banco + rate limit (3.G.2/3.G.3) ────────────
-  // Configs: 1 SELECT por isolate (cache). Rate limit: conta mensagens
-  // user do último minuto ANTES de gastar Anthropic — proteção de custo
-  // contra loop/bug de front. Roda pré-stream: 429 é JSON nos 2 modos.
-  // Falha na contagem NÃO bloqueia (fail-open: melhor responder do que
-  // travar o Pedro por bug na query).
-  const configs = await getConfigs(supabase, request_id);
-
-  const limitePorMinuto = lerConfig<number>(
-    configs,
-    'ai_limites.msgs_por_minuto',
-    10,
-    request_id,
-  );
-  const { count: msgsUltimoMinuto, error: errRate } = await supabase
-    .from('chat_mensagens')
-    .select('id', { count: 'exact', head: true })
-    .eq('papel', 'user')
-    .gte('created_at', new Date(Date.now() - 60_000).toISOString());
-
-  if (errRate) {
-    logWarn('chat-claude.rate_limit_check_fail', { request_id });
-  } else if ((msgsUltimoMinuto ?? 0) > limitePorMinuto) {
-    // A mensagem atual já foi contada (INSERT user acima) — ela fica
-    // persistida mas sem resposta; o front mostra o toast de 429.
-    logWarn('chat-claude.rate_limit_hit', {
-      request_id,
-      msgs_ultimo_minuto: msgsUltimoMinuto,
-      limite: limitePorMinuto,
-    });
-    return jsonResponse(req, 429, {
-      ok: false,
-      error: 'rate_limit',
-      message:
-        `Limite de ${limitePorMinuto} mensagens por minuto atingido. ` +
-        'Espera alguns segundos.',
-      request_id,
-    });
   }
 
   // ──────────── Pipeline compartilhado (JSON e SSE) ────────────

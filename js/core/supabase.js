@@ -71,8 +71,9 @@ export async function invokeFunction(name, payload) {
  *   - EventSource não faz POST; functions.invoke não expõe o body
  *     como stream. fetch + ReadableStream é o único caminho pra SSE
  *     com POST no browser (Safari iOS 14.5+ suporta).
- *   - Mantém o mesmo padrão de auth do invoke: Bearer do session
- *     token do user logado (fallback anon key) + apikey.
+ *   - Auth (SEC-1): Bearer é SEMPRE o session token do user logado —
+ *     sem fallback pra anon key (a Edge rejeita anon com 401). Sem
+ *     session → erro local, nem faz o request.
  *
  * Parâmetros:
  *   - name: slug da função (ex: 'chat-claude').
@@ -103,7 +104,13 @@ export async function invokeFunctionStream(name, payload, handlers = {}) {
   let resp;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token ?? SUPABASE_KEY;
+    // SEC-1: sem session não tem o que mandar — a anon key seria 401
+    // na Edge de qualquer jeito. Erro local, sem gastar request.
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      clearTimeout(timer);
+      return { error: { message: 'Sessão expirada — entra de novo.' } };
+    }
 
     resp = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
       method: 'POST',
